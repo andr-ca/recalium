@@ -69,9 +69,15 @@ Add any project-specific folders that agents should recognize immediately.
 
 ## Domain Context
 
-- Important domain terms: `<replace>`
-- Critical business rules: `<replace>`
-- Edge cases agents must remember: `<replace>`
+- **Raw Archive**: The immutable store of original source material (chats, files, text).
+- **Derived Memory**: Summaries, chunks, and facts extracted from the Raw Archive.
+- **Canonical Memory**: High-value, user-curated facts promoted from Derived Memory.
+- **Memory Decay**: A temporal weighting system where older or less-accessed memories lose relevance over time.
+- **Conflict Detection**: The process of identifying and flagging contradictory facts (e.g., conflicting user preferences).
+- **Confidence Score**: A metric (0-1) representing the system's certainty in an extracted fact or summary.
+- **Provenance**: The traceable link between a memory and its original source in the Raw Archive.
+- **MCP (Model Context Protocol)**: The standard used to expose memory to external AI agents and tools.
+- **Tombstone**: A record indicating that a piece of data has been deleted or redacted.
 
 ## Maintenance Guidance
 
