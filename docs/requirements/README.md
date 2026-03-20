@@ -14,6 +14,7 @@
 ## Document map
 - [../architecture/architect-handoff.md](../architecture/architect-handoff.md) — explicit architect-facing handoff package
 - [product-overview.md](product-overview.md) — purpose, problem, goals, scope, actors, and product principles
+- [competitive-differentiation.md](competitive-differentiation.md) — competitor comparison, protocol play, and business model
 - [glossary.md](glossary.md) — working domain vocabulary
 - [nfr.md](nfr.md) — cross-cutting non-functional requirements and measurable operating constraints
 - [assumptions-and-risks.md](assumptions-and-risks.md) — assumptions, dependencies, risks, and open questions
@@ -31,9 +32,17 @@ The current draft is strong on product intent and functional scope. No product-s
 
 ## Working decision log
 - Recalium v1 is local-first and single-user.
-- Recalium v1 should run as a local Docker-based service.
+- Recalium v1 runs as a local Docker-based service with two containers: `recalium-app` and `recalium-postgres`.
+- Tech stack is committed: Python/FastAPI, React/TypeScript, PostgreSQL/pgvector. See docs/architecture/tech-stack.md.
 - Recalium v1 decisions should not block a future sellable service or later multi-tenant productization.
-- v1 should preserve service-ready boundaries such as tenant-aware concepts, policy hooks, and deploy-profile separation while still shipping as a single-user local-first product.
+- v1 must NOT add tenant-aware columns, multi-user auth, or enterprise policy engines. Add these when a second tenant exists, not before.
+- The open memory bundle format (JSON export/import) is a first-class deliverable and intended as a publishable open spec.
+- Cold-start is a first-class requirement: bulk import from ChatGPT and Claude exports must ship at launch.
+- Every extracted fact must include source span, confidence tier, derivation method, and derivation model.
+- Hybrid retrieval uses Reciprocal Rank Fusion (RRF) with k=60, top-50 candidate pool per mode, top-20 merged results.
+- Browser extension ("Recalium Capture") is deferred to v2.
+- Temporal decay, confidence-based auto-curation are deferred to v2.
+- WCAG 2.1 AA full compliance is a v2 target; v1 requires no critical accessibility failures and keyboard operability.
 - Recalium v1 may use external providers for summarization, extraction, or embeddings from day one.
 - If external providers are unavailable, v1 should still support keyword search and some basic local processing, while advanced processing waits.
 - The first structured machine-readable export/import format for v1 should be a JSON bundle.

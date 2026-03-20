@@ -6,6 +6,7 @@
 - Scope: Recalium v1 local-first Docker deployment
 
 ## Document map
+- [tech-stack.md](tech-stack.md) — committed tech stack decisions (Python/FastAPI, React/TypeScript, PostgreSQL/pgvector, MCP SDK) — **read this first before implementing anything**
 - [../requirements/README.md](../requirements/README.md) — source requirements index and decision log
 - [../requirements/product-overview.md](../requirements/product-overview.md) — product scope, goals, and baseline decisions
 - [../requirements/nfr.md](../requirements/nfr.md) — measurable non-functional requirements that the architecture must satisfy

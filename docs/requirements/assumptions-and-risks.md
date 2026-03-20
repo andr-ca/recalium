@@ -2,8 +2,10 @@
 
 ## Assumptions
 - v1 is a single-user local-first product.
-- v1 must avoid design choices that block a future sellable service.
-- v1 is deployed primarily as a local Docker-based service.
+- v1 must avoid design choices that block a future sellable service, but must not build multi-tenant complexity before it is needed. No tenant-aware columns, policy engines, or multi-user auth in v1.
+- v1 is deployed primarily as a local Docker-based service with two containers: `recalium-app` and `recalium-postgres`.
+- Tech stack is committed: Python/FastAPI, React/TypeScript, PostgreSQL/pgvector. See docs/architecture/tech-stack.md.
+- Cold-start is a first-class requirement. Users must be able to import ChatGPT and Claude exports at launch. An empty memory system has no value.
 - v1 should preserve service-ready boundaries without introducing full tenant-aware runtime complexity into the first release.
 - v1 may use external providers for parts of the processing pipeline.
 - v1 should remain partially useful without external providers through keyword search and basic local processing.
@@ -46,7 +48,16 @@
 
 ## Key risks
 ### False memories or wrong summaries
-Implication: all derived memory must link back to source, remain editable, and stay distinct from canonical memory.
+Implication: all derived memory must link back to source span, remain editable, and stay distinct from canonical memory. Extraction quality must be measurable against a labeled test corpus.
+
+### Platform resistance
+Implication: AI vendors have incentive to block external MCP memory retrieval. Recalium must deliver value even if no vendor actively supports outbound MCP calls. The local-first posture and manual/system-prompt retrieval paths are the fallback. Do not build on the assumption of vendor cooperation.
+
+### Cold-start abandonment
+Implication: users who set up Recalium but have no prior memory to import will not experience value. Bulk import from major vendor exports must be available at launch and must be the primary onboarding flow.
+
+### Extraction quality drift
+Implication: if extraction quality is not measured against a labeled corpus, degraded extraction will go undetected. The 200-item hand-labeled test corpus and precision target must be maintained as a required artifact, not optional.
 
 ### Sensitive data over-capture
 Implication: conservative defaults, redaction, deletion, exclusion from indexing or embedding, and explicit provider visibility are required.

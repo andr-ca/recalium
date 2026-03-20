@@ -11,14 +11,19 @@ Recalium provides a portable local memory layer that captures user interactions 
 - Processing workers
 - External AI providers, when configured
 
-## Major components
-1. `web-ui` — localhost review and curation client
-2. `api` — local application server for UI, MCP, and internal orchestration
-3. `recalium-capture-extension` — browser-based capture for zero-friction chat ingestion
-4. `worker` — asynchronous processing runner for summaries, extraction, embeddings, indexing, and reprocessing
-4. `postgres` — primary store for raw archive metadata, facts, canonical memory, audit events, and search indexes
-5. `recalium-backup` — scheduled backup and restore coordination component
-6. `import-watcher` — watched-folder ingestion component
+## Runtime components
+Two Docker containers:
+
+1. `recalium-app` — combined application container:
+   - FastAPI API server (Uvicorn)
+   - React UI (served as static files)
+   - In-process background worker (asyncio job loop)
+   - Scheduled backup cron task
+   - Optional import watcher background task
+
+2. `recalium-postgres` — PostgreSQL 16+ with pgvector
+
+See [container-topology.md](container-topology.md) for the rationale and [tech-stack.md](tech-stack.md) for committed stack decisions.
 
 See [ui-architecture.md](ui-architecture.md) for UI-specific workflow and accessibility architecture expectations.
 

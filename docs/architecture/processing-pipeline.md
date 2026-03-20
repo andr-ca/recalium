@@ -37,6 +37,15 @@ Before any external-provider call:
 3. if sensitive or low-confidence/unknown, block external processing unless explicitly overridden
 4. if category/source exclusion rules disable embedding or indexing for the item, skip those downstream steps and record the policy decision in pipeline metadata
 
+## Extraction quality requirements
+Every extracted fact produced by the async pipeline must include:
+- `source_span`: the exact quoted text from the source that the fact was derived from. Facts with no attributable span are marked `low` confidence and must not be auto-promoted.
+- `confidence_tier`: `high`, `medium`, or `low`. Determined by extraction model output or heuristic signal.
+- `derivation_method`: identifier for the extraction method (e.g., `llm_extraction`, `rule_based`).
+- `derivation_model`: the model or method version used (e.g., `gpt-4o`, `local_rules_v1`).
+
+These fields are required. A fact record without a `source_span` and `confidence_tier` is incomplete and must not be published to the search index or retrieval surface.
+
 ## Idempotency
 MCP ingestion should honor an idempotency key where available to avoid duplicate ingestion caused by retries.
 

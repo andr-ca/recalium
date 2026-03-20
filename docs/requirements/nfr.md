@@ -85,10 +85,24 @@ This file captures the current NFR baseline for review.
 - Every summary, fact, and canonical item must expose minimum provenance fields: source item ID, source system, captured timestamp, derivation process, derivation timestamp, session or conversation ID where available, import method, source excerpt or hash, and modifying user or client identity where applicable.
 - Every audit access event must capture timestamp, client or agent identity, operation type, result count, target or query summary, retrieval mode, success or failure status, source or item IDs touched where applicable, and policy decision reason when access is limited.
 
+## Extraction quality
+### Requirements
+- Every extracted fact must include a source span: the exact quoted text from the source it was derived from.
+- Every extracted fact must include a confidence tier: `high`, `medium`, or `low`, based on extraction model output or heuristic signal.
+- Every extracted fact must record the derivation method (e.g., `llm_extraction`, `rule_based`) and the model or method version used.
+- Extraction quality must be measurable: a hand-labeled test corpus of at least 200 input/output pairs must be maintained. At the `high` confidence tier, extracted facts must achieve at least 70% precision on this corpus.
+- Facts with no attributable source span must not be promoted to canonical memory without explicit user confirmation.
+
+## Cold-start
+### Requirements
+- A user must be able to go from zero to their first retrieved search result within 30 minutes using a ChatGPT or Claude conversation export.
+- v1 first-run setup must offer "import your history" as the primary onboarding path.
+- Bulk import from ChatGPT JSON export and Claude JSON export formats must be supported at launch.
+
 ## Accessibility and compatibility
 ### Current baseline
 - The local web UI must be clear, responsive, and support efficient review workflows.
 - The default v1 deployment target is a local Docker-based service with a localhost web UI.
 - The localhost web UI must support the latest Chrome/Chromium browser in v1.
 - Keyboard-only operation is required for core workflows including ingest, search, fact review, canonical edit, review queue, and restore.
-- Core workflows in the localhost web UI must meet WCAG 2.1 AA.
+- Core workflows must have no critical accessibility failures (missing labels, keyboard traps, unannounced state changes). Full WCAG 2.1 AA compliance is a v2 target.
