@@ -77,5 +77,30 @@ Implication: access must be auditable and retrieval behavior should favor releva
 ### Redundant memory pollution
 Implication: duplicate and overlap detection plus cleanup workflows are required.
 
+### Provider key abuse or leakage
+Implication: if Recalium stores user API keys insecurely (even locally), or if a future managed tier leaks keys, user trust collapses. Keys must be stored in local-only config, never in database, never in backups, never in exports. A future managed tier must use Recalium's own keys, never store user keys.
+
+## Competitive response scenarios
+
+### Scenario A — OpenAI ships memory export and import
+- Impact: reduces Recalium's cold-start advantage and portability narrative.
+- Response: emphasize structured extraction, source-backed provenance, and MCP retrieval — features OpenAI is unlikely to offer for competitor tools.
+- Required preparation: none. Recalium's value is in the processing and cross-tool retrieval, not just the storage.
+
+### Scenario B — MCP adoption stalls or a competing protocol wins
+- Impact: core retrieval story weakens significantly.
+- Response: ensure REST API is a first-class retrieval path, not just MCP. Add a system-prompt injector that works with any API-based AI tool regardless of protocol support.
+- Required preparation: v1 must not couple retrieval exclusively to MCP transport. The REST API must provide equivalent retrieval capabilities.
+
+### Scenario C — mem0 or Letta ships a local-first mode
+- Impact: direct competitive overlap with funded competitors.
+- Response: differentiate on provenance, user control, and open format. Accelerate the protocol and format play.
+- Required preparation: publish memory bundle format spec before competitors can define the interchange format.
+
+### Scenario D — Apple or Google ships OS-level AI memory
+- Impact: mainstream users have no reason to use Recalium.
+- Response: target developer and power-user niche explicitly. OS-level memory will be general-purpose; Recalium can be the precision tool for structured, source-backed, cross-tool context.
+- Required preparation: none. Different market segments.
+
 ## Open questions
 - None currently tracked at the product-scope level.

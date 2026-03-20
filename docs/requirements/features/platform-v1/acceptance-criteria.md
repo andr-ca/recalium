@@ -37,6 +37,19 @@
 3. Given an ingest has been acknowledged, when the container restarts or the host reboots with persisted Docker volumes intact, then the raw archive item remains durable and retrievable.
 4. Given machine-client access events are recorded, when the user inspects audit history, then at least 90 days of access-event history are available.
 
+## Anti-criteria (conditions that indicate failure)
+1. Given a user imports a ChatGPT export, when processing completes, if more than 50% of extracted facts are trivial, obvious, or incorrect, then extraction quality is insufficient for launch.
+2. Given a user runs their first search after import, if zero results are relevant to their actual conversation history, then retrieval quality is insufficient for launch.
+3. Given an MCP client retrieves context for a task, if the retrieved context requires more than 30 seconds of user review to confirm relevance, then retrieval signal-to-noise ratio is insufficient.
+4. Given a user completes the first-run wizard with provider configuration, if the total setup time exceeds 30 minutes before the first successful search result, then the cold-start experience has failed its target.
+5. Given a user imports a bulk export with providers configured, if the estimated processing cost is not displayed before the user confirms the import, then cost visibility is insufficient.
+
+## BYOK acceptance criteria
+1. Given a user configures an API key during first-run setup, when the key is validated, then the system confirms success or reports a specific failure reason (invalid key, insufficient permissions, unreachable provider).
+2. Given a user has configured BYOK API keys, when the system performs provider-backed processing, then all provider calls use the user's configured keys and no calls are made to any Recalium-operated service.
+3. Given a user has not configured any API keys, when the user completes first-run setup by skipping provider configuration, then the system remains usable for ingestion, local storage, browsing, and keyword search.
+4. Given a configured API key becomes invalid during processing, when the next provider call fails, then the affected job enters a retryable failed state with a clear error message identifying the key issue.
+
 ## Scope guard acceptance criteria
 1. v1 does not require automated vendor-specific connectors.
 2. v1 does not require multi-user support.

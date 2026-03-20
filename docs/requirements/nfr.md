@@ -85,13 +85,55 @@ This file captures the current NFR baseline for review.
 - Every summary, fact, and canonical item must expose minimum provenance fields: source item ID, source system, captured timestamp, derivation process, derivation timestamp, session or conversation ID where available, import method, source excerpt or hash, and modifying user or client identity where applicable.
 - Every audit access event must capture timestamp, client or agent identity, operation type, result count, target or query summary, retrieval mode, success or failure status, source or item IDs touched where applicable, and policy decision reason when access is limited.
 
+## Processing cost visibility
+### Requirements
+- The system must estimate and display processing cost before executing provider-backed transforms on a batch import.
+- Per-item processing cost must be tracked and surfaceable in the operations view.
+- The user must be able to set a processing cost ceiling per import batch and per calendar period.
+- When the cost ceiling is reached, remaining items must queue in a paused state awaiting user approval to continue.
+- Cost estimation must account for: summarization calls, extraction calls, and embedding generation calls, per provider.
+- First-run import wizard must display an estimated processing cost before the user confirms bulk import.
+- Cost estimation should be based on token count heuristics and published provider pricing. Exact accuracy is not required; order-of-magnitude correctness is.
+
+## API key management (BYOK)
+### Requirements
+- The system must support configuring multiple provider API keys (OpenAI, Anthropic, Ollama endpoint) through settings.
+- API keys must be stored only in local configuration, never transmitted to any Recalium-operated service.
+- API keys must not be included in backups or exports.
+- Key validation must run at configuration time with a lightweight test call, reporting success, failure, or insufficient permissions.
+- The system must display which provider is active for each processing function (summarization, extraction, embeddings).
+- If a configured key becomes invalid or rate-limited mid-processing, affected jobs must enter a retryable failed state with a clear error message, not silently drop.
+- The first-run wizard must explain the BYOK model: what providers are supported, what each is used for, estimated cost per 100 conversations, and a link to each provider's key creation page.
+- The system must support switching providers for a given function without reprocessing already-completed items.
+
+## Usage telemetry (local only)
+### Requirements
+- The system must track local usage metrics: searches per day, retrievals per day, facts reviewed, canonical items created, MCP retrievals vs. UI retrievals.
+- These metrics must be visible in the Settings or Operations view.
+- No telemetry data may leave the local system.
+- These metrics inform the validation gates defined in product-overview.md.
+- Telemetry collection must not measurably impact foreground request performance.
+
 ## Extraction quality
 ### Requirements
 - Every extracted fact must include a source span: the exact quoted text from the source it was derived from.
 - Every extracted fact must include a confidence tier: `high`, `medium`, or `low`, based on extraction model output or heuristic signal.
 - Every extracted fact must record the derivation method (e.g., `llm_extraction`, `rule_based`) and the model or method version used.
-- Extraction quality must be measurable: a hand-labeled test corpus of at least 200 input/output pairs must be maintained. At the `high` confidence tier, extracted facts must achieve at least 70% precision on this corpus.
 - Facts with no attributable source span must not be promoted to canonical memory without explicit user confirmation.
+
+### Test corpus requirements
+- A hand-labeled test corpus must be maintained containing real ChatGPT and Claude export conversations.
+- Corpus composition: at least 50 multi-turn technical conversations, 50 multi-turn non-technical conversations, 50 short or trivial conversations, and 50 mixed-content conversations (code plus prose).
+- Each corpus entry must have human-labeled expected facts with source spans marked.
+- The corpus must be built from real anonymized export data before provider-backed extraction logic is finalized.
+- Extraction quality must be re-measured after any change to prompts, models, or extraction logic.
+
+### Quality targets
+- Precision is measured as: correct extracted facts divided by total extracted facts.
+- Recall is measured as: correct extracted facts divided by total human-labeled expected facts.
+- At the `high` confidence tier, extraction precision target: at least 70%.
+- At the `high` confidence tier, extraction recall target: at least 50%. Under-extraction is acceptable; hallucinated facts are not.
+- At the `medium` confidence tier, precision target: at least 50%. Recall is not gated at this tier.
 
 ## Cold-start
 ### Requirements

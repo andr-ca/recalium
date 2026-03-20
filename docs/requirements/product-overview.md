@@ -64,9 +64,12 @@ The "aha" moment: a user tells a new Claude session something it retrieves from 
 7. Protocol-first — the memory bundle format is an open spec; Recalium is its reference implementation.
 
 ## Business model
-- **Local-first free tier:** full functionality, self-hosted Docker deployment. No user data leaves the machine unless the user configures external AI providers. Always free and open source.
-- **Hosted sync tier (paid):** end-to-end encrypted sync across devices, managed backup, mobile companion. Revenue comes from convenience, not from user data.
+- **Free tier (BYOK):** full functionality, self-hosted Docker deployment. User provides their own provider API keys (OpenAI, Anthropic, Ollama). Processing costs are borne by the user through their own provider accounts. No user data leaves the machine except to the user's own configured providers. Always free and open source.
+- **Managed processing tier (paid):** Recalium-provided API access with pre-configured providers, no key management required, usage-based or flat-rate billing. Revenue comes from processing convenience, not from user data. Can ship at or shortly after v1 launch.
+- **Hosted sync tier (paid, post-v1):** end-to-end encrypted sync across devices, managed backup, mobile companion.
 - **Team tier (future):** shared canonical memory for teams, scoped retrieval, access policy.
+
+The BYOK model is the default. Users who already have provider API keys (the primary target audience) experience full functionality at zero cost. The managed processing tier converts users who prefer convenience over key management.
 
 ## Future-service compatibility baseline
 v1 must not introduce premature multi-tenant runtime complexity. Do not add tenant-aware data model columns, policy engines, or multi-user auth in v1. The correct time to add these is when a second user or tenant exists. Preserve clean module boundaries that would allow these additions without a full rewrite — but do not build them yet.
@@ -139,6 +142,43 @@ PostgreSQL as the primary local database. PostgreSQL full-text search for keywor
 ## UI information architecture baseline
 Left-navigation application layout: Ingest, Archive, Facts, Canonical, Search, Review Queue, Audit, Settings.
 
+## Feature priority (MoSCoW)
+
+### Must have (v1 cannot ship without)
+- Manual import via paste and file upload
+- Bulk import from ChatGPT and Claude export formats
+- Raw archive with source metadata
+- Basic extraction (summarization and fact extraction)
+- Keyword search
+- MCP retrieval with context budgeting
+- Web UI: Ingest, Search, Facts views
+- Deletion workflow
+- BYOK provider configuration
+
+### Should have (expected in v1, deferrable under pressure)
+- Semantic and hybrid search
+- Canonical memory with promotion
+- Duplicate and overlap detection and review queue
+- Watched folder import
+- Audit visibility
+- Provenance on every derived item
+- Processing cost estimation and display
+
+### Could have (valuable if time permits)
+- Markdown-plus-assets export
+- Backup and restore with scheduled retention
+- Degraded-mode handling (keyword-only fallback)
+- Full operations dashboard
+- Keyboard-only accessibility for all core workflows
+
+### Won't have (explicitly v2)
+- Browser extension
+- Temporal decay
+- Auto-curation
+- Cloud sync
+- Multi-user
+- Managed processing tier backend (can be added shortly after v1)
+
 ## Success criteria
 Recalium v1 is successful when:
 1. A user can go from zero to their first retrieved result within 30 minutes using a ChatGPT or Claude conversation export.
@@ -147,8 +187,37 @@ Recalium v1 is successful when:
 4. An MCP-compatible agent or tool can retrieve relevant context from Recalium without any user intervention after initial setup.
 5. Every retrieved fact links back to its source conversation and the exact text span it was derived from.
 
+## Validation gates
+Recalium v1 development should include explicit validation checkpoints that can adjust scope before full delivery.
+
+### Gate 1 — Core value signal (after Slice A plus basic extraction)
+- 10 or more external users have installed and imported conversations.
+- At least 3 users have performed unprompted retrieval (not prompted by a walkthrough).
+- Qualitative feedback collected on: import friction, extraction quality, retrieval relevance.
+- Decision: proceed with full plan, adjust scope, or pivot.
+
+### Gate 2 — MCP value signal (after Slice B plus MCP ingest)
+- At least 3 users have configured MCP retrieval in an AI client.
+- At least 1 user has used MCP retrieval without manual intervention for more than 1 week.
+- Decision: MCP-first strategy validated or adjust retrieval distribution.
+
+### Gate 3 — Retention signal (4 weeks after first external users)
+- Weekly active users returning to search or review.
+- Import volume trending up (users adding more conversations over time).
+- Decision: proceed to release hardening or reassess scope.
+
+## Key bets
+1. Users who try cross-tool memory retrieval will find it valuable enough to maintain the system. (Validated by: Gate 1)
+2. MCP retrieval by agents will be the primary consumption mode, not manual UI search. (Validated by: Gate 2)
+3. Source-backed provenance is a meaningful differentiator users notice, not just a technical feature. (Validated by: user feedback)
+4. The cold-start import experience is good enough to demonstrate value before the user gives up. (Validated by: completion rate of first-run wizard)
+5. BYOK is the natural model for the target audience and does not create meaningful onboarding friction. (Validated by: Gate 1 setup completion rate)
+
 ## Competitive differentiation
 See [competitive-differentiation.md](competitive-differentiation.md).
+
+## Personas
+See [personas.md](personas.md).
 
 ## Open areas still needing clarification
 - None currently tracked at the product-scope level.

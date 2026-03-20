@@ -71,10 +71,11 @@ This means:
 
 ## Business model
 
-Open source core + optional hosted sync tier.
+Open source core with BYOK default and tiered convenience upsells.
 
-- **Local-first free tier:** full functionality, self-hosted, Docker-based. No data leaves the user's machine unless they configure external providers. Always free.
-- **Hosted sync tier (paid):** end-to-end encrypted sync across devices, mobile companion, managed backup. No plaintext user data on servers.
+- **Free tier (BYOK):** full functionality, self-hosted, Docker-based. User provides their own provider API keys. No data leaves the user's machine except to the user's own configured providers. Always free.
+- **Managed processing tier (paid):** Recalium-provided API access, no key management, usage-based or flat-rate billing. Revenue comes from processing convenience. Can ship at or shortly after v1.
+- **Hosted sync tier (paid, post-v1):** end-to-end encrypted sync across devices, mobile companion, managed backup. No plaintext user data on servers.
 - **Team/org tier (future):** shared canonical memory for teams, scoped retrieval, access policy.
 
-This is the Obsidian/Standard Notes model. It aligns monetization with the privacy ethos: we earn revenue from convenience features, not from seeing user data.
+This is the Obsidian/Standard Notes model adapted for AI tooling. BYOK is the default because the target audience already has provider API keys. The managed processing tier converts users who prefer convenience over key management, providing an earlier revenue path than cloud sync alone.

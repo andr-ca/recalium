@@ -1,5 +1,28 @@
 # Platform v1 Workflows
 
+## 0. First-run setup and cold-start
+1. The user starts Recalium for the first time.
+2. The system presents a setup wizard with sequential steps.
+3. Step 1 — Provider configuration (BYOK):
+   a. The system explains the BYOK model: "Recalium uses AI providers for summarization, extraction, and semantic search. You provide your own API keys. Processing costs appear on your provider bill."
+   b. The system shows supported providers with links to their key creation pages.
+   c. The user enters API keys for: embeddings provider, completion provider.
+   d. The system validates each key with a lightweight test call and reports success or failure.
+   e. The user may skip this step. The system clearly states: keyword search only, no extraction or summarization until providers are configured.
+4. Step 2 — Import prompt:
+   a. The system presents "Import your AI history" as the primary call to action.
+   b. The system shows the supported format list and a file picker.
+   c. The user selects an export file.
+5. Step 3 — Import preview:
+   a. The system validates the file format and displays: conversation count, estimated token volume, estimated processing cost (if providers configured), trivial-conversation filter option, and distribution by length and date.
+   b. The user adjusts filters (e.g., skip conversations shorter than 3 turns).
+   c. The user confirms the import (with cost estimate visible if providers are configured).
+6. The system begins synchronous archive persistence and enqueues async processing.
+7. The system shows a progress view with: archived count, processing count, completed count, estimated time remaining.
+8. When the first batch of items is searchable, the system prompts: "Try searching your memory" with a pre-filled example query based on conversation topics detected during import.
+9. The user runs their first search and sees results from their own history.
+10. The setup wizard marks onboarding complete.
+
 ## 1. Manual conversation import
 1. The user opens the ingestion view.
 2. The user pastes text or uploads a supported file.
