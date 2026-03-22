@@ -1,0 +1,21 @@
+---
+// website/src/components/FeatureRow.astro
+interface Props {
+  number: string;
+  title: string;
+  description: string;
+  reverse?: boolean;
+}
+const { number, title, description, reverse = false } = Astro.props;
+---
+
+<div class={`flex flex-col ${reverse ? 'md:flex-row-reverse' : 'md:flex-row'} gap-12 md:gap-20 items-center py-16 border-t border-border`}>
+  <div class="flex-1">
+    <span class="text-xs font-semibold tracking-widest text-accent mb-3 block">{number}</span>
+    <h3 class="text-2xl font-extrabold tracking-tight text-text-primary mb-4">{title}</h3>
+    <p class="text-text-muted leading-relaxed">{description}</p>
+  </div>
+  <div class="flex-1 w-full">
+    <slot />
+  </div>
+</div>

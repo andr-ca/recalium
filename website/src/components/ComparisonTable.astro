@@ -1,0 +1,63 @@
+---
+// website/src/components/ComparisonTable.astro
+type Feature = 'Portable' | 'Local-first' | 'Source-backed' | 'MCP-native' | 'User-controlled' | 'Open source';
+
+const cols = [
+  { name: 'Recalium', highlight: true },
+  { name: 'ChatGPT Memory', highlight: false },
+  { name: 'Claude Projects', highlight: false },
+  { name: 'mem0', highlight: false },
+  { name: 'Obsidian+plugins', highlight: false },
+];
+
+// Recalium checks all; others have partial support
+const checks: Record<Feature, boolean[]> = {
+  'Portable':        [true,  false, false, false, true ],
+  'Local-first':     [true,  false, false, false, true ],
+  'Source-backed':   [true,  false, false, false, true ],
+  'MCP-native':      [true,  false, false, false, false],
+  'User-controlled': [true,  false, false, true,  true ],
+  'Open source':     [true,  false, false, true,  true ],
+};
+
+// Derive rows from checks keys to keep them always in sync
+const rows = Object.keys(checks) as Feature[];
+---
+
+<section class="py-24 px-6 border-t border-border">
+  <div class="max-w-5xl mx-auto">
+    <h2 class="text-3xl md:text-4xl font-extrabold tracking-tight mb-12 text-center text-text-primary">
+      How Recalium compares
+    </h2>
+
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm border-collapse">
+        <thead>
+          <tr>
+            <th scope="col" class="text-left py-3 pr-6 text-text-muted font-medium w-40" aria-hidden="true"></th>
+            {cols.map(({ name, highlight }) => (
+              <th scope="col" class={`py-3 px-4 text-center font-semibold min-w-[80px] ${highlight ? 'text-indigo-light' : 'text-text-muted'}`}>
+                {name}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr class="border-t border-border">
+              <th scope="row" class="py-3 pr-6 text-text-secondary font-normal text-left">{row}</th>
+              {checks[row].map((yes, i) => (
+                <td class={`py-3 px-4 text-center ${cols[i].highlight ? 'bg-surface/50' : ''}`}>
+                  {yes
+                    ? <span class="text-green-400 font-bold" aria-label="Yes">✓</span>
+                    : <span class="text-text-muted" aria-label="No">—</span>
+                  }
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>

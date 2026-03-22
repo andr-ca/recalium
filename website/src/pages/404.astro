@@ -1,0 +1,26 @@
+---
+// website/src/pages/404.astro
+import BaseLayout from '@layouts/BaseLayout.astro';
+---
+
+<BaseLayout
+  title="Recalium — Page Not Found"
+  description="This page doesn't exist."
+>
+  <div class="min-h-screen flex flex-col items-center justify-center text-center px-6 pt-16">
+    <p class="text-xs font-semibold tracking-widest text-accent mb-6 uppercase">404</p>
+    <h1 class="text-4xl md:text-5xl font-extrabold tracking-tight text-text-primary mb-4">
+      This page doesn't exist —<br class="hidden md:block" />
+      <span class="gradient-text">but your AI memory can.</span>
+    </h1>
+    <p class="text-text-muted mb-10 max-w-sm">
+      The page you're looking for has moved or never existed.
+    </p>
+    <a
+      href="/"
+      class="bg-accent text-white font-semibold rounded-full px-6 py-3 text-sm hover:bg-indigo-light transition-colors focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
+    >
+      Back to home
+    </a>
+  </div>
+</BaseLayout>

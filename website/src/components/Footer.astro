@@ -1,0 +1,40 @@
+---
+// website/src/components/Footer.astro
+const links = [
+  { href: '/', label: 'Home' },
+  { href: '/features', label: 'Features' },
+  { href: '/pricing', label: 'Pricing' },
+  { href: '/docs', label: 'Docs' },
+];
+---
+
+<footer class="border-t border-border mt-24 py-12 px-6">
+  <div class="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
+    <div class="flex flex-col items-center md:items-start gap-2">
+      <span class="gradient-text font-extrabold text-base tracking-tight">Recalium</span>
+      <p class="text-xs text-text-muted">Built for developers who use more than one AI</p>
+    </div>
+    <nav aria-label="Footer navigation">
+      <ul class="flex gap-6 list-none flex-wrap justify-center">
+        {links.map(({ href, label }) => (
+          <li>
+            <a href={href} class="text-sm text-text-muted hover:text-text-secondary transition-colors">
+              {label}
+            </a>
+          </li>
+        ))}
+        <li>
+          <a
+            href="https://github.com/recalium/recalium"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="text-sm text-text-muted hover:text-text-secondary transition-colors"
+          >
+            GitHub
+          </a>
+        </li>
+      </ul>
+    </nav>
+    <p class="text-xs text-text-muted">MIT License</p>
+  </div>
+</footer>
