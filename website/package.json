@@ -6,7 +6,8 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "check": "astro check"
+    "check": "astro check",
+    "generate:assets": "node scripts/generate-assets.mjs"
   },
   "packageManager": "pnpm@10.28.0",
   "dependencies": {
