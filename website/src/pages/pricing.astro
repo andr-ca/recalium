@@ -1,0 +1,108 @@
+---
+// website/src/pages/pricing.astro
+import BaseLayout from '@layouts/BaseLayout.astro';
+import CtaSection from '@components/CtaSection.astro';
+
+const freeFeatures = [
+  'Self-hosted via Docker',
+  'Bring your own API keys (OpenAI / Anthropic)',
+  'All ingestion paths (paste, upload, watched folder, MCP)',
+  'Intelligent extraction and embeddings',
+  'Hybrid search & retrieval',
+  'MCP-native retrieval server',
+  'Facts review and curation UI',
+  'JSON export / import',
+  'Full source code — MIT license',
+];
+---
+
+<BaseLayout
+  title="Recalium — Pricing"
+  description="Recalium is free and open source forever. Self-host with Docker and bring your own API keys. A managed processing tier is coming soon."
+>
+  <div class="pt-28 pb-16 px-6">
+    <div class="max-w-4xl mx-auto text-center mb-16">
+      <h1 class="text-4xl md:text-5xl font-extrabold tracking-tight text-text-primary mb-4">
+        Simple, honest pricing
+      </h1>
+      <p class="text-text-muted text-lg">Free forever. No surprises.</p>
+    </div>
+
+    <div class="max-w-3xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6 mb-16">
+
+      <!-- Free tier -->
+      <div class="bg-surface border border-accent rounded-card p-8">
+        <div class="mb-6">
+          <p class="text-xs font-semibold tracking-widest text-accent mb-2">FREE (BYOK)</p>
+          <div class="text-4xl font-extrabold text-text-primary">$0</div>
+          <p class="text-text-muted text-sm mt-1">forever</p>
+        </div>
+        <ul class="space-y-3 mb-8">
+          {freeFeatures.map((f) => (
+            <li class="flex items-start gap-2 text-sm text-text-secondary">
+              <span class="text-green-400 mt-0.5 shrink-0">✓</span>
+              {f}
+            </li>
+          ))}
+        </ul>
+        <a
+          href="/docs"
+          class="block text-center bg-accent text-white font-semibold rounded-full px-6 py-3 text-sm hover:bg-indigo-500 transition-colors"
+        >
+          Get Started Free
+        </a>
+      </div>
+
+      <!-- Managed tier -->
+      <div class="bg-surface border border-border rounded-card p-8 flex flex-col">
+        <div class="mb-6">
+          <div class="flex items-center gap-2 mb-2">
+            <p class="text-xs font-semibold tracking-widest text-text-muted">MANAGED PROCESSING</p>
+            <span class="text-xs bg-surface border border-border rounded-full px-2 py-0.5 text-text-muted">Coming soon</span>
+          </div>
+          <div class="text-4xl font-extrabold text-text-primary">TBD</div>
+          <p class="text-text-muted text-sm mt-1">self-hosted + managed keys</p>
+        </div>
+        <ul class="space-y-3 mb-8 flex-1">
+          <li class="flex items-start gap-2 text-sm text-text-secondary">
+            <span class="text-green-400 mt-0.5 shrink-0">✓</span>
+            Everything in Free
+          </li>
+          <li class="flex items-start gap-2 text-sm text-text-secondary">
+            <span class="text-green-400 mt-0.5 shrink-0">✓</span>
+            Recalium-provided API keys — no key management
+          </li>
+          <li class="flex items-start gap-2 text-sm text-text-muted">
+            <span class="text-text-muted mt-0.5 shrink-0">◦</span>
+            Cloud sync (roadmap)
+          </li>
+          <li class="flex items-start gap-2 text-sm text-text-muted">
+            <span class="text-text-muted mt-0.5 shrink-0">◦</span>
+            Team features (roadmap)
+          </li>
+        </ul>
+        <button
+          disabled
+          class="block w-full text-center border border-border text-text-muted rounded-full px-6 py-3 text-sm cursor-not-allowed opacity-60"
+        >
+          Notify me
+        </button>
+      </div>
+
+    </div>
+
+    <div class="max-w-2xl mx-auto text-center">
+      <p class="text-text-muted text-sm leading-relaxed">
+        Recalium is open source and fully functional at zero cost. Bring your own API keys
+        for OpenAI or Anthropic. The managed processing tier eliminates key management —
+        same product, less setup. Cloud sync and team features are on the roadmap.
+      </p>
+    </div>
+  </div>
+
+  <CtaSection
+    heading="Start for free today"
+    primary={{ label: 'Get Started Free', href: '/docs' }}
+    secondary={{ label: 'Star on GitHub', href: 'https://github.com/recalium/recalium' }}
+  />
+</BaseLayout>
