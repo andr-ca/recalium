@@ -1,0 +1,54 @@
+---
+// website/src/layouts/DocsLayout.astro
+import BaseLayout from './BaseLayout.astro';
+
+interface Props {
+  title: string;
+  description: string;
+}
+const { title, description } = Astro.props;
+
+const sections = [
+  { id: 'prerequisites', label: 'Prerequisites' },
+  { id: 'install', label: 'Install' },
+  { id: 'first-run', label: 'First Run' },
+  { id: 'mcp-setup', label: 'MCP Setup' },
+  { id: 'configuration', label: 'Configuration' },
+];
+---
+
+<BaseLayout {title} {description}>
+  <div class="pt-24 max-w-6xl mx-auto px-6 flex gap-12">
+
+    <!-- Sidebar (desktop) -->
+    <aside class="hidden lg:block w-52 shrink-0 pt-8">
+      <nav class="sticky top-24" aria-label="Docs navigation">
+        <p class="text-xs font-semibold tracking-widest text-text-muted mb-4 uppercase">Getting Started</p>
+        <ul class="space-y-2 list-none">
+          {sections.map(({ id, label }) => (
+            <li>
+              <a
+                href={`#${id}`}
+                class="text-sm text-text-muted hover:text-text-secondary transition-colors block py-1"
+              >
+                {label}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </nav>
+    </aside>
+
+    <!-- Main content -->
+    <article class="flex-1 min-w-0 py-8 pb-24 prose prose-invert prose-sm max-w-none
+      prose-headings:font-extrabold prose-headings:tracking-tight
+      prose-h1:text-3xl prose-h2:text-xl prose-h2:mt-12 prose-h2:border-t prose-h2:border-border prose-h2:pt-8
+      prose-code:bg-[#040810] prose-code:text-[#22d3ee] prose-code:rounded prose-code:px-1.5 prose-code:py-0.5
+      prose-pre:bg-[#040810] prose-pre:border prose-pre:border-border
+      prose-a:text-indigo-light prose-a:no-underline hover:prose-a:underline
+    ">
+      <slot />
+    </article>
+
+  </div>
+</BaseLayout>
