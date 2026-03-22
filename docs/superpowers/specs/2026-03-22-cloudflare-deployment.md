@@ -23,22 +23,28 @@ Deploy the `website/` subdirectory (Astro static output) to Cloudflare Pages aut
 **Permissions:**
 - `pull-requests: write` — required to post the preview URL as a PR comment
 
+**Permissions:**
+- `contents: read` — required by `actions/checkout`
+- `pull-requests: write` — required to post the preview URL as a PR comment
+
 **Steps:**
 1. Checkout repository
-2. Set up pnpm v9
+2. Set up pnpm v9 (pnpm setup action also configures Node.js; no separate Node setup step needed)
 3. Install dependencies in `website/`
 4. Run `pnpm build`
-5. Deploy to Cloudflare Pages as a branch preview using `cloudflare/wrangler-action@v3`
-6. Post the preview URL as a PR comment
+5. Deploy to Cloudflare Pages as a branch preview using `cloudflare/wrangler-action@v3` — capture the step output `deployment-url` via `id: deploy`
+6. Post the preview URL as a PR comment using `actions/github-script`, reading `${{ steps.deploy.outputs.deployment-url }}`
 
 **Wrangler action config:**
 ```yaml
-uses: cloudflare/wrangler-action@v3
-with:
-  apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-  accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-  command: pages deploy dist --project-name recalium
-  workingDirectory: website
+- name: Deploy preview
+  id: deploy
+  uses: cloudflare/wrangler-action@v3
+  with:
+    apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    command: pages deploy dist --project-name recalium
+    workingDirectory: website
 ```
 
 ---
@@ -47,9 +53,12 @@ with:
 
 **Trigger:** `push` to `main`
 
+**Permissions:**
+- `contents: read` — required by `actions/checkout`
+
 **Steps:**
 1. Checkout repository
-2. Set up pnpm v9
+2. Set up pnpm v9 (also configures Node.js)
 3. Install dependencies in `website/`
 4. Run `pnpm build`
 5. Deploy to Cloudflare Pages production using `cloudflare/wrangler-action@v3`
@@ -89,7 +98,7 @@ Both secrets must be added as GitHub Actions repository secrets (Settings → Se
 | Build output directory | `website/dist` (Astro default) |
 | Production branch | `main` |
 | pnpm version | `9` |
-| Node.js version | `lts/*` |
+| Node.js version | `lts/*` — configured automatically by the pnpm setup action; no separate `setup-node` step needed |
 
 ---
 
