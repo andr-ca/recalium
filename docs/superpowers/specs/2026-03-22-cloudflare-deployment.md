@@ -21,9 +21,6 @@ Deploy the `website/` subdirectory (Astro static output) to Cloudflare Pages aut
 **Trigger:** `pull_request` targeting `main`
 
 **Permissions:**
-- `pull-requests: write` — required to post the preview URL as a PR comment
-
-**Permissions:**
 - `contents: read` — required by `actions/checkout`
 - `pull-requests: write` — required to post the preview URL as a PR comment
 
