@@ -1,13 +1,6 @@
 ---
 // website/src/components/ComparisonTable.astro
-const rows = [
-  'Portable',
-  'Local-first',
-  'Source-backed',
-  'MCP-native',
-  'User-controlled',
-  'Open source',
-];
+type Feature = 'Portable' | 'Local-first' | 'Source-backed' | 'MCP-native' | 'User-controlled' | 'Open source';
 
 const cols = [
   { name: 'Recalium', highlight: true },
@@ -18,7 +11,7 @@ const cols = [
 ];
 
 // Recalium checks all; others have partial support
-const checks: Record<string, boolean[]> = {
+const checks: Record<Feature, boolean[]> = {
   'Portable':        [true,  false, false, false, true ],
   'Local-first':     [true,  false, false, false, true ],
   'Source-backed':   [true,  false, false, false, true ],
@@ -26,6 +19,9 @@ const checks: Record<string, boolean[]> = {
   'User-controlled': [true,  false, false, true,  true ],
   'Open source':     [true,  false, false, true,  true ],
 };
+
+// Derive rows from checks keys to keep them always in sync
+const rows = Object.keys(checks) as Feature[];
 ---
 
 <section class="py-24 px-6 border-t border-border">
@@ -38,9 +34,9 @@ const checks: Record<string, boolean[]> = {
       <table class="w-full text-sm border-collapse">
         <thead>
           <tr>
-            <th class="text-left py-3 pr-6 text-text-muted font-medium w-40"></th>
+            <th scope="col" class="text-left py-3 pr-6 text-text-muted font-medium w-40" aria-hidden="true"></th>
             {cols.map(({ name, highlight }) => (
-              <th class={`py-3 px-4 text-center font-semibold ${highlight ? 'text-indigo-light' : 'text-text-muted'}`}>
+              <th scope="col" class={`py-3 px-4 text-center font-semibold min-w-[80px] ${highlight ? 'text-indigo-light' : 'text-text-muted'}`}>
                 {name}
               </th>
             ))}
@@ -49,7 +45,7 @@ const checks: Record<string, boolean[]> = {
         <tbody>
           {rows.map((row) => (
             <tr class="border-t border-border">
-              <td class="py-3 pr-6 text-text-secondary">{row}</td>
+              <th scope="row" class="py-3 pr-6 text-text-secondary font-normal text-left">{row}</th>
               {checks[row].map((yes, i) => (
                 <td class={`py-3 px-4 text-center ${cols[i].highlight ? 'bg-surface/50' : ''}`}>
                   {yes
