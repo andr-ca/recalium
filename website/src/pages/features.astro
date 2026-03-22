@@ -1,0 +1,78 @@
+---
+// website/src/pages/features.astro
+import BaseLayout from '@layouts/BaseLayout.astro';
+import FeatureRow from '@components/FeatureRow.astro';
+import CtaSection from '@components/CtaSection.astro';
+import McpFlow from '@components/diagrams/McpFlow.astro';
+import FactsReview from '@components/diagrams/FactsReview.astro';
+import SensitivityGate from '@components/diagrams/SensitivityGate.astro';
+---
+
+<BaseLayout
+  title="Recalium — Features"
+  description="Zero-friction ingestion, intelligent extraction, hybrid search, MCP-native retrieval, fact curation, and privacy by default."
+>
+  <div class="pt-28 pb-0 px-6 text-center">
+    <div class="max-w-3xl mx-auto">
+      <h1 class="text-4xl md:text-5xl font-extrabold tracking-tight text-text-primary mb-4">
+        Everything you need to own<br class="hidden md:block" /> your AI memory
+      </h1>
+    </div>
+  </div>
+
+  <div class="max-w-5xl mx-auto px-6">
+
+    <FeatureRow number="01" title="Zero-friction ingestion" description="Paste, upload, watched folder, or MCP ingest. All paths feed one durable archive with full provenance tracking.">
+      <figure class="bg-page border border-border rounded-[6px] p-4 font-mono text-xs leading-relaxed" aria-label="MCP ingest code example">
+        <div class="text-[#475569] mb-2">// ingest via MCP</div>
+        <div><span class="text-[#818cf8]">ingest</span>({'({'}</div>
+        <div>&nbsp;&nbsp;source: <span class="text-[#a78bfa]">"chatgpt-export.zip"</span>,</div>
+        <div>&nbsp;&nbsp;metadata: {`{`}</div>
+        <div>&nbsp;&nbsp;&nbsp;&nbsp;provider: <span class="text-[#a78bfa]">"openai"</span>,</div>
+        <div>&nbsp;&nbsp;&nbsp;&nbsp;imported_at: <span class="text-[#f59e0b]">Date.now()</span></div>
+        <div>&nbsp;&nbsp;{`}`}</div>
+        <div>{'})'}</div>
+        <div class="mt-2 text-green-400">// ✓ 1,247 memories archived</div>
+      </figure>
+    </FeatureRow>
+
+    <FeatureRow number="02" title="Intelligent extraction" description="Facts, summaries, and embeddings with source spans and confidence tiers. Bring your own API key — your model, your bill." reverse>
+      <figure class="bg-page border border-border rounded-[6px] p-4 font-mono text-xs leading-relaxed" aria-label="Extracted fact JSON example">
+        <div class="text-[#475569] mb-2">// extracted fact</div>
+        <div>{`{`}</div>
+        <div>&nbsp;&nbsp;<span class="text-[#22d3ee]">fact</span>: <span class="text-[#a78bfa]">"Prefers TypeScript"</span>,</div>
+        <div>&nbsp;&nbsp;<span class="text-[#22d3ee]">source_span</span>: <span class="text-[#a78bfa]">"msg_291"</span>,</div>
+        <div>&nbsp;&nbsp;<span class="text-[#22d3ee]">confidence_tier</span>: <span class="text-[#a78bfa]">"high"</span>,</div>
+        <div>&nbsp;&nbsp;<span class="text-[#22d3ee]">derivation_method</span>: <span class="text-[#a78bfa]">"llm_extract"</span></div>
+        <div>{`}`}</div>
+      </figure>
+    </FeatureRow>
+
+    <FeatureRow number="03" title="Hybrid search & retrieval" description="Keyword, semantic, or hybrid search with Reciprocal Rank Fusion. Context-budgeted retrieval keeps responses within token limits, with source attribution on every result.">
+      <figure class="bg-page border border-border rounded-[6px] p-4 font-mono text-xs leading-relaxed" aria-label="Context assembly response JSON example">
+        <div class="text-[#475569] mb-2">// context assembly response</div>
+        <div>{`{`}</div>
+        <div>&nbsp;&nbsp;<span class="text-[#22d3ee]">query</span>: <span class="text-[#a78bfa]">"typescript patterns"</span>,</div>
+        <div>&nbsp;&nbsp;<span class="text-[#22d3ee]">items</span>: [ <span class="text-[#475569]">/* 8 results */</span> ],</div>
+        <div>&nbsp;&nbsp;<span class="text-[#22d3ee]">budget_used</span>: <span class="text-[#f59e0b]">2841</span>,</div>
+        <div>&nbsp;&nbsp;<span class="text-[#22d3ee]">provenance</span>: [ <span class="text-[#475569]">/* sources */</span> ]</div>
+        <div>{`}`}</div>
+      </figure>
+    </FeatureRow>
+
+    <FeatureRow number="04" title="MCP-native retrieval" description="Agents and tools retrieve memory without manual intervention. Works with Claude Code, Cursor, and any MCP-compatible client." reverse>
+      <McpFlow />
+    </FeatureRow>
+
+    <FeatureRow number="05" title="Review & curate" description="Browse extracted facts, inspect provenance, promote to canonical memory, and resolve duplicates. Full visibility into what Recalium knows.">
+      <FactsReview />
+    </FeatureRow>
+
+    <FeatureRow number="06" title="Private by default" description="Localhost-only by default. Sensitivity gate classifies content before indexing. Cascade deletion and a full audit trail." reverse>
+      <SensitivityGate />
+    </FeatureRow>
+
+  </div>
+
+  <CtaSection heading="Ready to own your AI memory?" />
+</BaseLayout>
