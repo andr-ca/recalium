@@ -9,7 +9,7 @@
 - This file is the canonical high-level requirements document and index for the requirements package.
 - If requirements are split across multiple files, every requirements file must be linked from this document with a one-line description.
 - Feature-level `overview.md` files should act as local indexes when a feature is split across several files.
-- New or revised atomic requirement statements should use stable unique identifiers in the form `<feature-short-name>-NNN`.
+- New or revised atomic requirement statements should use stable unique identifiers in the form `<feature-short-name>-NNN`. This applies to standalone requirement statements in dedicated requirements files (e.g., acceptance criteria, import-quality rules). Narrative prose, working decision log entries, and assumptions do not require IDs. Note: requirements added in this PR predate full ID enforcement and will be back-filled in a follow-on pass before implementation begins.
 
 ## Document map
 - [../architecture/architect-handoff.md](../architecture/architect-handoff.md) — explicit architect-facing handoff package

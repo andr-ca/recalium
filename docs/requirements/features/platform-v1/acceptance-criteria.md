@@ -29,7 +29,7 @@
 26. Given scheduled backups are enabled, when the system runs under normal local conditions, then it creates daily backups, retains 30 days of successful backups, and allows restoring any successful backup within 15 minutes.
 27. Given a successful restore is performed from a valid backup, when restore completes, then raw archive items, summaries, structured facts, canonical memory, provenance metadata, retained audit events, and dataset-required configuration are available in the restored system state.
 28. Given the user uses core workflows by keyboard only, when navigating ingest, search, fact review, canonical edit, review queue, or restore flows, then the workflow remains operable without requiring a mouse.
-29. Given the user exports a human-readable archive, when the zip is opened, then it contains a top-level index, type-based folders, and manifest metadata that preserves provenance and source/session links.
+29. *(Could have — conditional on implementation)* Given the user exports a human-readable archive, when the zip is opened, then it contains a top-level index, type-based folders, and manifest metadata that preserves provenance and source/session links.
 
 ## Cross-cutting NFR acceptance criteria
 1. Given a paste import or file upload up to 5 MB under normal local conditions, when ingestion is acknowledged, then acknowledgement occurs within $P95 \le 1\text{ s}$.

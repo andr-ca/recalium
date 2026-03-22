@@ -129,7 +129,6 @@ The first-run wizard must offer "import your history" as the primary onboarding 
 - Advanced automatic conflict resolution
 - Multi-user support
 - Cloud sync (hosted sync tier is post-v1)
-- Markdown/zip human-readable export (nice-to-have; JSON bundle is sufficient for v1)
 - Tenant-aware data model seams (premature; add when a second tenant exists)
 
 ## Ingestion and processing baseline

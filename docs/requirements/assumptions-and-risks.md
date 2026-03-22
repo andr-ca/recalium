@@ -29,7 +29,7 @@
 - v1 backup baseline is daily backups, 30-day retention, and restore within 15 minutes.
 - v1 browser support target is the latest Chrome/Chromium only.
 - v1 requires keyboard-only operation for core UI workflows.
-- v1 accessibility target is WCAG 2.1 AA for core workflows.
+- v1 accessibility target is no critical accessibility failures (missing labels, keyboard traps, unannounced state changes) plus keyboard operability for core workflows. Full WCAG 2.1 AA compliance is a v2 target.
 - v1 first-run setup should offer provider configuration without making providers mandatory for initial usability.
 - v1 should retain access-event history for at least 90 days.
 - v1 human-readable export zip should use a hybrid structure with a top-level index, type-based folders, and manifest metadata linking items back to source and session context.

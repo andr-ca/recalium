@@ -5,7 +5,7 @@ Recalium is a local-first, MCP-enabled personal memory platform that captures us
 ## Project Overview
 
 - **Purpose:** Provide a portable memory layer that persists across models, sessions, and applications while remaining inspectable and user-controlled.
-- **Architecture:** Modular monolith deployed as Docker containers (`recalium-api`, `recalium-worker`, `recalium-postgres`, `recalium-backup`, `recalium-import-watcher`).
+- **Architecture:** Modular monolith deployed as two Docker containers (`recalium-app`, `recalium-postgres`). Worker, backup scheduler, and import-watcher run as in-process tasks inside `recalium-app`.
 - **Core Stack:**
   - **Backend:** Python 3.12 + FastAPI + SQLAlchemy.
   - **Database:** PostgreSQL with `pgvector` (semantic search) and Full-Text Search (keyword search).

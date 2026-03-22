@@ -77,6 +77,8 @@ Users and MCP-compatible tools should be able to retrieve durable, source-backed
 ## 13. Files created or updated
 - [docs/requirements/README.md](../../requirements/README.md) — requirements index and decision log
 - [docs/requirements/product-overview.md](../../requirements/product-overview.md) — product purpose, scope, goals, and baseline decisions
+- [docs/requirements/personas.md](../../requirements/personas.md) — user personas
+- [docs/requirements/competitive-differentiation.md](../../requirements/competitive-differentiation.md) — competitor comparison and business model
 - [docs/requirements/glossary.md](../../requirements/glossary.md) — shared domain vocabulary
 - [docs/requirements/nfr.md](../../requirements/nfr.md) — measurable cross-cutting constraints
 - [docs/requirements/assumptions-and-risks.md](../../requirements/assumptions-and-risks.md) — assumptions, risks, dependencies, and resolved open-question state
@@ -84,6 +86,7 @@ Users and MCP-compatible tools should be able to retrieve durable, source-backed
 - [docs/requirements/features/platform-v1/workflows.md](../../requirements/features/platform-v1/workflows.md) — primary workflows
 - [docs/requirements/features/platform-v1/rules-and-edge-cases.md](../../requirements/features/platform-v1/rules-and-edge-cases.md) — rule and failure handling
 - [docs/requirements/features/platform-v1/acceptance-criteria.md](../../requirements/features/platform-v1/acceptance-criteria.md) — implementation-ready acceptance criteria
+- [docs/requirements/features/platform-v1/import-quality.md](../../requirements/features/platform-v1/import-quality.md) — import data quality requirements
 - [docs/operational/requirements-reviews/recalium-v1-review-handoff.md](../../operational/requirements-reviews/recalium-v1-review-handoff.md) — reviewer handoff package
 
 ## 14. Validation result

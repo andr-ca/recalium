@@ -1,7 +1,15 @@
 # Component Boundaries
 
-## Runtime components
-### `recalium-api`
+## Runtime topology
+
+The v1 runtime consists of two Docker containers:
+- **`recalium-app`** — the application container, running API, worker loop, backup scheduler, and import-watcher as in-process tasks.
+- **`recalium-postgres`** — the PostgreSQL database container.
+
+The sections below describe the logical process boundaries and responsibilities **within `recalium-app`**. These are architectural modules, not separate containers or processes.
+
+## Logical processes within `recalium-app`
+### API process (`recalium-api` logical boundary)
 Owns:
 - UI-serving endpoints or frontend hosting integration
 - local REST/API surface
@@ -17,7 +25,7 @@ Must not own:
 - scheduled backup execution
 - heavy reprocessing loops
 
-### `recalium-worker`
+### Worker process (`recalium-worker` logical boundary)
 Owns:
 - queued derivation jobs
 - summarization, extraction, duplicate detection, embeddings, and indexing
@@ -28,21 +36,21 @@ Must not own:
 - direct user session management
 - primary request-response retrieval serving
 
-### `recalium-postgres`
+### Database container (`recalium-postgres`)
 Owns:
 - durable persistence for archive, memory, audit, operations metadata, and search indexes
 - FTS indexes
 - vector storage and indexes via `pgvector`
 - queue tables or durable job state if the v1 queue is database-backed
 
-### `recalium-backup`
+### Backup scheduler process (`recalium-backup` logical boundary)
 Owns:
 - scheduled backup creation
 - backup manifest generation
 - restore orchestration
 - backup retention enforcement
 
-### `recalium-import-watcher`
+### Import-watcher process (`recalium-import-watcher` logical boundary)
 Owns:
 - watched-folder scan/detect loop
 - handoff of detected files into the same ingest contract used by API/MCP ingestion
