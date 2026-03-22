@@ -30,6 +30,23 @@ jobs:
         run: pnpm build
         working-directory: website
 
+      - name: Ensure Cloudflare Pages project exists
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            -H "Content-Type: application/json" \
+            --data '{"name":"recalium","production_branch":"main"}')
+          if [ "$STATUS" = "200" ] || [ "$STATUS" = "409" ]; then
+            echo "Project ready (status $STATUS)"
+          else
+            echo "Unexpected status $STATUS when creating project" >&2
+            exit 1
+          fi
+
       - name: Deploy to Cloudflare Pages (production)
         uses: cloudflare/wrangler-action@v3
         with:
