@@ -11,16 +11,9 @@ const currentPath = Astro.url.pathname;
 
 <header
   id="nav"
-  class="fixed top-0 left-0 right-0 z-50 border-b border-transparent transition-all duration-200"
-  style="background: rgba(6,9,15,0); backdrop-filter: blur(0px);"
+  class="fixed top-0 left-0 right-0 z-50 border-b border-transparent transition-all duration-200 nav-transparent"
 >
-  <!-- Skip to content -->
-  <a
-    href="#main-content"
-    class="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:bg-accent focus:text-white focus:px-4 focus:py-2 focus:rounded"
-  >
-    Skip to content
-  </a>
+  <!-- Skip to content link moved to BaseLayout.astro -->
 
   <nav class="max-w-6xl mx-auto px-6 h-14 flex items-center gap-8" aria-label="Main navigation">
     <!-- Logo -->
@@ -55,7 +48,7 @@ const currentPath = Astro.url.pathname;
         rel="noopener noreferrer"
         class="text-sm text-text-muted hover:text-text-secondary border border-border rounded-full px-4 py-1.5 transition-colors"
       >
-        ★ GitHub
+        <span aria-hidden="true">★</span> GitHub
       </a>
       <a
         href="/docs"
@@ -89,7 +82,11 @@ const currentPath = Astro.url.pathname;
     <ul class="flex flex-col gap-4 list-none" role="list">
       {links.map(({ href, label }) => (
         <li>
-          <a href={href} class="text-sm text-text-secondary">
+          <a
+            href={href}
+            class="text-sm text-text-secondary"
+            aria-current={currentPath === href ? 'page' : undefined}
+          >
             {label}
           </a>
         </li>
@@ -101,7 +98,7 @@ const currentPath = Astro.url.pathname;
           rel="noopener noreferrer"
           class="text-sm text-text-muted"
         >
-          ★ GitHub
+          <span aria-hidden="true">★</span> GitHub
         </a>
       </li>
       <li>
@@ -124,15 +121,13 @@ const currentPath = Astro.url.pathname;
 
   function updateNav() {
     if (window.scrollY > 20) {
-      nav?.setAttribute('style',
-        'background: rgba(6,9,15,0.85); backdrop-filter: blur(12px);'
-      );
+      nav?.classList.add('nav-scrolled');
+      nav?.classList.remove('nav-transparent');
       nav?.classList.add('border-border');
       nav?.classList.remove('border-transparent');
     } else {
-      nav?.setAttribute('style',
-        'background: rgba(6,9,15,0); backdrop-filter: blur(0px);'
-      );
+      nav?.classList.remove('nav-scrolled');
+      nav?.classList.add('nav-transparent');
       nav?.classList.remove('border-border');
       nav?.classList.add('border-transparent');
     }

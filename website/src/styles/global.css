@@ -32,6 +32,16 @@
     pointer-events: none;
     z-index: 0;
   }
+
+  .nav-transparent {
+    background: rgba(6,9,15,0);
+    backdrop-filter: blur(0px);
+  }
+
+  .nav-scrolled {
+    background: rgba(6,9,15,0.85);
+    backdrop-filter: blur(12px);
+  }
 }
 
 @layer utilities {

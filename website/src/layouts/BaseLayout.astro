@@ -16,7 +16,8 @@ const {
   ogImage = '/og/default.png',
 } = Astro.props;
 
-const canonicalURL = new URL(Astro.url.pathname, Astro.site);
+const site = Astro.site ?? new URL('http://localhost:4321');
+const canonicalURL = new URL(Astro.url.pathname, site);
 ---
 
 <!doctype html>
@@ -39,13 +40,19 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
     <meta property="og:url" content={canonicalURL} />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
-    <meta property="og:image" content={new URL(ogImage, Astro.site)} />
+    <meta property="og:image" content={new URL(ogImage, site)} />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
-    <meta name="twitter:image" content={new URL(ogImage, Astro.site)} />
+    <meta name="twitter:image" content={new URL(ogImage, site)} />
   </head>
   <body class="bg-page text-text-primary font-sans antialiased">
+    <a
+      href="#main-content"
+      class="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-50 focus:bg-accent focus:text-white focus:px-4 focus:py-2 focus:rounded"
+    >
+      Skip to content
+    </a>
     <Nav />
     <main id="main-content">
       <slot />
