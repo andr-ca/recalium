@@ -1,0 +1,42 @@
+---
+// website/src/components/CtaSection.astro
+interface Props {
+  heading?: string;
+  primary?: { label: string; href: string };
+  secondary?: { label: string; href: string };
+}
+
+const {
+  heading = 'Ready to own your AI memory?',
+  primary = { label: 'Get Started', href: '/docs' },
+  secondary = { label: 'Star on GitHub', href: 'https://github.com/recalium/recalium' },
+} = Astro.props;
+
+const isExternal = (href: string) => href.startsWith('http');
+---
+
+<section class="py-24 px-6 border-t border-border text-center">
+  <div class="max-w-xl mx-auto">
+    <h2 class="text-3xl md:text-4xl font-extrabold tracking-tight mb-8 text-text-primary">
+      {heading}
+    </h2>
+    <div class="flex gap-3 justify-center flex-wrap">
+      <a
+        href={primary.href}
+        target={isExternal(primary.href) ? '_blank' : undefined}
+        rel={isExternal(primary.href) ? 'noopener noreferrer' : undefined}
+        class="bg-accent text-white font-semibold rounded-full px-6 py-3 text-sm hover:bg-indigo-500 transition-colors focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
+      >
+        {primary.label}
+      </a>
+      <a
+        href={secondary.href}
+        target={isExternal(secondary.href) ? '_blank' : undefined}
+        rel={isExternal(secondary.href) ? 'noopener noreferrer' : undefined}
+        class="border border-border text-text-muted rounded-full px-6 py-3 text-sm hover:text-text-secondary hover:border-text-muted transition-colors focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
+      >
+        {secondary.label}
+      </a>
+    </div>
+  </div>
+</section>
