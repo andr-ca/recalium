@@ -22,7 +22,7 @@ Core operating rules:
 	  - `agents/project.instructions.md`
 	  - `agents/python.instructions.md` for Python work
 	  - `agents/tdd.instructions.md`
-	  - `docs/operational/AGENT_ARTIFACT_CONVENTIONS.md`
+	  - any operational artifact-conventions documentation under `docs/operational/` or equivalent paths
 	  - the relevant task plan in `agents/docs/feat-<name>.jsonl` when available
 	  - any related review documents, requirements, setup docs, or acceptance criteria referenced by the request
 	- Then analyze the testing scope: task goal, changed files, artifact types, target workflows, expected outcomes, environment assumptions, and whether the task is code-related or documentation-only.
@@ -67,7 +67,7 @@ Core operating rules:
 	- Prefer deterministic, user-visible flows over brittle incidental checks.
 
 7. Save all evidence.
-	- Follow `docs/operational/AGENT_ARTIFACT_CONVENTIONS.md` as the source of truth for task naming, timestamps, report paths, and artifact directories.
+	- Follow the repository's operational artifact conventions documentation (for example, any docs under `docs/operational/`) as the source of truth for task naming, timestamps, report paths, and artifact directories when it exists; otherwise, use the conventions defined in this section.
 	- Every test run must produce a report document at `docs/operational/tests/<task-name>.<timestamp>.md`.
 	- Save test artifacts under `docs/operational/tests/artifacts/<task-name>.<timestamp>/`.
 	- Save CLI evidence there, such as:
