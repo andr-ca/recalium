@@ -138,64 +138,70 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| INGT-01 | Phase 1 | Pending |
-| INGT-02 | Phase 1 | Pending |
-| INGT-03 | Phase 1 | Pending |
-| INGT-04 | Phase 5 | Pending |
-| INGT-05 | Phase 5 | Pending |
-| PIPE-01 | Phase 2 | Pending |
-| PIPE-02 | Phase 2 | Pending |
-| PIPE-03 | Phase 2 | Pending |
-| PIPE-04 | Phase 2 | Pending |
-| PIPE-05 | Phase 2 | Pending |
-| SRCH-01 | Phase 3 | Pending |
-| SRCH-02 | Phase 3 | Pending |
-| SRCH-03 | Phase 3 | Pending |
-| SRCH-04 | Phase 3 | Pending |
-| SRCH-05 | Phase 3 | Pending |
-| SRCH-06 | Phase 3 | Pending |
-| MCP-01 | Phase 3 | Pending |
-| MCP-02 | Phase 5 | Pending |
-| MCP-03 | Phase 3 | Pending |
-| MCP-04 | Phase 3 | Pending |
-| CANM-01 | Phase 3 | Pending |
-| CANM-02 | Phase 3 | Pending |
-| CANM-03 | Phase 3 | Pending |
-| CANM-04 | Phase 3 | Pending |
-| CANM-05 | Phase 3 | Pending |
-| CANM-06 | Phase 3 | Pending |
-| PRIV-01 | Phase 4 | Pending |
-| PRIV-02 | Phase 4 | Pending |
-| PRIV-03 | Phase 4 | Pending |
-| PRIV-04 | Phase 2 | Pending |
-| PRIV-05 | Phase 2 | Pending |
-| PRIV-06 | Phase 4 | Pending |
-| BYOK-01 | Phase 4 | Pending |
-| BYOK-02 | Phase 1 | Pending |
-| BYOK-03 | Phase 1 | Pending |
-| BYOK-04 | Phase 1 | Pending |
-| BYOK-05 | Phase 1 | Pending |
-| BYOK-06 | Phase 4 | Pending |
-| BYOK-07 | Phase 2 | Pending |
-| BYOK-08 | Phase 2 | Pending |
-| BKUP-01 | Phase 4 | Pending |
-| BKUP-02 | Phase 4 | Pending |
-| BKUP-03 | Phase 4 | Pending |
-| BKUP-04 | Phase 1 | Pending |
-| WEBUI-01 | Phase 1 | Pending |
-| WEBUI-02 | Phase 4 | Pending |
-| WEBUI-03 | Phase 4 | Pending |
-| WEBUI-04 | Phase 1 | Pending |
-| WEBUI-05 | Phase 3 | Pending |
-| WEBUI-06 | Phase 4 | Pending |
-| PORT-01 | Phase 5 | Pending |
-| PORT-02 | Phase 4 | Pending |
+| INGT-01 | Phase 1 — Foundation | Pending |
+| INGT-02 | Phase 1 — Foundation | Pending |
+| INGT-03 | Phase 1 — Foundation | Pending |
+| INGT-04 | Phase 5 — Service Hardening | Pending |
+| INGT-05 | Phase 5 — Service Hardening | Pending |
+| PIPE-01 | Phase 2 — Processing Pipeline | Pending |
+| PIPE-02 | Phase 2 — Processing Pipeline | Pending |
+| PIPE-03 | Phase 2 — Processing Pipeline | Pending |
+| PIPE-04 | Phase 2 — Processing Pipeline | Pending |
+| PIPE-05 | Phase 2 — Processing Pipeline | Pending |
+| SRCH-01 | Phase 3 — Retrieval + Review | Pending |
+| SRCH-02 | Phase 3 — Retrieval + Review | Pending |
+| SRCH-03 | Phase 3 — Retrieval + Review | Pending |
+| SRCH-04 | Phase 3 — Retrieval + Review | Pending |
+| SRCH-05 | Phase 3 — Retrieval + Review | Pending |
+| SRCH-06 | Phase 3 — Retrieval + Review | Pending |
+| MCP-01 | Phase 3 — Retrieval + Review | Pending |
+| MCP-02 | Phase 5 — Service Hardening | Pending |
+| MCP-03 | Phase 3 — Retrieval + Review | Pending |
+| MCP-04 | Phase 3 — Retrieval + Review | Pending |
+| CANM-01 | Phase 3 — Retrieval + Review | Pending |
+| CANM-02 | Phase 3 — Retrieval + Review | Pending |
+| CANM-03 | Phase 3 — Retrieval + Review | Pending |
+| CANM-04 | Phase 3 — Retrieval + Review | Pending |
+| CANM-05 | Phase 3 — Retrieval + Review | Pending |
+| CANM-06 | Phase 2 — Processing Pipeline | Pending |
+| PRIV-01 | Phase 4 — Privacy + Operations | Pending |
+| PRIV-02 | Phase 4 — Privacy + Operations | Pending |
+| PRIV-03 | Phase 4 — Privacy + Operations | Pending |
+| PRIV-04 | Phase 2 — Processing Pipeline | Pending |
+| PRIV-05 | Phase 2 — Processing Pipeline | Pending |
+| PRIV-06 | Phase 4 — Privacy + Operations | Pending |
+| BYOK-01 | Phase 4 — Privacy + Operations | Pending |
+| BYOK-02 | Phase 1 — Foundation | Pending |
+| BYOK-03 | Phase 1 — Foundation | Pending |
+| BYOK-04 | Phase 1 — Foundation | Pending |
+| BYOK-05 | Phase 1 — Foundation | Pending |
+| BYOK-06 | Phase 4 — Privacy + Operations | Pending |
+| BYOK-07 | Phase 2 — Processing Pipeline | Pending |
+| BYOK-08 | Phase 2 — Processing Pipeline | Pending |
+| BKUP-01 | Phase 4 — Privacy + Operations | Pending |
+| BKUP-02 | Phase 4 — Privacy + Operations | Pending |
+| BKUP-03 | Phase 4 — Privacy + Operations | Pending |
+| BKUP-04 | Phase 1 — Foundation | Pending |
+| WEBUI-01 | Phase 1 — Foundation | Pending |
+| WEBUI-02 | Phase 4 — Privacy + Operations | Pending |
+| WEBUI-03 | Phase 4 — Privacy + Operations | Pending |
+| WEBUI-04 | Phase 1 — Foundation | Pending |
+| WEBUI-05 | Phase 3 — Retrieval + Review | Pending |
+| WEBUI-06 | Phase 4 — Privacy + Operations | Pending |
+| PORT-01 | Phase 5 — Service Hardening | Pending |
+| PORT-02 | Phase 4 — Privacy + Operations | Pending |
 
 **Coverage:**
 - v1 requirements: 52 total
 - Mapped to phases: 52
 - Unmapped: 0 ✓
 
+### Changes from Initial Draft
+
+| Requirement | Initial Draft | Final Assignment | Reason |
+|-------------|--------------|-----------------|--------|
+| CANM-06 | Phase 3 | Phase 2 | Conflict detection is a pipeline output (dedup/overlap groupings materialized by worker); canonical memory workflows that *consume* conflict data remain in Phase 3 |
+
 ---
 *Requirements defined: 2026-03-22*
-*Last updated: 2026-03-22 after initial definition*
+*Last updated: 2026-03-22 after roadmap finalization (CANM-06 moved Phase 3 → Phase 2)*
