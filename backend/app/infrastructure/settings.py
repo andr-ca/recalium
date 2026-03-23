@@ -38,6 +38,8 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     ollama_base_url: str = ""
     ollama_api_key: str = ""
+    ollama_model: str = "llama3.2"
+    # Default Ollama model for summarization/extraction; override via OLLAMA_MODEL env var
 
     @field_validator("app_env")
     @classmethod
