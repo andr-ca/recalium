@@ -7,11 +7,8 @@ This document summarizes the Recalium v1 technology stack that architecture QA r
 - Deployment model: local-first Docker deployment
 - Runtime posture: modular monolith
 - Default runtime components:
-  - `recalium-api`
-  - `recalium-worker`
-  - `recalium-postgres`
-  - `recalium-backup`
-  - `recalium-import-watcher` when watched-folder ingestion is enabled
+  - `recalium-app` — application container; hosts the FastAPI API, React UI static assets, worker loop, backup scheduler, and import watcher as in-process tasks
+  - `recalium-postgres` — PostgreSQL database container with `pgvector`
 
 ## Storage and retrieval stack
 - Primary database: PostgreSQL

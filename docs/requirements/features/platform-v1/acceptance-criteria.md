@@ -24,18 +24,32 @@
 21. Given the user inspects provenance for a summary, fact, or canonical item, when provenance is shown, then it includes source item ID, source system, captured timestamp, derivation process, derivation timestamp, session or conversation ID where available, import method, source excerpt or hash, and modifying user or client identity where applicable.
 22. Given an audit access event is recorded, when the user inspects it, then it includes timestamp, client or agent identity, operation type, result count, target or query summary, retrieval mode, success or failure status, source or item IDs touched where applicable, and policy decision reason when access is limited.
 23. Given an MCP-compatible client performs a `retrieve` request, when the response is returned, then it includes returned items, source links, item type, rank score, provenance metadata, conflict labels where applicable, budget or trimming reason, and retrieval-mode metadata.
-24. Given an MCP-compatible client performs an ingestion request, when the request is accepted, then it includes raw content, source metadata, client identity, import method, idempotency key where available, sensitivity hints, project hint, and requested processing mode.
+24. Given an MCP-compatible client sends an ingestion request that includes raw content, source metadata, client identity, import method, idempotency key where available, sensitivity hints, project hint, and requested processing mode, when the system accepts the request, then it acknowledges the ingestion and assigns a trackable item identifier.
+24a. Given an MCP-compatible client sends an ingestion request that is missing required fields (raw content or source metadata), when the system evaluates the request, then it rejects the request with a descriptive error identifying the missing fields.
 25. Given the user enables broader-than-localhost exposure for a UI, API, or MCP interface, when that interface becomes reachable beyond localhost, then authentication, session handling, and transport protection are required for that exposed interface.
 26. Given scheduled backups are enabled, when the system runs under normal local conditions, then it creates daily backups, retains 30 days of successful backups, and allows restoring any successful backup within 15 minutes.
 27. Given a successful restore is performed from a valid backup, when restore completes, then raw archive items, summaries, structured facts, canonical memory, provenance metadata, retained audit events, and dataset-required configuration are available in the restored system state.
 28. Given the user uses core workflows by keyboard only, when navigating ingest, search, fact review, canonical edit, review queue, or restore flows, then the workflow remains operable without requiring a mouse.
-29. Given the user exports a human-readable archive, when the zip is opened, then it contains a top-level index, type-based folders, and manifest metadata that preserves provenance and source/session links.
+29. *(Could have — conditional on implementation)* Given the user exports a human-readable archive, when the zip is opened, then it contains a top-level index, type-based folders, and manifest metadata that preserves provenance and source/session links.
 
 ## Cross-cutting NFR acceptance criteria
 1. Given a paste import or file upload up to 5 MB under normal local conditions, when ingestion is acknowledged, then acknowledgement occurs within $P95 \le 1\text{ s}$.
 2. Given a personal-scale dataset up to 100k stored items, when search or retrieval runs, then response time is within $P95 \le 2\text{ s}$.
 3. Given an ingest has been acknowledged, when the container restarts or the host reboots with persisted Docker volumes intact, then the raw archive item remains durable and retrievable.
 4. Given machine-client access events are recorded, when the user inspects audit history, then at least 90 days of access-event history are available.
+
+## Anti-criteria (conditions that indicate failure)
+1. Given a user imports a ChatGPT export, when processing completes, if more than 50% of extracted facts are trivial, obvious, or incorrect, then extraction quality is insufficient for launch.
+2. Given a user runs their first search after import, if zero results are relevant to their actual conversation history, then retrieval quality is insufficient for launch.
+3. Given an MCP client retrieves context for a task, if the retrieved context requires more than 30 seconds of user review to confirm relevance, then retrieval signal-to-noise ratio is insufficient.
+4. Given a user completes the first-run wizard with provider configuration, if the total setup time exceeds 30 minutes before the first successful search result, then the cold-start experience has failed its target.
+5. Given a user imports a bulk export with providers configured, if the estimated processing cost is not displayed before the user confirms the import, then cost visibility is insufficient.
+
+## BYOK acceptance criteria
+1. Given a user configures an API key during first-run setup, when the key is validated, then the system confirms success or reports a specific failure reason (invalid key, insufficient permissions, unreachable provider).
+2. Given a user has configured BYOK API keys, when the system performs provider-backed processing, then all provider calls use the user's configured keys and no calls are made to any Recalium-operated service.
+3. Given a user has not configured any API keys, when the user completes first-run setup by skipping provider configuration, then the system remains usable for ingestion, local storage, browsing, and keyword search.
+4. Given a configured API key becomes invalid during processing, when the next provider call fails, then the affected job enters a retryable failed state with a clear error message identifying the key issue.
 
 ## Scope guard acceptance criteria
 1. v1 does not require automated vendor-specific connectors.

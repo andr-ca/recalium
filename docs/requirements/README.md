@@ -9,19 +9,21 @@
 - This file is the canonical high-level requirements document and index for the requirements package.
 - If requirements are split across multiple files, every requirements file must be linked from this document with a one-line description.
 - Feature-level `overview.md` files should act as local indexes when a feature is split across several files.
-- New or revised atomic requirement statements should use stable unique identifiers in the form `<feature-short-name>-NNN`.
+- New or revised atomic requirement statements should use stable unique identifiers in the form `<feature-short-name>-NNN`. This applies to standalone requirement statements in dedicated requirements files (e.g., acceptance criteria, import-quality rules). Narrative prose, working decision log entries, and assumptions do not require IDs. Note: requirements added in this PR predate full ID enforcement and will be back-filled in a follow-on pass before implementation begins.
 
 ## Document map
 - [../architecture/architect-handoff.md](../architecture/architect-handoff.md) — explicit architect-facing handoff package
-- [product-overview.md](product-overview.md) — purpose, problem, goals, scope, actors, and product principles
+- [product-overview.md](product-overview.md) — purpose, problem, goals, scope, actors, product principles, feature priority, validation gates, and key bets
+- [personas.md](personas.md) — user personas grounding requirements in concrete user profiles
 - [competitive-differentiation.md](competitive-differentiation.md) — competitor comparison, protocol play, and business model
 - [glossary.md](glossary.md) — working domain vocabulary
-- [nfr.md](nfr.md) — cross-cutting non-functional requirements and measurable operating constraints
-- [assumptions-and-risks.md](assumptions-and-risks.md) — assumptions, dependencies, risks, and open questions
+- [nfr.md](nfr.md) — cross-cutting non-functional requirements including processing cost visibility, API key management (BYOK), usage telemetry, and extraction quality targets
+- [assumptions-and-risks.md](assumptions-and-risks.md) — assumptions, dependencies, risks, competitive response scenarios, and open questions
 - [features/platform-v1/overview.md](features/platform-v1/overview.md) — v1 product capability scope
-- [features/platform-v1/workflows.md](features/platform-v1/workflows.md) — primary user and system workflows
+- [features/platform-v1/workflows.md](features/platform-v1/workflows.md) — primary user and system workflows including first-run setup
 - [features/platform-v1/rules-and-edge-cases.md](features/platform-v1/rules-and-edge-cases.md) — rules, lifecycle handling, and exception behavior
-- [features/platform-v1/acceptance-criteria.md](features/platform-v1/acceptance-criteria.md) — testable v1 acceptance criteria
+- [features/platform-v1/acceptance-criteria.md](features/platform-v1/acceptance-criteria.md) — testable v1 acceptance criteria including anti-criteria and BYOK criteria
+- [features/platform-v1/import-quality.md](features/platform-v1/import-quality.md) — import data quality requirements for ChatGPT, Claude, and generic exports
 - [../operational/architecture-reviews/recalium-v1-architecture-handoff.md](../operational/architecture-reviews/recalium-v1-architecture-handoff.md) — explicit handoff package for architecture work
 
 ## Current scope baseline
@@ -75,7 +77,7 @@ The current draft is strong on product intent and functional scope. No product-s
 - v1 backups should run daily, retain 30 days of backups, and restore any successful backup within 15 minutes.
 - The localhost web UI should support the latest Chrome/Chromium only in v1.
 - Keyboard-only operation should be required for core workflows in v1.
-- Core workflows in the localhost web UI should meet WCAG 2.1 AA.
+- Core workflows must have no critical accessibility failures (missing labels, keyboard traps, unannounced state changes). Full WCAG 2.1 AA compliance is a v2 target.
 - First-run setup should offer external-provider configuration, but the system should still start usable without it.
 - Access-event history should be retained for at least 90 days in v1.
 - The Markdown-plus-assets export zip should use a hybrid structure with a top-level index, type-based folders, and manifest metadata carrying source and session links.
@@ -84,3 +86,12 @@ The current draft is strong on product intent and functional scope. No product-s
 - A local web UI is the primary review surface for v1.
 - Advanced per-agent permissions are deferred beyond v1.
 - Duplicate/overlap management is required, but sophisticated automatic merge logic is not required for v1.
+- v1 uses a BYOK (Bring Your Own Key) model as the default: users provide their own provider API keys. A managed processing tier is a future paid upsell.
+- API keys must be stored only in local configuration, never in backups, exports, or transmitted to any Recalium-operated service.
+- Processing cost estimation and display are required before bulk import confirmation.
+- Import preview with filtering (conversation count, token volume, cost estimate, trivial-conversation filter) is required for the first-run experience.
+- Feature priority follows MoSCoW classification defined in product-overview.md.
+- Validation gates at Slice A, Slice B, and 4 weeks post-launch are required before proceeding to full release hardening.
+- Extraction quality requires both precision (≥70% at high confidence) and recall (≥50% at high confidence) targets measured against a labeled corpus of real export data.
+- Local-only usage telemetry is required for validation gate measurement.
+- Competitive response scenarios for vendor memory export, MCP stall, funded competitor local-first pivot, and OS-level AI memory are documented in assumptions-and-risks.md.
