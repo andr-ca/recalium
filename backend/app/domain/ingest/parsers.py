@@ -67,6 +67,10 @@ def detect_and_parse(
         pass
 
     if parsed_json is not None:
+        # Guard: empty JSON array has nothing to ingest
+        if isinstance(parsed_json, list) and len(parsed_json) == 0:
+            raise ValueError("JSON array is empty — nothing to ingest")
+
         if isinstance(parsed_json, dict) and "conversations" in parsed_json:
             count = _count_chatgpt_conversations(parsed_json)
             return ParsedIngest(

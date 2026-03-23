@@ -16,6 +16,7 @@ export function IngestPage() {
   const [isDragging, setIsDragging] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [toast, setToast] = React.useState<{ message: string; type: "success" | "error" } | null>(null);
+  const dismissToast = React.useCallback(() => setToast(null), []);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const handlePasteSubmit = async (e: React.FormEvent) => {
@@ -65,7 +66,7 @@ export function IngestPage() {
       <h1 className="text-2xl font-bold mb-6">Ingest Conversations</h1>
 
       {/* Tab switcher */}
-      <div className="flex gap-1 mb-6 border-b">
+      <div className="flex gap-1 mb-6 border-b" role="tablist">
         {(["paste", "file"] as Tab[]).map((tab) => (
           <button
             key={tab}
@@ -172,7 +173,7 @@ export function IngestPage() {
         <Toast
           message={toast.message}
           type={toast.type}
-          onDismiss={() => setToast(null)}
+          onDismiss={dismissToast}
         />
       )}
     </div>

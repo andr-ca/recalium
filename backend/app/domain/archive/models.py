@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import JSON, String, Text, Integer, TIMESTAMP
 from sqlalchemy.dialects.postgresql import UUID
@@ -28,7 +28,7 @@ class RawArchiveItem(Base):
     content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     conversation_count: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     ingested_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=False, default=datetime.utcnow
+        TIMESTAMP(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)
     )
     deleted_at: Mapped[datetime | None] = mapped_column(
         TIMESTAMP(timezone=True), nullable=True, default=None
