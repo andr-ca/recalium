@@ -21,7 +21,7 @@ Requirements for initial release. Each maps to exactly one roadmap phase.
 - [x] **PIPE-02**: Every extracted fact carries source span, confidence tier (high/medium/low), derivation method, and model version
 - [x] **PIPE-03**: Sensitivity gate runs before any external provider call; personal/relationship/unclassified content blocked from external processing by default
 - [x] **PIPE-04**: Failed jobs retry automatically with bounded attempts; terminal failures surface for manual retry
-- [ ] **PIPE-05**: Reprocessing supported after logic changes or failures
+- [x] **PIPE-05**: Reprocessing supported after logic changes or failures
 
 ### Search and Retrieval
 
@@ -65,8 +65,8 @@ Requirements for initial release. Each maps to exactly one roadmap phase.
 - [x] **BYOK-04**: Provider-backed processing uses only user's configured keys; no calls to any Recalium-operated service
 - [x] **BYOK-05**: System remains usable for ingestion, local storage, browsing, and keyword search without any configured keys
 - [ ] **BYOK-06**: Processing cost estimated and displayed before bulk import confirmation (token count heuristics, order-of-magnitude correctness)
-- [ ] **BYOK-07**: Invalid/rate-limited keys cause affected jobs to enter retryable failed state with clear error; no silent drops
-- [ ] **BYOK-08**: User can switch providers per function without reprocessing already-completed items
+- [x] **BYOK-07**: Invalid/rate-limited keys cause affected jobs to enter retryable failed state with clear error; no silent drops
+- [x] **BYOK-08**: User can switch providers per function without reprocessing already-completed items
 
 ### Backup and Restore
 
@@ -147,7 +147,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PIPE-02 | Phase 2 — Processing Pipeline | Complete |
 | PIPE-03 | Phase 2 — Processing Pipeline | Complete |
 | PIPE-04 | Phase 2 — Processing Pipeline | Complete |
-| PIPE-05 | Phase 2 — Processing Pipeline | Pending |
+| PIPE-05 | Phase 2 — Processing Pipeline | Complete |
 | SRCH-01 | Phase 3 — Retrieval + Review | Pending |
 | SRCH-02 | Phase 3 — Retrieval + Review | Pending |
 | SRCH-03 | Phase 3 — Retrieval + Review | Pending |
@@ -176,8 +176,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | BYOK-04 | Phase 1 — Foundation | Complete |
 | BYOK-05 | Phase 1 — Foundation | Complete |
 | BYOK-06 | Phase 4 — Privacy + Operations | Pending |
-| BYOK-07 | Phase 2 — Processing Pipeline | Pending |
-| BYOK-08 | Phase 2 — Processing Pipeline | Pending |
+| BYOK-07 | Phase 2 — Processing Pipeline | Complete |
+| BYOK-08 | Phase 2 — Processing Pipeline | Complete |
 | BKUP-01 | Phase 4 — Privacy + Operations | Pending |
 | BKUP-02 | Phase 4 — Privacy + Operations | Pending |
 | BKUP-03 | Phase 4 — Privacy + Operations | Pending |
