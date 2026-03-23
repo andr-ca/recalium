@@ -9,6 +9,7 @@ from sqlalchemy import select, func, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.archive.models import RawArchiveItem
+from app.domain.jobs.models import Job
 from app.infrastructure.db import get_session
 
 logger = logging.getLogger(__name__)
@@ -22,7 +23,9 @@ class ArchiveItemOut(BaseModel):
     source_name: str | None
     conversation_count: int
     ingested_at: str  # ISO 8601 string
-    status_badge: str  # Phase 1: always "Ingested"; Phase 2+ adds pipeline status
+    status_badge: str  # Phase 2+: derived from pipeline job status
+    job_id: str | None
+    job_error: str | None
 
     model_config = {"from_attributes": True}
 
@@ -44,6 +47,20 @@ def _source_badge_label(source_type: str) -> str:
         "paste_markdown": "Markdown",
     }
     return labels.get(source_type, source_type.replace("_", " ").title())
+
+
+def _job_status_to_badge(status: str | None) -> str:
+    """Map job status to display badge label."""
+    if status is None:
+        return "Ingested"
+    return {
+        "pending": "Processing",
+        "claimed": "Processing",
+        "completed": "Done",
+        "failed": "Failed",
+        "retryable_failed": "Failed",
+        "pending_provider": "Pending Provider",
+    }.get(status, "Processing")
 
 
 @router.get("", response_model=ArchiveListResponse)
@@ -79,24 +96,32 @@ async def list_archive(
     # Paginated results, ordered newest first
     items_stmt = (
         base_stmt
+        .outerjoin(Job, Job.raw_archive_id == RawArchiveItem.id)
+        .add_columns(
+            Job.id.label("job_id"),
+            Job.status.label("job_status"),
+            Job.error_message.label("job_error"),
+        )
         .order_by(desc(RawArchiveItem.ingested_at))
         .offset(offset)
         .limit(limit)
     )
     items_result = await session.execute(items_stmt)
-    items = list(items_result.scalars().all())
+    rows = items_result.all()
 
     return ArchiveListResponse(
         items=[
             ArchiveItemOut(
-                id=str(item.id),
-                source_type=_source_badge_label(item.source_type),
-                source_name=item.source_name,
-                conversation_count=item.conversation_count,
-                ingested_at=item.ingested_at.isoformat(),
-                status_badge="Ingested",  # Phase 1 only; Phase 2 adds pipeline status
+                id=str(row.RawArchiveItem.id),
+                source_type=_source_badge_label(row.RawArchiveItem.source_type),
+                source_name=row.RawArchiveItem.source_name,
+                conversation_count=row.RawArchiveItem.conversation_count,
+                ingested_at=row.RawArchiveItem.ingested_at.isoformat(),
+                status_badge=_job_status_to_badge(row.job_status),
+                job_id=str(row.job_id) if row.job_id else None,
+                job_error=row.job_error,
             )
-            for item in items
+            for row in rows
         ],
         total=total,
         offset=offset,

@@ -51,9 +51,14 @@ async def test_archive_item_fields(client: AsyncClient):
     assert "ingested_at" in item, f"Missing 'ingested_at' field: {item}"
     assert "conversation_count" in item, f"Missing 'conversation_count' field: {item}"
     assert "status_badge" in item, f"Missing 'status_badge' field: {item}"
-    assert item["status_badge"] == "Ingested", (
-        f"Phase 1 status_badge must be 'Ingested', got {item['status_badge']!r}"
+    # Phase 2: status_badge reflects pipeline job status (no longer always "Ingested")
+    valid_badges = {"Ingested", "Processing", "Done", "Failed", "Pending Provider"}
+    assert item["status_badge"] in valid_badges, (
+        f"status_badge must be one of {valid_badges}, got {item['status_badge']!r}"
     )
+    # Phase 2: job_id and job_error fields must be present (may be None if no job)
+    assert "job_id" in item, f"Missing 'job_id' field: {item}"
+    assert "job_error" in item, f"Missing 'job_error' field: {item}"
 
 
 async def test_archive_pagination(client: AsyncClient):
