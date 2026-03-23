@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.domain.jobs.service import reactivate_pending_provider_jobs
 from app.domain.settings.service import (
     ValidationResult,
     get_settings_state,
@@ -128,6 +129,11 @@ async def validate_key(
 
     if result is None:  # should be unreachable — Literal enforces valid providers
         raise HTTPException(status_code=500, detail="Key validation failed unexpectedly.")
+
+    # BYOK-08: When a key is validated as "valid", reactivate any pending_provider jobs
+    # so they are re-queued and processed with the newly configured provider.
+    if result.status == "valid":
+        await reactivate_pending_provider_jobs(session)
 
     return ValidateKeyResponse(
         provider=result.provider,

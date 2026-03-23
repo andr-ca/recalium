@@ -4,18 +4,34 @@ Tests will FAIL (RED) until POST /api/jobs/{job_id}/reprocess endpoint is create
 """
 from __future__ import annotations
 
+import hashlib
 import uuid
-import pytest
+
+
+async def _make_archive_item(session):
+    """Helper: insert a minimal RawArchiveItem to satisfy FK constraint on jobs."""
+    from app.domain.archive.models import RawArchiveItem
+    content = f"test content {uuid.uuid4()}"
+    item = RawArchiveItem(
+        id=uuid.uuid4(),
+        source_type="test",
+        raw_content=content,
+        content_hash=hashlib.sha256(content.encode()).hexdigest(),
+    )
+    session.add(item)
+    await session.flush()
+    return item
 
 
 async def test_reprocess_endpoint_returns_200(client, db_session):
     """PIPE-05: POST /api/jobs/{job_id}/reprocess resets a failed job to pending."""
     from app.domain.jobs.models import Job
 
+    archive_item = await _make_archive_item(db_session)
     job = Job(
         id=uuid.uuid4(),
         job_type="process_archive_item",
-        raw_archive_id=uuid.uuid4(),
+        raw_archive_id=archive_item.id,
         status="failed",
         attempts=3,
         max_attempts=3,
@@ -42,10 +58,11 @@ async def test_reprocess_pending_provider_returns_200(client, db_session):
     """PIPE-05: pending_provider jobs can also be manually re-queued via reprocess endpoint."""
     from app.domain.jobs.models import Job
 
+    archive_item = await _make_archive_item(db_session)
     job = Job(
         id=uuid.uuid4(),
         job_type="process_archive_item",
-        raw_archive_id=uuid.uuid4(),
+        raw_archive_id=archive_item.id,
         status="pending_provider",
         attempts=0,
     )

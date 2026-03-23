@@ -99,8 +99,11 @@ async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
 # Import derived_memory models so Base.metadata.create_all includes them.
 # These imports are guarded — if models don't exist yet (pre-plan-02-01),
 # the test_engine fixture will simply skip their tables.
+# NOTE: Use importlib to avoid rebinding the `app` variable (bare `import app.X`
+# would shadow the FastAPI instance imported above).
 try:
-    import app.domain.derived_memory.models  # noqa: F401
+    import importlib
+    importlib.import_module("app.domain.derived_memory.models")
 except ImportError:
     pass  # Phase 2 models not yet created
 
