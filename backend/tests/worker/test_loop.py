@@ -4,6 +4,8 @@ Tests will FAIL (RED) until app.worker.loop and app.domain.jobs.service are crea
 """
 from __future__ import annotations
 
+import uuid
+
 import pytest
 
 # These imports will fail until plans 03-04 create the modules.
@@ -15,15 +17,31 @@ from app.worker.loop import worker_loop  # noqa: E402
 from app.domain.jobs.service import claim_next_job, complete_job, fail_job  # noqa: E402
 
 
+async def _make_archive_item(session):
+    """Helper: insert a minimal RawArchiveItem to satisfy FK constraint on jobs.raw_archive_id."""
+    from app.domain.archive.models import RawArchiveItem
+    import hashlib
+    content = "test content"
+    item = RawArchiveItem(
+        id=uuid.uuid4(),
+        source_type="test",
+        raw_content=content,
+        content_hash=hashlib.sha256(content.encode()).hexdigest(),
+    )
+    session.add(item)
+    await session.flush()
+    return item
+
+
 async def test_worker_claims_and_completes_job(db_session_phase2):
     """PIPE-01: Worker claims a pending job and transitions it to completed."""
     # Arrange: create a pending job
     from app.domain.jobs.models import Job
-    import uuid
+    archive_item = await _make_archive_item(db_session_phase2)
     job = Job(
         id=uuid.uuid4(),
         job_type="process_archive_item",
-        raw_archive_id=uuid.uuid4(),
+        raw_archive_id=archive_item.id,
         status="pending",
     )
     db_session_phase2.add(job)
@@ -41,11 +59,11 @@ async def test_worker_claims_and_completes_job(db_session_phase2):
 async def test_job_retried_on_retryable_failed(db_session_phase2):
     """PIPE-04: Job in retryable_failed is re-claimed on next poll cycle."""
     from app.domain.jobs.models import Job
-    import uuid
+    archive_item = await _make_archive_item(db_session_phase2)
     job = Job(
         id=uuid.uuid4(),
         job_type="process_archive_item",
-        raw_archive_id=uuid.uuid4(),
+        raw_archive_id=archive_item.id,
         status="retryable_failed",
         attempts=1,
         max_attempts=3,
@@ -62,11 +80,11 @@ async def test_job_retried_on_retryable_failed(db_session_phase2):
 async def test_job_not_retried_after_max_attempts(db_session_phase2):
     """PIPE-04: Job at max_attempts is not claimed (terminal failed)."""
     from app.domain.jobs.models import Job
-    import uuid
+    archive_item = await _make_archive_item(db_session_phase2)
     job = Job(
         id=uuid.uuid4(),
         job_type="process_archive_item",
-        raw_archive_id=uuid.uuid4(),
+        raw_archive_id=archive_item.id,
         status="retryable_failed",
         attempts=3,
         max_attempts=3,
@@ -84,12 +102,12 @@ async def test_stale_claimed_jobs_reset_on_startup(db_session_phase2):
     from app.domain.jobs.service import reset_stale_jobs
     from app.domain.jobs.models import Job
     from datetime import datetime, timezone, timedelta
-    import uuid
 
+    archive_item = await _make_archive_item(db_session_phase2)
     stale_job = Job(
         id=uuid.uuid4(),
         job_type="process_archive_item",
-        raw_archive_id=uuid.uuid4(),
+        raw_archive_id=archive_item.id,
         status="claimed",
         attempts=1,
         claimed_at=datetime.now(timezone.utc) - timedelta(minutes=15),

@@ -1,1 +1,1 @@
-"""Jobs domain package."""
+"""Jobs domain — processing queue service."""
