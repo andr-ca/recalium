@@ -1,0 +1,22 @@
+# Development overrides — applied automatically by `docker compose up` in dev.
+# In production, use: `docker compose -f docker-compose.yml up`
+
+services:
+  recalium-postgres:
+    ports:
+      # Expose PG directly for local DB tools (dev only)
+      - "127.0.0.1:5432:5432"
+
+  recalium-app:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: development
+    environment:
+      APP_ENV: development
+      LOG_LEVEL: debug
+    volumes:
+      - ./backend:/app/backend
+      - ./backups:/app/backups
+      - ./import:/app/import
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--reload-dir", "/app/backend"]
