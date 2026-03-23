@@ -333,9 +333,38 @@ async def dispatch_job(session: AsyncSession, job: Job) -> None:
         logger.warning("FTS indexing failed for job %s (non-fatal): %s", job.id, e)
         # FTS failure is non-fatal — job still completes
 
-    # ── Step 5: Embeddings + conflict detection (wired in plan 05–06) ────────
-    # Stub: embedding and conflict detection are added in 02-05 and 02-06
-    # dispatch_job is called here from loop.py; plans 05–06 patch this function
+    # ── Step 5: Embeddings (local sentence-transformers — no API key needed) ──
+    try:
+        from app.domain.derived_memory.service import (  # noqa: PLC0415
+            embed_text,
+            write_embedding,
+            get_existing_embedding,
+        )
+
+        existing_embedding = await get_existing_embedding(session, job.raw_archive_id)
+        if existing_embedding is None:
+            # Use summary text if available (more condensed signal), else raw content
+            existing_summary_for_embed = await get_existing_summary(session, job.raw_archive_id)
+            embed_source = (
+                existing_summary_for_embed.summary_text
+                if existing_summary_for_embed
+                else raw_text[:10000]
+            )
+            vector = await embed_text(embed_source)
+            await write_embedding(
+                session,
+                raw_archive_id=job.raw_archive_id,
+                vector=vector,
+            )
+            logger.debug("Wrote embedding for job %s (%d dims)", job.id, len(vector))
+        else:
+            logger.debug("Embedding already exists for job %s — skipping (BYOK-08)", job.id)
+    except Exception as e:
+        # Embedding failure is non-fatal (local model) — log and continue to completion
+        logger.warning("Embedding step failed for job %s (non-fatal): %s", job.id, e)
+
+    # ── Step 6: Conflict detection (wired in plan 06) ─────────────────────────
+    # Stub: conflict detection added in 02-06
 
     # ── Complete ──────────────────────────────────────────────────────────────
     await complete_job(session, job)
