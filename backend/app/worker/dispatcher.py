@@ -363,8 +363,28 @@ async def dispatch_job(session: AsyncSession, job: Job) -> None:
         # Embedding failure is non-fatal (local model) — log and continue to completion
         logger.warning("Embedding step failed for job %s (non-fatal): %s", job.id, e)
 
-    # ── Step 6: Conflict detection (wired in plan 06) ─────────────────────────
-    # Stub: conflict detection added in 02-06
+    # ── Step 6: Conflict detection (CANM-06) ─────────────────────────────────
+    try:
+        from app.domain.conflict_detection import (  # noqa: PLC0415
+            find_duplicate_candidates,
+            create_conflict_group,
+        )
+        from app.domain.derived_memory.service import get_existing_embedding  # noqa: PLC0415
+        current_embedding = await get_existing_embedding(session, job.raw_archive_id)
+        if current_embedding is not None:
+            candidates = await find_duplicate_candidates(
+                session,
+                embedding=current_embedding.embedding,
+                exclude_id=current_embedding.id,
+            )
+            if candidates:
+                group = await create_conflict_group(session, group_type="duplicate")
+                logger.info(
+                    "Conflict group %s created: job=%s has %d near-duplicate(s)",
+                    group.id, job.id, len(candidates),
+                )
+    except Exception as e:
+        logger.warning("Conflict detection failed for job %s (non-fatal): %s", job.id, e)
 
     # ── Complete ──────────────────────────────────────────────────────────────
     await complete_job(session, job)
