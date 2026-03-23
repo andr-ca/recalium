@@ -5,7 +5,6 @@ All SQLAlchemy ORM models must inherit from Base defined here.
 """
 from __future__ import annotations
 
-import os
 from collections.abc import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import (
@@ -14,6 +13,8 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 from sqlalchemy.orm import DeclarativeBase
+
+from app.infrastructure.settings import get_settings
 
 
 class Base(DeclarativeBase):
@@ -26,10 +27,10 @@ _async_session_factory = None
 
 
 def get_database_url() -> str:
-    url = os.environ.get("DATABASE_URL")
+    url = get_settings().database_url
     if not url:
         raise RuntimeError(
-            "DATABASE_URL environment variable is not set. "
+            "DATABASE_URL is not configured in settings. "
             "Copy .env.sample to .env and configure it."
         )
     return url
@@ -38,9 +39,10 @@ def get_database_url() -> str:
 def get_engine():
     global _engine
     if _engine is None:
+        settings = get_settings()
         _engine = create_async_engine(
             get_database_url(),
-            echo=os.environ.get("APP_ENV") == "development",
+            echo=settings.app_env == "development",
             pool_pre_ping=True,
             pool_size=5,
             max_overflow=10,

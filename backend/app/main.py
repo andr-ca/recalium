@@ -21,6 +21,9 @@ from app.infrastructure.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
+# Basic logging setup — will be reconfigured in lifespan with proper level from settings
+logging.basicConfig(level=logging.INFO, format="%(levelname)s [%(name)s] %(message)s")
+
 
 def _assert_no_keys_in_schema() -> None:
     """Startup assertion: scan all column names for plaintext key patterns.
@@ -34,7 +37,6 @@ def _assert_no_keys_in_schema() -> None:
     - Columns ending in _validation_status (string status)
     - Columns ending in _validated_at (timestamp)
     """
-    from sqlalchemy import inspect as sa_inspect  # noqa: F401
     from app.infrastructure.db import Base
 
     # Force all model imports so metadata is populated
