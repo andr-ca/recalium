@@ -142,10 +142,10 @@ Use this template for completed requirements reviews.
   - Notes:
   - Follow-up:
 
-- [ ] **RR-19 — High-level goals trace cleanly to detailed requirement files and requirement IDs; every requirement carries a source annotation (`→ DECISION-NNN` or `→ original request`); every cited `DECISION-NNN` exists in `decisions.md`.**
+- [ ] **RR-19 — High-level goals trace cleanly to detailed requirement files and requirement IDs; significant decisions are recorded in a decision log (either a standalone `decisions.md` or a working decision log section in the requirements index); every cited decision exists in that log.**
   - Status: <PASS|FAIL|N/A>
   - Evidence: <list any requirements missing annotations or citing decisions absent from the log>
-  - Notes:
+  - Notes: This project uses a working decision log embedded in `docs/requirements/README.md` as the canonical decision record. A standalone `decisions.md` is an accepted alternative but is not required.
   - Follow-up:
 
 ### Document structure and indexing
@@ -180,25 +180,27 @@ Use this template for completed requirements reviews.
   - Follow-up:
 
 ### Decision log
-- [ ] **RR-25 — A standalone `decisions.md` file exists at the root of the requirements area and is non-empty.**
+Note: this project records decisions in a working decision log section in `docs/requirements/README.md`. Items RR-25 through RR-28 apply equally to a standalone `decisions.md` or an embedded working decision log. Mark RR-25 as N/A if the working decision log approach is in use and note its location in the evidence field.
+
+- [ ] **RR-25 — A decision log exists (either a standalone `decisions.md` at the root of the requirements area, or a working decision log section in the requirements index) and is non-empty.**
+  - Status: <PASS|FAIL|N/A>
+  - Evidence: <location of the decision log — e.g., `docs/requirements/README.md#working-decision-log`>
+  - Notes:
+  - Follow-up:
+
+- [ ] **RR-26 — Every decision entry contains a decision statement, author or origin (real name or clear source — not a placeholder), a date or timestamp, and rationale.**
   - Status: <PASS|FAIL|N/A>
   - Evidence:
   - Notes:
   - Follow-up:
 
-- [ ] **RR-26 — Every decision entry contains a decision number, statement, author name (real name — not a placeholder or role label), ISO 8601 UTC timestamp, and rationale.**
+- [ ] **RR-27 — The decision log is linked from or co-located with the high-level index document.**
   - Status: <PASS|FAIL|N/A>
   - Evidence:
   - Notes:
   - Follow-up:
 
-- [ ] **RR-27 — The `decisions.md` file is linked from the high-level index document.**
-  - Status: <PASS|FAIL|N/A>
-  - Evidence:
-  - Notes:
-  - Follow-up:
-
-- [ ] **RR-28 — Every significant decision visible in the requirements package (scope boundaries, constraints, technology choices, NFR targets, deferrals, reversals) has a corresponding entry in `decisions.md`.**
+- [ ] **RR-28 — Every significant decision visible in the requirements package (scope boundaries, constraints, technology choices, NFR targets, deferrals, reversals) has a corresponding entry in the decision log.**
   - Status: <PASS|FAIL|N/A>
   - Evidence: <list any decisions found in requirement files that are absent from the log>
   - Notes:

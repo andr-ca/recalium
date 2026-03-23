@@ -77,7 +77,7 @@ The current draft is strong on product intent and functional scope. No product-s
 - v1 backups should run daily, retain 30 days of backups, and restore any successful backup within 15 minutes.
 - The localhost web UI should support the latest Chrome/Chromium only in v1.
 - Keyboard-only operation should be required for core workflows in v1.
-- Core workflows in the localhost web UI should meet WCAG 2.1 AA.
+- Core workflows must have no critical accessibility failures (missing labels, keyboard traps, unannounced state changes). Full WCAG 2.1 AA compliance is a v2 target.
 - First-run setup should offer external-provider configuration, but the system should still start usable without it.
 - Access-event history should be retained for at least 90 days in v1.
 - The Markdown-plus-assets export zip should use a hybrid structure with a top-level index, type-based folders, and manifest metadata carrying source and session links.

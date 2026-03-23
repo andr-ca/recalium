@@ -3,7 +3,7 @@
 ## Status
 - Decision status: working baseline
 - Applies to: Recalium v1 implementation and release validation
-- Constraint: implementation stack is not fully locked, so this QA stack fixes the automation posture while keeping the application framework choice flexible where possible
+- Constraint: implementation stack is committed for v1 (Python/FastAPI, React/TypeScript, PostgreSQL/pgvector — see docs/architecture/tech-stack.md); this QA stack is locked to match
 
 ## QA automation goals
 Recalium QA automation must prove:
@@ -191,4 +191,4 @@ Evidence:
 7. `hypothesis` for deeper invariants and edge-case automation
 
 ## Implementation note
-If the backend stack is later fixed to something other than Python, the automation intent in this document stays the same, but `pytest`, Ruff, mypy, `bandit`, and `pip-audit` should be replaced with equivalent tools for that runtime while preserving the same gate structure and evidence model.
+The backend stack is committed as Python for v1. `pytest`, Ruff, mypy, `bandit`, and `pip-audit` are the correct tools for that runtime. If a future version migrates to a different backend runtime, replace these tools with equivalents for that runtime while preserving the same gate structure and evidence model.

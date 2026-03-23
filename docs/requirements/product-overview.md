@@ -153,6 +153,8 @@ Left-navigation application layout: Ingest, Archive, Facts, Canonical, Search, R
 - Web UI: Ingest, Search, Facts views
 - Deletion workflow
 - BYOK provider configuration
+- Scheduled local backups and restore UI
+- Keyboard-only operability for core workflows
 
 ### Should have (expected in v1, deferrable under pressure)
 - Semantic and hybrid search
@@ -162,13 +164,11 @@ Left-navigation application layout: Ingest, Archive, Facts, Canonical, Search, R
 - Audit visibility
 - Provenance on every derived item
 - Processing cost estimation and display
+- Degraded-mode handling (keyword-only fallback when no embeddings or provider available)
 
 ### Could have (valuable if time permits)
 - Markdown-plus-assets export
-- Backup and restore with scheduled retention
-- Degraded-mode handling (keyword-only fallback)
 - Full operations dashboard
-- Keyboard-only accessibility for all core workflows
 
 ### Won't have (explicitly v2)
 - Browser extension

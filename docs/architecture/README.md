@@ -1,7 +1,7 @@
 # Recalium Architecture
 
 ## Status
-- Phase: Architecture revision after review feedback
+- Phase: Approved baseline
 - Based on: reviewed requirements handoff
 - Scope: Recalium v1 local-first Docker deployment
 
