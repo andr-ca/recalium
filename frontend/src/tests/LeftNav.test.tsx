@@ -47,14 +47,12 @@ describe("NavSidebar", () => {
   it("renders items in correct order", () => {
     renderNav();
     const navItems = screen.getAllByRole("listitem");
-    const labels = navItems.map((el) => el.textContent?.trim()).filter(Boolean);
-
-    // Check that the order matches the spec
     const expectedOrder = NAV_ITEMS.map((n) => n.label);
-    const actualOrder = expectedOrder.filter((label) =>
-      labels.some((l) => l?.includes(label))
-    );
-    expect(actualOrder).toEqual(expectedOrder);
+    // Extract only the labels that match nav item labels, in DOM order
+    const actualLabels = navItems
+      .map((el) => el.textContent?.trim() ?? "")
+      .filter((t) => NAV_ITEMS.some((n) => t.includes(n.label)));
+    expect(actualLabels).toEqual(expectedOrder);
   });
 
   it("disabled items have aria-disabled or data-disabled attribute", () => {

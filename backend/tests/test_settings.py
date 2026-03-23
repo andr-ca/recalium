@@ -87,7 +87,7 @@ async def test_validate_unknown_provider(client: AsyncClient):
 
 # ── BYOK-04: Key never in DB — schema assertion ──────────────────────────────
 
-async def test_key_not_in_db():
+def test_key_not_in_db():
     """BYOK-04 / D-12: No column in any SQLAlchemy model is named with a forbidden pattern.
 
     Scans all mapped tables for column names matching:

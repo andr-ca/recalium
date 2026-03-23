@@ -1,7 +1,6 @@
 """Integration tests for archive endpoint — covers INGT-03."""
 from __future__ import annotations
 
-import json
 import pytest
 from httpx import AsyncClient
 
