@@ -1,12 +1,16 @@
 """Shared pytest fixtures for backend integration tests.
 
-Strategy: spin up an in-memory SQLite async engine for unit-level tests OR
-use a separate test PostgreSQL database for integration tests that require
+Strategy: use a test PostgreSQL database for integration tests that require
 pg-specific features (pgvector, ENUM types, tsvector).
 
 Phase 1 integration tests use httpx.AsyncClient against a real app instance
 backed by a test database (DATABASE_URL from environment, defaulting to a
 test-specific DB name to avoid clobbering the dev database).
+
+All async fixtures use function scope to avoid asyncio event-loop mismatch
+issues with asyncpg (asyncpg connections are bound to the loop in which they
+were created; sharing them across loops causes "Future attached to a different
+loop" errors).
 """
 from __future__ import annotations
 
@@ -22,11 +26,10 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-# ── App import ──────────────────────────────────────────────────────────────
-# Must happen AFTER any env overrides so pydantic-settings picks up the test DB
+# ── Test DB URL ──────────────────────────────────────────────────────────────
 TEST_DATABASE_URL = os.environ.get(
     "TEST_DATABASE_URL",
-    "postgresql+asyncpg://recalium:changeme@localhost:5432/recalium_test",
+    "postgresql+asyncpg://recalium:change_me_in_production@localhost:5435/recalium_test",
 )
 
 # Override DATABASE_URL before importing app so Settings loads the test DB
@@ -36,20 +39,30 @@ from app.main import app  # noqa: E402 — must be after env override
 from app.infrastructure.db import Base  # noqa: E402
 
 
-# ── Engine for test DB ───────────────────────────────────────────────────────
+# ── Schema bootstrap: run once per session using a sync approach ─────────────
+# We use a module-level flag so we only drop/create tables once per process,
+# even though the engine fixture is function-scoped.
+_schema_created = False
 
-@pytest_asyncio.fixture(scope="session", loop_scope="session")
+
+@pytest_asyncio.fixture
 async def test_engine():
-    """Create all tables in the test database once per session."""
+    """Create a fresh async engine for each test, sharing the current event loop.
+
+    Tables are created only on the first call (session-level schema bootstrap
+    using the per-test loop, preventing asyncio loop mismatch).
+    """
+    global _schema_created
     test_url = os.environ["DATABASE_URL"]
-    eng = create_async_engine(test_url, echo=False)
-    async with eng.begin() as conn:
-        # pgvector extension must exist in the test DB (created by migration)
-        await conn.execute(
-            text("CREATE EXTENSION IF NOT EXISTS vector")
-        )
-        await conn.run_sync(Base.metadata.drop_all)
-        await conn.run_sync(Base.metadata.create_all)
+    eng = create_async_engine(test_url, echo=False, pool_size=2, max_overflow=0)
+
+    if not _schema_created:
+        async with eng.begin() as conn:
+            await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+            await conn.run_sync(Base.metadata.drop_all)
+            await conn.run_sync(Base.metadata.create_all)
+        _schema_created = True
+
     yield eng
     await eng.dispose()
 
