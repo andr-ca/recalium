@@ -55,14 +55,14 @@
 5. User can switch providers per function (e.g., change the summarization provider) without triggering reprocessing of already-completed items; items with stale embeddings fall back to FTS only.
 6. Conflict detection flags contradictory facts across sources and exposes them in the Facts view for review.
 
-**Plans:** 4/8 plans executed
+**Plans:** 5/8 plans executed
 
 Plans:
 - [x] 02-01-PLAN.md — Derived memory schema (migration 0002, ORM models, pgvector dep)
 - [x] 02-02-PLAN.md — Test scaffold (RED state — all 7 test files created)
 - [x] 02-03-PLAN.md — Worker loop, jobs service, sensitivity gate
 - [x] 02-04-PLAN.md — LLM dispatcher (summarize, extract, FTS, reprocess endpoint)
-- [ ] 02-05-PLAN.md — Embeddings (local sentence-transformers, write_embedding wired)
+- [x] 02-05-PLAN.md — Embeddings (local sentence-transformers, write_embedding wired)
 - [ ] 02-06-PLAN.md — Conflict detection (pgvector cosine similarity, conflict_groups)
 - [ ] 02-07-PLAN.md — Job status UI (archive badge, retry button, 5s polling)
 - [ ] 02-08-PLAN.md — Integration tests (full suite GREEN, all 10 req IDs covered)
@@ -131,7 +131,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 0/TBD | Complete    | 2026-03-23 |
-| 2. Processing Pipeline | 4/8 | In Progress|  |
+| 2. Processing Pipeline | 5/8 | In Progress|  |
 | 3. Retrieval + Review | 0/TBD | Not started | — |
 | 4. Privacy + Operations | 0/TBD | Not started | — |
 | 5. Service Hardening | 0/TBD | Not started | — |
