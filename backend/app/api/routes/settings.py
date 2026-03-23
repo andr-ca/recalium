@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter
+from fastapi.responses import JSONResponse
 
 router = APIRouter()
 
@@ -20,8 +21,11 @@ async def get_keys() -> dict:
 
 
 @router.post("/keys/validate")
-async def validate_key() -> dict:
+async def validate_key() -> JSONResponse:
     """POST /api/settings/keys/validate — validates a provider API key.
-    Stub: returns error until Plan 01-07 implementation.
+    Stub: returns 501 until Plan 01-07 implementation.
     """
-    return {"error": "Not yet implemented — see Plan 01-07"}
+    return JSONResponse(
+        status_code=501,
+        content={"error": "Not yet implemented — see Plan 01-07"}
+    )
