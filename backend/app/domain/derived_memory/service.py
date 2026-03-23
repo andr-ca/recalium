@@ -1,0 +1,134 @@
+"""Derived memory domain service — writes summaries, facts, and FTS entries.
+
+SECURITY: No API keys here. This service only writes derived data to DB.
+PIPE-02: All write_facts calls enforce source_span/confidence_tier/derivation fields.
+CASCADE CONTRACT: All rows default to source_status='active'.
+"""
+from __future__ import annotations
+
+import logging
+import uuid
+
+from sqlalchemy import select, text
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.domain.derived_memory.models import Summary, Fact, FtsEntry
+
+logger = logging.getLogger(__name__)
+
+
+async def write_summary(
+    session: AsyncSession,
+    raw_archive_id: uuid.UUID,
+    summary_text: str,
+    model_used: str,
+    derivation_method: str = "llm_summarization",
+) -> Summary:
+    """Write a new summary for a raw archive item. source_status defaults to 'active'."""
+    summary = Summary(
+        raw_archive_id=raw_archive_id,
+        summary_text=summary_text,
+        model_used=model_used,
+        derivation_method=derivation_method,
+    )
+    session.add(summary)
+    await session.commit()
+    await session.refresh(summary)
+    logger.debug("Wrote summary for archive_id=%s model=%s", raw_archive_id, model_used)
+    return summary
+
+
+async def get_existing_summary(
+    session: AsyncSession,
+    raw_archive_id: uuid.UUID,
+) -> Summary | None:
+    """Return the first active summary for this archive item (for BYOK-08 skip check)."""
+    result = await session.execute(
+        select(Summary)
+        .where(Summary.raw_archive_id == raw_archive_id)
+        .where(Summary.source_status == "active")
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
+async def write_facts(
+    session: AsyncSession,
+    raw_archive_id: uuid.UUID,
+    facts_data: list[dict],
+) -> list[Fact]:
+    """Write extracted facts for a raw archive item.
+
+    PIPE-02 enforcement:
+    - source_span is required. If empty/whitespace, confidence_tier is forced to 'low'.
+    - confidence_tier must be 'high', 'medium', or 'low'.
+    - derivation_method and derivation_model are required.
+    """
+    created: list[Fact] = []
+
+    for item in facts_data:
+        source_span = item.get("source_span", "").strip() if item.get("source_span") else ""
+        confidence_tier = item.get("confidence_tier", "low")
+
+        # PIPE-02: empty source_span → force confidence_tier to 'low'
+        if not source_span:
+            confidence_tier = "low"
+            logger.debug(
+                "Fact has empty source_span — downgrading confidence to 'low' for archive_id=%s",
+                raw_archive_id,
+            )
+
+        # Validate confidence_tier
+        if confidence_tier not in ("high", "medium", "low"):
+            confidence_tier = "low"
+
+        fact = Fact(
+            raw_archive_id=raw_archive_id,
+            fact_text=item["fact_text"],
+            source_span=item.get("source_span", ""),
+            confidence_tier=confidence_tier,
+            derivation_method=item.get("derivation_method", "llm_extraction"),
+            derivation_model=item.get("derivation_model", "unknown"),
+            conflict_group_id=item.get("conflict_group_id"),
+        )
+        session.add(fact)
+        created.append(fact)
+
+    if created:
+        await session.commit()
+        for fact in created:
+            await session.refresh(fact)
+        logger.debug("Wrote %d facts for archive_id=%s", len(created), raw_archive_id)
+
+    return created
+
+
+async def write_fts_entry(
+    session: AsyncSession,
+    raw_archive_id: uuid.UUID,
+    text_content: str,
+) -> FtsEntry:
+    """Write a full-text search entry and populate the tsvector column.
+
+    Uses to_tsvector('english', ...) for English-language FTS indexing.
+    search_vector is updated via raw SQL because SQLAlchemy doesn't have a TSVECTOR type.
+    """
+    entry = FtsEntry(
+        raw_archive_id=raw_archive_id,
+        text_content=text_content,
+    )
+    session.add(entry)
+    await session.flush()  # Get ID without full commit
+
+    # Update search_vector via SQL (to_tsvector is a PostgreSQL function)
+    await session.execute(
+        text(
+            "UPDATE fts_entries SET search_vector = to_tsvector('english', :content) "
+            "WHERE id = :id"
+        ),
+        {"content": text_content, "id": str(entry.id)},
+    )
+    await session.commit()
+    await session.refresh(entry)
+    logger.debug("Wrote FTS entry for archive_id=%s", raw_archive_id)
+    return entry
