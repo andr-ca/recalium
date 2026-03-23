@@ -85,8 +85,22 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Startup assertion: no plaintext key columns in schema
     _assert_no_keys_in_schema()
 
+    # Start pipeline worker task
+    import asyncio as _asyncio
+    from app.worker.loop import worker_loop
+    _worker_task = _asyncio.create_task(worker_loop(), name="pipeline-worker")
+    logger.info("Pipeline worker task started")
+
     logger.info("DB pool initialized. Application ready.")
     yield
+
+    # Shutdown pipeline worker cleanly
+    _worker_task.cancel()
+    try:
+        await _worker_task
+    except _asyncio.CancelledError:
+        pass
+    logger.info("Pipeline worker task stopped")
 
     # Shutdown: dispose DB connection pool
     await engine.dispose()

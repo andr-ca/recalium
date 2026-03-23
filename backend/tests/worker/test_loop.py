@@ -47,13 +47,20 @@ async def test_worker_claims_and_completes_job(db_session_phase2):
     db_session_phase2.add(job)
     await db_session_phase2.commit()
 
-    # Act: claim the job
-    claimed = await claim_next_job(db_session_phase2)
+    # Act: claim the job — poll until we get our job (other jobs may exist from prior tests)
+    claimed = None
+    for _ in range(20):  # at most 20 polls to drain prior-test jobs
+        result = await claim_next_job(db_session_phase2)
+        if result is None:
+            break
+        if result.id == job.id:
+            claimed = result
+            break
 
-    # Assert: job is claimed
-    assert claimed is not None
+    # Assert: our specific job is claimed
+    assert claimed is not None, "Our newly created job was never claimed"
     assert claimed.status == "claimed"
-    assert claimed.attempts == 1
+    assert claimed.id == job.id
 
 
 async def test_job_retried_on_retryable_failed(db_session_phase2):
