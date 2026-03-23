@@ -1,20 +1,54 @@
-"""Derived memory domain service — writes summaries, facts, and FTS entries.
+"""Derived memory domain service — writes summaries, facts, FTS entries, and embeddings.
 
 SECURITY: No API keys here. This service only writes derived data to DB.
 PIPE-02: All write_facts calls enforce source_span/confidence_tier/derivation fields.
+PIPE-01: embed_text uses local sentence-transformers — no API key needed.
 CASCADE CONTRACT: All rows default to source_status='active'.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import uuid
 
+from sentence_transformers import SentenceTransformer
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.domain.derived_memory.models import Summary, Fact, FtsEntry
+from app.domain.derived_memory.models import Summary, Fact, FtsEntry, Embedding
 
 logger = logging.getLogger(__name__)
+
+# ── Embedding model singleton ─────────────────────────────────────────────────
+# Loaded lazily on first call. NOT at module import (avoids blocking event loop).
+# _get_embed_model() is called inside asyncio.to_thread() — safe to block there.
+_embed_model: SentenceTransformer | None = None
+_EMBED_MODEL_NAME = "all-MiniLM-L6-v2"
+
+
+def _get_embed_model() -> SentenceTransformer:
+    """Load embedding model lazily. Called inside asyncio.to_thread() — safe to block."""
+    global _embed_model
+    if _embed_model is None:
+        _embed_model = SentenceTransformer(_EMBED_MODEL_NAME)
+        logger.info("Loaded embedding model: %s", _EMBED_MODEL_NAME)
+    return _embed_model
+
+
+async def embed_text(text: str) -> list[float]:
+    """Embed text using all-MiniLM-L6-v2 in a thread pool.
+
+    Runs synchronous sentence-transformers encode() in asyncio.to_thread() to
+    avoid blocking the event loop. Returns L2-normalized vector (384 dims).
+
+    PIPE-01: local embeddings always available — no API key needed.
+    """
+    def _encode() -> list[float]:
+        model = _get_embed_model()
+        vector = model.encode(text, normalize_embeddings=True)
+        return vector.tolist()
+
+    return await asyncio.to_thread(_encode)
 
 
 async def write_summary(
@@ -132,3 +166,43 @@ async def write_fts_entry(
     await session.refresh(entry)
     logger.debug("Wrote FTS entry for archive_id=%s", raw_archive_id)
     return entry
+
+
+async def write_embedding(
+    session: AsyncSession,
+    raw_archive_id: uuid.UUID,
+    vector: list[float],
+    model_name: str = _EMBED_MODEL_NAME,
+) -> Embedding:
+    """Write embedding vector for a raw archive item.
+
+    PIPE-01: source_status='active'. 384 dims from all-MiniLM-L6-v2.
+    Stores embedding_model so future model upgrades can detect stale rows.
+    """
+    embedding = Embedding(
+        raw_archive_id=raw_archive_id,
+        embedding=vector,
+        embedding_model=model_name,
+    )
+    session.add(embedding)
+    await session.commit()
+    await session.refresh(embedding)
+    logger.debug(
+        "Wrote embedding for archive_id=%s model=%s dims=%d",
+        raw_archive_id, model_name, len(vector),
+    )
+    return embedding
+
+
+async def get_existing_embedding(
+    session: AsyncSession,
+    raw_archive_id: uuid.UUID,
+) -> Embedding | None:
+    """Return the first active embedding for this archive item (BYOK-08 skip check)."""
+    result = await session.execute(
+        select(Embedding)
+        .where(Embedding.raw_archive_id == raw_archive_id)
+        .where(Embedding.source_status == "active")
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
