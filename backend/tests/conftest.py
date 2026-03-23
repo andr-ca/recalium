@@ -93,3 +93,34 @@ async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     ) as ac:
         yield ac
     app.dependency_overrides.clear()
+
+
+# ── Derived memory model imports (Phase 2) ───────────────────────────────────
+# Import derived_memory models so Base.metadata.create_all includes them.
+# These imports are guarded — if models don't exist yet (pre-plan-02-01),
+# the test_engine fixture will simply skip their tables.
+try:
+    import app.domain.derived_memory.models  # noqa: F401
+except ImportError:
+    pass  # Phase 2 models not yet created
+
+
+@pytest_asyncio.fixture
+async def test_engine_phase2(test_engine):
+    """Alias for test_engine — ensures derived_memory tables are created.
+
+    Depends on test_engine (which already ran create_all).
+    Phase 2 tests use this fixture to self-document their DB dependency.
+    """
+    yield test_engine
+
+
+@pytest_asyncio.fixture
+async def db_session_phase2(test_engine_phase2) -> AsyncGenerator[AsyncSession, None]:
+    """Per-test async session for Phase 2 tests — same rollback semantics as db_session."""
+    factory = async_sessionmaker(
+        test_engine_phase2, class_=AsyncSession, expire_on_commit=False
+    )
+    async with factory() as session:
+        yield session
+        await session.rollback()
