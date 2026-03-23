@@ -5,10 +5,11 @@ import logging
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.settings.service import (
+    ValidationResult,
     get_settings_state,
     validate_anthropic_key,
     validate_ollama_connection,
@@ -38,22 +39,9 @@ class SettingsResponse(BaseModel):
 
 
 class ValidateKeyRequest(BaseModel):
-    provider: Literal["openai", "anthropic", "ollama"]
+    provider: Literal["openai", "anthropic", "ollama"]  # Literal enforces valid values
     api_key: str = ""
     base_url: str | None = None  # Ollama only
-
-    @field_validator("api_key")
-    @classmethod
-    def key_not_logged(cls, v: str) -> str:
-        # Ensure key value is never accidentally logged by Pydantic repr
-        return v
-
-    @field_validator("provider")
-    @classmethod
-    def provider_valid(cls, v: str) -> str:
-        if v not in ("openai", "anthropic", "ollama"):
-            raise ValueError(f"Unknown provider: {v!r}")
-        return v
 
 
 class ValidateKeyResponse(BaseModel):
@@ -110,6 +98,7 @@ async def validate_key(
     - Only fingerprint (last 4 chars) is persisted.
     """
     try:
+        result: ValidationResult | None = None
         if request.provider == "openai":
             if not request.api_key:
                 raise HTTPException(status_code=422, detail="api_key is required for OpenAI")
@@ -135,6 +124,9 @@ async def validate_key(
         raise
     except Exception as e:
         logger.error("Key validation error for %s: %s", request.provider, e)
+        raise HTTPException(status_code=500, detail="Key validation failed unexpectedly.")
+
+    if result is None:  # should be unreachable — Literal enforces valid providers
         raise HTTPException(status_code=500, detail="Key validation failed unexpectedly.")
 
     return ValidateKeyResponse(

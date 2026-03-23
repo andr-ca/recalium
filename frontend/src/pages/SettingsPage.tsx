@@ -31,6 +31,40 @@ function StatusBadge({ status }: { status: string | null | undefined }) {
   return <Badge variant="destructive">Invalid</Badge>;
 }
 
+const PROVIDERS_CONFIG: Array<{
+  id: Provider;
+  label: string;
+  description: string;
+  keyLabel: string;
+  keyPlaceholder: string;
+  hasBaseUrl: boolean;
+}> = [
+  {
+    id: "openai",
+    label: "OpenAI",
+    description: "Used for embeddings (text-embedding-3-small) and summarization/extraction.",
+    keyLabel: "API Key",
+    keyPlaceholder: "sk-…",
+    hasBaseUrl: false,
+  },
+  {
+    id: "anthropic",
+    label: "Anthropic",
+    description: "Used for summarization and fact extraction (Claude models).",
+    keyLabel: "API Key",
+    keyPlaceholder: "sk-ant-…",
+    hasBaseUrl: false,
+  },
+  {
+    id: "ollama",
+    label: "Ollama",
+    description: "Local Ollama instance for high-privacy processing (no data leaves your machine).",
+    keyLabel: "API Key (optional)",
+    keyPlaceholder: "Leave empty if no auth required",
+    hasBaseUrl: true,
+  },
+];
+
 export function SettingsPage() {
   const [providers, setProviders] = React.useState<Record<Provider, ProviderState>>({
     openai: { ...DEFAULT_PROVIDER_STATE },
@@ -67,13 +101,14 @@ export function SettingsPage() {
   }, []);
 
   const handleValidate = React.useCallback(async (provider: Provider) => {
+    // Capture input values BEFORE the optimistic state update to avoid stale closure reads
+    const { keyInput, baseUrl } = providers[provider];
     setProviders((prev) => ({ ...prev, [provider]: { ...prev[provider], isValidating: true, error: null } }));
     try {
-      const state = providers[provider];
       const result = await validateKey({
         provider,
-        api_key: state.keyInput,
-        base_url: provider === "ollama" ? state.baseUrl : undefined,
+        api_key: keyInput,
+        base_url: provider === "ollama" ? baseUrl : undefined,
       });
       setProviders((prev) => ({
         ...prev,
@@ -111,40 +146,6 @@ export function SettingsPage() {
     );
   }
 
-  const providers_config: Array<{
-    id: Provider;
-    label: string;
-    description: string;
-    keyLabel: string;
-    keyPlaceholder: string;
-    hasBaseUrl: boolean;
-  }> = [
-    {
-      id: "openai",
-      label: "OpenAI",
-      description: "Used for embeddings (text-embedding-3-small) and summarization/extraction.",
-      keyLabel: "API Key",
-      keyPlaceholder: "sk-…",
-      hasBaseUrl: false,
-    },
-    {
-      id: "anthropic",
-      label: "Anthropic",
-      description: "Used for summarization and fact extraction (Claude models).",
-      keyLabel: "API Key",
-      keyPlaceholder: "sk-ant-…",
-      hasBaseUrl: false,
-    },
-    {
-      id: "ollama",
-      label: "Ollama",
-      description: "Local Ollama instance for high-privacy processing (no data leaves your machine).",
-      keyLabel: "API Key (optional)",
-      keyPlaceholder: "Leave empty if no auth required",
-      hasBaseUrl: true,
-    },
-  ];
-
   return (
     <div className="max-w-2xl mx-auto">
       <h1 className="text-2xl font-bold mb-2">Settings</h1>
@@ -155,7 +156,7 @@ export function SettingsPage() {
       </p>
 
       <div className="flex flex-col gap-6">
-        {providers_config.map((config) => {
+        {PROVIDERS_CONFIG.map((config) => {
           const state = providers[config.id];
           const isConfigured = state.status?.configured ?? false;
           const fingerprint = state.status?.fingerprint;
