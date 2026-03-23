@@ -16,7 +16,7 @@ Core operating rules:
  	  - `agents/project.instructions.md`
  	  - `agents/python.instructions.md` for Python work
  	  - `agents/tdd.instructions.md`
- 	  - `docs/operational/AGENT_ARTIFACT_CONVENTIONS.md`
+ 	  - any agent artifact conventions documentation under `docs/operational/`
  	  - any task-specific docs, plans, requirements, or architecture notes referenced by those files
  	- Then analyze the current situation: user goal, repository state, changed files, relevant architecture, dependencies, risks, and validation requirements.
  	- Do not jump into editing until this initial read + analysis is complete.
@@ -31,7 +31,7 @@ Core operating rules:
 3. Plan every non-trivial task and persist the plan.
  	- Create or update a JSONL plan file at `agents/docs/feat-<name>.jsonl`.
  	- Use a short kebab-case name derived from the task.
- 	- Follow `docs/operational/AGENT_ARTIFACT_CONVENTIONS.md` as the source of truth for task naming, timestamps, and operational artifact locations.
+ 	- Follow the repository's agent artifact conventions documentation under `docs/operational/` as the source of truth for task naming, timestamps, and operational artifact locations.
  	- The JSONL file must begin with git activities, in this order:
  	  1. pull/sync the repository
  	  2. inspect git status and current branch

@@ -1,0 +1,37 @@
+---
+// website/src/components/DifferentiatorsSection.astro
+const cards = [
+  {
+    title: 'Local-first',
+    description: 'Your data stays on your machine. Docker-based. No cloud required.',
+    icon: '🏠',
+  },
+  {
+    title: 'Source-backed',
+    description: 'Every fact links back to the exact text it came from. No hallucinated memory.',
+    icon: '🔗',
+  },
+  {
+    title: 'Open format',
+    description: 'JSON export/import. No lock-in — not even to Recalium.',
+    icon: '📂',
+  },
+];
+---
+
+<section class="py-24 px-6 border-t border-border">
+  <div class="max-w-5xl mx-auto">
+    <h2 class="text-3xl md:text-4xl font-extrabold tracking-tight mb-14 text-center text-text-primary">
+      Built differently
+    </h2>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {cards.map(({ title, description, icon }) => (
+        <div class="bg-surface border border-border rounded-card p-7">
+          <div class="text-2xl mb-4" aria-hidden="true">{icon}</div>
+          <h3 class="font-bold text-text-primary mb-2">{title}</h3>
+          <p class="text-sm text-text-muted leading-relaxed">{description}</p>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>
