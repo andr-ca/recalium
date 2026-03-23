@@ -16,7 +16,7 @@ async def health_check(session: AsyncSession = Depends(get_session)) -> dict:
 
     Returns:
         {"status": "ok", "db": "ok"} on success
-        {"status": "degraded", "db": "error", "detail": "..."} if DB unreachable
+        {"status": "...", "db": "error", "detail": "..."} if DB unreachable
     """
     try:
         await session.execute(text("SELECT 1"))
