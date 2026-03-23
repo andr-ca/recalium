@@ -44,6 +44,7 @@ def _assert_no_keys_in_schema() -> None:
     import app.domain.settings.models  # noqa: F401
     import app.domain.jobs.models  # noqa: F401
     import app.domain.audit.models  # noqa: F401
+    import app.domain.derived_memory.models  # noqa: F401
 
     forbidden_suffixes = ("_key", "_secret", "_token", "_password")
     allowed_suffixes = ("_fingerprint", "_configured", "_validation_status", "_validated_at")
