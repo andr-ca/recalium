@@ -1,3 +1,4 @@
+/// <reference types="vitest" />
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
@@ -27,5 +28,10 @@ export default defineConfig({
   build: {
     outDir: "dist",
     // Output goes to dist/ which is copied into backend/app/static/ in Docker build
+  },
+  test: {
+    environment: "jsdom",
+    globals: true,
+    setupFiles: ["./src/setupTests.ts"],
   },
 });
