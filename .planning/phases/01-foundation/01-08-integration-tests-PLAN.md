@@ -101,7 +101,7 @@ TEST_DATABASE_URL = os.environ.get(
 os.environ.setdefault("DATABASE_URL", TEST_DATABASE_URL)
 
 from app.main import app  # noqa: E402 — must be after env override
-from app.infrastructure.db import Base, engine as _prod_engine  # noqa: E402
+from app.infrastructure.db import Base  # noqa: E402
 
 
 # ── Engine for test DB ───────────────────────────────────────────────────────
@@ -197,13 +197,13 @@ async def test_paste_ingest(client: AsyncClient):
         "content": "User: Hello\nAssistant: Hi there!\n\nUser: How are you?\nAssistant: I'm doing well.",
         "source_name": "test_paste",
     }
-    resp = await client.post("/api/ingest/text", json=payload)
+    resp = await client.post("/api/ingest", json=payload)
     assert resp.status_code in (200, 202), resp.text
     data = resp.json()
     assert "archive_ids" in data, f"Missing archive_ids in response: {data}"
     assert len(data["archive_ids"]) >= 1
-    assert "conversation_count" in data
-    assert data["conversation_count"] >= 1
+    assert "item_count" in data
+    assert data["item_count"] >= 1
 
 
 async def test_ingest_latency(client: AsyncClient):
@@ -213,15 +213,15 @@ async def test_ingest_latency(client: AsyncClient):
         "source_name": "latency_test",
     }
     start = time.monotonic()
-    resp = await client.post("/api/ingest/text", json=payload)
+    resp = await client.post("/api/ingest", json=payload)
     elapsed = time.monotonic() - start
     assert resp.status_code in (200, 202)
     assert elapsed < 1.0, f"Ingest took {elapsed:.3f}s — must be < 1.0s"
 
 
 async def test_paste_ingest_empty_returns_error(client: AsyncClient):
-    """INGT-01: POST /api/ingest/text with empty content returns 422."""
-    resp = await client.post("/api/ingest/text", json={"content": ""})
+    """INGT-01: POST /api/ingest with empty content returns 422."""
+    resp = await client.post("/api/ingest", json={"content": ""})
     assert resp.status_code == 422
 
 
@@ -292,7 +292,7 @@ async def test_chatgpt_upload(client: AsyncClient):
     )
     assert resp.status_code in (200, 202), resp.text
     data = resp.json()
-    assert data["conversation_count"] >= 1
+    assert data["item_count"] >= 1
     assert len(data["archive_ids"]) >= 1
 
 
@@ -305,7 +305,7 @@ async def test_claude_upload(client: AsyncClient):
     )
     assert resp.status_code in (200, 202), resp.text
     data = resp.json()
-    assert data["conversation_count"] >= 1
+    assert data["item_count"] >= 1
 
 
 async def test_generic_json_upload(client: AsyncClient):
@@ -357,7 +357,7 @@ async def _ingest_one(client: AsyncClient, source_name: str = "archive_test") ->
         "content": f"User: Test message for {source_name}\nAssistant: Test response",
         "source_name": source_name,
     }
-    resp = await client.post("/api/ingest/text", json=payload)
+    resp = await client.post("/api/ingest", json=payload)
     assert resp.status_code in (200, 202)
     return resp.json()["archive_ids"][0]
 
@@ -403,8 +403,8 @@ async def test_archive_item_fields(client: AsyncClient):
 
 
 async def test_archive_pagination(client: AsyncClient):
-    """INGT-03: GET /api/archive supports ?page=1&page_size=5 pagination."""
-    resp = await client.get("/api/archive", params={"page": 1, "page_size": 5})
+    """INGT-03: GET /api/archive supports ?offset=0&limit=5 pagination."""
+    resp = await client.get("/api/archive", params={"offset": 0, "limit": 5})
     assert resp.status_code == 200
     data = resp.json()
     assert "items" in data
@@ -438,6 +438,7 @@ from httpx import AsyncClient
 from unittest.mock import AsyncMock, patch
 
 from app.infrastructure.db import Base
+from app.domain.settings.service import ValidationResult
 
 
 # ── BYOK-02: GET settings endpoint ──────────────────────────────────────────
@@ -473,7 +474,7 @@ async def test_validate_openai_key_valid(client: AsyncClient):
     with patch(
         "app.domain.settings.service.validate_openai_key",
         new_callable=AsyncMock,
-        return_value="valid",
+        return_value=ValidationResult(provider="openai", status="valid", message="Mocked valid"),
     ):
         resp = await client.post(
             "/api/settings/keys/validate",
@@ -492,7 +493,7 @@ async def test_validate_invalid_key(client: AsyncClient):
     with patch(
         "app.domain.settings.service.validate_openai_key",
         new_callable=AsyncMock,
-        return_value="invalid",
+        return_value=ValidationResult(provider="openai", status="invalid", message="Mocked invalid"),
     ):
         resp = await client.post(
             "/api/settings/keys/validate",
@@ -576,7 +577,7 @@ async def test_degraded_mode_no_keys(client: AsyncClient):
 
     # Also verify ingest works without keys (BYOK-05 — ingest is key-independent)
     resp = await client.post(
-        "/api/ingest/text",
+        "/api/ingest",
         json={"content": "User: Test\nAssistant: Test", "source_name": "degraded_mode_test"},
     )
     assert resp.status_code in (200, 202), (
@@ -601,7 +602,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it } from "vitest";
-import { LeftNav } from "../components/nav/LeftNav";
+import { NavSidebar as LeftNav } from "../components/NavSidebar";
 
 // Expected nav items and their enabled/disabled state (D-19)
 const NAV_ITEMS = [
@@ -668,16 +669,13 @@ describe("LeftNav", () => {
 
   it("disabled items have tooltip text 'Available in a future update'", async () => {
     renderNav();
-    const user = userEvent.setup();
 
-    // Hover the first disabled item ("Facts") and check tooltip appears
+    // The NavSidebar uses a `title` attribute for tooltip text.
+    // Check that the first disabled item ("Facts") has the expected title.
     const factsEl = screen.getByText("Facts");
-    await user.hover(factsEl);
-
-    // Tooltip should be visible after hover
-    expect(
-      screen.queryByText("Available in a future update")
-    ).toBeInTheDocument();
+    const wrapper = factsEl.closest("[title]");
+    expect(wrapper, "Facts element must have a title attribute").not.toBeNull();
+    expect(wrapper?.getAttribute("title")).toContain("Available in a future update");
   });
 });
 ```
@@ -704,7 +702,7 @@ describe("LeftNav", () => {
     - frontend/src/tests/LeftNav.test.tsx (component test)
     - backend/app/api/routes/ingest.py (check exact URL path: /api/ingest/text vs /api/ingest)
     - backend/app/api/routes/settings.py (check exact URL path: /api/settings/keys vs /api/settings/byok)
-    - frontend/src/components/nav/LeftNav.tsx (check actual component structure matches test assumptions)
+    - frontend/src/components/NavSidebar.tsx (check actual component structure matches test assumptions)
   </read_first>
   <action>
 ### Step 1: Ensure test database exists
@@ -853,9 +851,9 @@ key_links:
     via: "httpx AsyncClient against ASGI transport"
     pattern: "client.post.*ingest"
   - from: "frontend/src/tests/LeftNav.test.tsx"
-    to: "frontend/src/components/nav/LeftNav.tsx"
-    via: "import { LeftNav } from"
-    pattern: "import.*LeftNav"
+    to: "frontend/src/components/NavSidebar.tsx"
+    via: "import { NavSidebar as LeftNav } from"
+    pattern: "import.*NavSidebar"
 </must_haves>
 
 <success_criteria>
