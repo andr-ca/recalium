@@ -19,8 +19,8 @@ Requirements for initial release. Each maps to exactly one roadmap phase.
 
 - [x] **PIPE-01**: Async pipeline produces summaries, extracted facts, embeddings, and FTS index entries without blocking ingest response
 - [x] **PIPE-02**: Every extracted fact carries source span, confidence tier (high/medium/low), derivation method, and model version
-- [ ] **PIPE-03**: Sensitivity gate runs before any external provider call; personal/relationship/unclassified content blocked from external processing by default
-- [ ] **PIPE-04**: Failed jobs retry automatically with bounded attempts; terminal failures surface for manual retry
+- [x] **PIPE-03**: Sensitivity gate runs before any external provider call; personal/relationship/unclassified content blocked from external processing by default
+- [x] **PIPE-04**: Failed jobs retry automatically with bounded attempts; terminal failures surface for manual retry
 - [ ] **PIPE-05**: Reprocessing supported after logic changes or failures
 
 ### Search and Retrieval
@@ -53,8 +53,8 @@ Requirements for initial release. Each maps to exactly one roadmap phase.
 - [ ] **PRIV-01**: Raw source deletion/redaction immediately cascade-suppresses derived summaries, facts, embeddings, and search entries (marked source-removed)
 - [ ] **PRIV-02**: Canonical memory from deleted source retains source-removed marker and required-review state
 - [ ] **PRIV-03**: Future backups/exports exclude deleted/redacted data; UI flags older backups that may contain it
-- [ ] **PRIV-04**: Personal profile and relationship content blocked from external processing by default
-- [ ] **PRIV-05**: Unknown/unclassified content blocked from external processing by default until user explicitly allows
+- [x] **PRIV-04**: Personal profile and relationship content blocked from external processing by default
+- [x] **PRIV-05**: Unknown/unclassified content blocked from external processing by default until user explicitly allows
 - [ ] **PRIV-06**: Broader-than-localhost exposure requires authentication, session handling, and transport protection
 
 ### BYOK Provider Configuration
@@ -145,8 +145,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | INGT-05 | Phase 5 — Service Hardening | Pending |
 | PIPE-01 | Phase 2 — Processing Pipeline | Complete |
 | PIPE-02 | Phase 2 — Processing Pipeline | Complete |
-| PIPE-03 | Phase 2 — Processing Pipeline | Pending |
-| PIPE-04 | Phase 2 — Processing Pipeline | Pending |
+| PIPE-03 | Phase 2 — Processing Pipeline | Complete |
+| PIPE-04 | Phase 2 — Processing Pipeline | Complete |
 | PIPE-05 | Phase 2 — Processing Pipeline | Pending |
 | SRCH-01 | Phase 3 — Retrieval + Review | Pending |
 | SRCH-02 | Phase 3 — Retrieval + Review | Pending |
@@ -167,8 +167,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PRIV-01 | Phase 4 — Privacy + Operations | Pending |
 | PRIV-02 | Phase 4 — Privacy + Operations | Pending |
 | PRIV-03 | Phase 4 — Privacy + Operations | Pending |
-| PRIV-04 | Phase 2 — Processing Pipeline | Pending |
-| PRIV-05 | Phase 2 — Processing Pipeline | Pending |
+| PRIV-04 | Phase 2 — Processing Pipeline | Complete |
+| PRIV-05 | Phase 2 — Processing Pipeline | Complete |
 | PRIV-06 | Phase 4 — Privacy + Operations | Pending |
 | BYOK-01 | Phase 4 — Privacy + Operations | Pending |
 | BYOK-02 | Phase 1 — Foundation | Complete |
