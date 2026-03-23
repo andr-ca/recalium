@@ -9,16 +9,16 @@ Requirements for initial release. Each maps to exactly one roadmap phase.
 
 ### Ingestion
 
-- [ ] **INGT-01**: User can import conversations via text paste (plain text / Markdown)
-- [ ] **INGT-02**: User can import conversations via file upload (ChatGPT JSON, Claude JSON, generic JSON)
-- [ ] **INGT-03**: System stores raw archive with source metadata and shows item in Archive UI within P95 ≤ 1s
+- [x] **INGT-01**: User can import conversations via text paste (plain text / Markdown)
+- [x] **INGT-02**: User can import conversations via file upload (ChatGPT JSON, Claude JSON, generic JSON)
+- [x] **INGT-03**: System stores raw archive with source metadata and shows item in Archive UI within P95 ≤ 1s
 - [ ] **INGT-04**: Watched import folder provides low-friction local ingestion without UI interaction
 - [ ] **INGT-05**: MCP-accessible ingestion endpoint accepts raw content with source metadata, client identity, and sensitivity hints
 
 ### Processing Pipeline
 
-- [ ] **PIPE-01**: Async pipeline produces summaries, extracted facts, embeddings, and FTS index entries without blocking ingest response
-- [ ] **PIPE-02**: Every extracted fact carries source span, confidence tier (high/medium/low), derivation method, and model version
+- [x] **PIPE-01**: Async pipeline produces summaries, extracted facts, embeddings, and FTS index entries without blocking ingest response
+- [x] **PIPE-02**: Every extracted fact carries source span, confidence tier (high/medium/low), derivation method, and model version
 - [ ] **PIPE-03**: Sensitivity gate runs before any external provider call; personal/relationship/unclassified content blocked from external processing by default
 - [ ] **PIPE-04**: Failed jobs retry automatically with bounded attempts; terminal failures surface for manual retry
 - [ ] **PIPE-05**: Reprocessing supported after logic changes or failures
@@ -46,7 +46,7 @@ Requirements for initial release. Each maps to exactly one roadmap phase.
 - [ ] **CANM-03**: Canonical memory requires explicit user action (no auto-promotion)
 - [ ] **CANM-04**: Facts with no attributable source span cannot be promoted without explicit user confirmation
 - [ ] **CANM-05**: Review queue groups duplicate/overlapping facts for manageable cleanup
-- [ ] **CANM-06**: Conflict detection flags contradictory facts across sources
+- [x] **CANM-06**: Conflict detection flags contradictory facts across sources
 
 ### Deletion and Privacy
 
@@ -60,10 +60,10 @@ Requirements for initial release. Each maps to exactly one roadmap phase.
 ### BYOK Provider Configuration
 
 - [ ] **BYOK-01**: First-run wizard explains BYOK model, supported providers, estimated cost per 100 conversations, and links to key creation pages
-- [ ] **BYOK-02**: User can configure OpenAI, Anthropic, and Ollama endpoint API keys through settings
-- [ ] **BYOK-03**: Key validation runs at configuration time with a lightweight test call (success, failure, or insufficient permissions)
-- [ ] **BYOK-04**: Provider-backed processing uses only user's configured keys; no calls to any Recalium-operated service
-- [ ] **BYOK-05**: System remains usable for ingestion, local storage, browsing, and keyword search without any configured keys
+- [x] **BYOK-02**: User can configure OpenAI, Anthropic, and Ollama endpoint API keys through settings
+- [x] **BYOK-03**: Key validation runs at configuration time with a lightweight test call (success, failure, or insufficient permissions)
+- [x] **BYOK-04**: Provider-backed processing uses only user's configured keys; no calls to any Recalium-operated service
+- [x] **BYOK-05**: System remains usable for ingestion, local storage, browsing, and keyword search without any configured keys
 - [ ] **BYOK-06**: Processing cost estimated and displayed before bulk import confirmation (token count heuristics, order-of-magnitude correctness)
 - [ ] **BYOK-07**: Invalid/rate-limited keys cause affected jobs to enter retryable failed state with clear error; no silent drops
 - [ ] **BYOK-08**: User can switch providers per function without reprocessing already-completed items
@@ -73,14 +73,14 @@ Requirements for initial release. Each maps to exactly one roadmap phase.
 - [ ] **BKUP-01**: Scheduled daily backups with 30-day retention
 - [ ] **BKUP-02**: Any successful backup restorable within 15 minutes
 - [ ] **BKUP-03**: Restore recovers raw archive, summaries, facts, canonical memory, provenance metadata, retained audit events, and required configuration
-- [ ] **BKUP-04**: No acknowledged raw archive item lost after container restart or host reboot (persisted via bind-mount volumes)
+- [x] **BKUP-04**: No acknowledged raw archive item lost after container restart or host reboot (persisted via bind-mount volumes)
 
 ### Web UI
 
-- [ ] **WEBUI-01**: Left-nav layout: Ingest, Archive, Facts, Canonical, Search, Review Queue, Audit, Settings
+- [x] **WEBUI-01**: Left-nav layout: Ingest, Archive, Facts, Canonical, Search, Review Queue, Audit, Settings
 - [ ] **WEBUI-02**: Core workflows operable by keyboard only (ingest, search, fact review, canonical edit, review queue, restore)
 - [ ] **WEBUI-03**: No critical accessibility failures (missing labels, keyboard traps, unannounced state changes)
-- [ ] **WEBUI-04**: Chrome/Chromium only in v1
+- [x] **WEBUI-04**: Chrome/Chromium only in v1
 - [ ] **WEBUI-05**: Provenance navigable from any summary, fact, or canonical item
 - [ ] **WEBUI-06**: Audit view: basic event list with per-event detail drawer; more detailed logging configurable
 
@@ -138,13 +138,13 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| INGT-01 | Phase 1 — Foundation | Pending |
-| INGT-02 | Phase 1 — Foundation | Pending |
-| INGT-03 | Phase 1 — Foundation | Pending |
+| INGT-01 | Phase 1 — Foundation | Complete |
+| INGT-02 | Phase 1 — Foundation | Complete |
+| INGT-03 | Phase 1 — Foundation | Complete |
 | INGT-04 | Phase 5 — Service Hardening | Pending |
 | INGT-05 | Phase 5 — Service Hardening | Pending |
-| PIPE-01 | Phase 2 — Processing Pipeline | Pending |
-| PIPE-02 | Phase 2 — Processing Pipeline | Pending |
+| PIPE-01 | Phase 2 — Processing Pipeline | Complete |
+| PIPE-02 | Phase 2 — Processing Pipeline | Complete |
 | PIPE-03 | Phase 2 — Processing Pipeline | Pending |
 | PIPE-04 | Phase 2 — Processing Pipeline | Pending |
 | PIPE-05 | Phase 2 — Processing Pipeline | Pending |
@@ -163,7 +163,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CANM-03 | Phase 3 — Retrieval + Review | Pending |
 | CANM-04 | Phase 3 — Retrieval + Review | Pending |
 | CANM-05 | Phase 3 — Retrieval + Review | Pending |
-| CANM-06 | Phase 2 — Processing Pipeline | Pending |
+| CANM-06 | Phase 2 — Processing Pipeline | Complete |
 | PRIV-01 | Phase 4 — Privacy + Operations | Pending |
 | PRIV-02 | Phase 4 — Privacy + Operations | Pending |
 | PRIV-03 | Phase 4 — Privacy + Operations | Pending |
@@ -171,21 +171,21 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PRIV-05 | Phase 2 — Processing Pipeline | Pending |
 | PRIV-06 | Phase 4 — Privacy + Operations | Pending |
 | BYOK-01 | Phase 4 — Privacy + Operations | Pending |
-| BYOK-02 | Phase 1 — Foundation | Pending |
-| BYOK-03 | Phase 1 — Foundation | Pending |
-| BYOK-04 | Phase 1 — Foundation | Pending |
-| BYOK-05 | Phase 1 — Foundation | Pending |
+| BYOK-02 | Phase 1 — Foundation | Complete |
+| BYOK-03 | Phase 1 — Foundation | Complete |
+| BYOK-04 | Phase 1 — Foundation | Complete |
+| BYOK-05 | Phase 1 — Foundation | Complete |
 | BYOK-06 | Phase 4 — Privacy + Operations | Pending |
 | BYOK-07 | Phase 2 — Processing Pipeline | Pending |
 | BYOK-08 | Phase 2 — Processing Pipeline | Pending |
 | BKUP-01 | Phase 4 — Privacy + Operations | Pending |
 | BKUP-02 | Phase 4 — Privacy + Operations | Pending |
 | BKUP-03 | Phase 4 — Privacy + Operations | Pending |
-| BKUP-04 | Phase 1 — Foundation | Pending |
-| WEBUI-01 | Phase 1 — Foundation | Pending |
+| BKUP-04 | Phase 1 — Foundation | Complete |
+| WEBUI-01 | Phase 1 — Foundation | Complete |
 | WEBUI-02 | Phase 4 — Privacy + Operations | Pending |
 | WEBUI-03 | Phase 4 — Privacy + Operations | Pending |
-| WEBUI-04 | Phase 1 — Foundation | Pending |
+| WEBUI-04 | Phase 1 — Foundation | Complete |
 | WEBUI-05 | Phase 3 — Retrieval + Review | Pending |
 | WEBUI-06 | Phase 4 — Privacy + Operations | Pending |
 | PORT-01 | Phase 5 — Service Hardening | Pending |

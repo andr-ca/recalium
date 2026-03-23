@@ -1,3 +1,17 @@
+---
+gsd_state_version: 1.0
+milestone: v1.0
+milestone_name: milestone
+status: unknown
+stopped_at: Completed 02-01-PLAN.md
+last_updated: "2026-03-23T12:46:56.310Z"
+progress:
+  total_phases: 5
+  completed_phases: 0
+  total_plans: 16
+  completed_plans: 2
+---
+
 # State: Recalium
 
 **Project:** Recalium — Local-First MCP-Native Personal Memory Platform
@@ -10,7 +24,7 @@
 
 **Core Value:** A user's future AI session — on any tool, with any model — can retrieve relevant, source-backed context from prior conversations that happened anywhere, without re-explaining anything.
 
-**Current Focus:** Phase 1 — Foundation (durable local storage, raw ingest, BYOK key storage, web UI shell)
+**Current Focus:** Phase 02 — Processing Pipeline
 
 **Stack (committed):** Python 3.12+/FastAPI 0.135.1, React 19+TypeScript/Vite 8/Tailwind v4/shadcn/ui 2.x, PostgreSQL 16+pgvector 0.8.2, SQLAlchemy 2.x async/asyncpg 0.31.0/Alembic, MCP Python SDK ≥1.26,<2, sentence-transformers 5.3.0, uv 0.10.12 + pnpm 10.32.1
 
@@ -18,10 +32,8 @@
 
 ## Current Position
 
-**Phase:** 1 — Foundation
-**Plan:** None started
-**Status:** Not started
-**Phase Goal:** Durable local storage + raw ingest path working; BYOK key pattern established; web UI shell live
+Phase: 02 (Processing Pipeline) — EXECUTING
+Plan: 2 of 8
 
 ### Progress Bar
 
@@ -47,6 +59,7 @@ Overall ▓░░░░░░░░░░░░░░░░░░░  0/52 requi
 | Requirements complete | 52/52 | 0/52 | — |
 
 ---
+| Phase 02 P01 | 299 | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -133,8 +146,8 @@ _(none at roadmap creation — Phase 1 uses standard patterns, no research neede
 
 ## Resume Point
 
-**Stopped at:** Phase 1 context gathered
-**Resume file:** `.planning/phases/01-foundation/01-CONTEXT.md`
+**Stopped at:** Completed 02-01-PLAN.md
+**Resume file:** None
 **Next step:** `/gsd-plan-phase 1`
 
 ---
