@@ -31,6 +31,23 @@ export function ArchivePage() {
     loadArchive("", 0);
   }, [loadArchive]);
 
+  // Auto-refresh every 5s while any item is still processing
+  React.useEffect(() => {
+    if (state.status !== "success") return;
+
+    const PROCESSING_STATUSES: ReadonlyArray<string> = ["Processing"];
+    const hasProcessing = state.items.some((item) =>
+      PROCESSING_STATUSES.includes(item.status_badge)
+    );
+    if (!hasProcessing) return;
+
+    const timer = setInterval(() => {
+      loadArchive(searchQuery, offset);
+    }, 5000);
+
+    return () => clearInterval(timer);
+  }, [state, searchQuery, offset, loadArchive]);
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setOffset(0);
@@ -119,7 +136,10 @@ export function ArchivePage() {
           <ul className="flex flex-col gap-3" aria-label="Archive items">
             {state.items.map((item) => (
               <li key={item.id}>
-                <ArchiveItemCard item={item} />
+                <ArchiveItemCard
+                  item={item}
+                  onRetried={() => loadArchive(searchQuery, offset)}
+                />
               </li>
             ))}
           </ul>

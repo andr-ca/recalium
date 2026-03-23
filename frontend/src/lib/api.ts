@@ -13,13 +13,22 @@ export interface IngestResponse {
   archive_ids: string[];
 }
 
+export type JobStatusBadge =
+  | "Ingested"
+  | "Processing"
+  | "Done"
+  | "Failed"
+  | "Pending Provider";
+
 export interface ArchiveItem {
   id: string;
   source_type: string;
   source_name: string | null;
   conversation_count: number;
   ingested_at: string; // ISO 8601
-  status_badge: "Ingested"; // Phase 1 only; Phase 2 adds "Processing" / "Done" / "Failed"
+  status_badge: JobStatusBadge;
+  job_id: string | null;
+  job_error: string | null;
 }
 
 export interface ArchiveListResponse {
@@ -106,6 +115,12 @@ export async function listArchive(
   if (params.limit !== undefined) qs.set("limit", String(params.limit));
   if (params.q) qs.set("q", params.q);
   return request<ArchiveListResponse>(`/archive?${qs}`);
+}
+
+export async function retryJob(jobId: string): Promise<{ status: string; job_id: string }> {
+  return request<{ status: string; job_id: string }>(`/jobs/${jobId}/reprocess`, {
+    method: "POST",
+  });
 }
 
 // ── Settings / BYOK ────────────────────────────────────────────────────────
