@@ -10,13 +10,12 @@ test-specific DB name to avoid clobbering the dev database).
 """
 from __future__ import annotations
 
-import asyncio
 import os
 from typing import AsyncGenerator
 
-import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -39,15 +38,7 @@ from app.infrastructure.db import Base  # noqa: E402
 
 # ── Engine for test DB ───────────────────────────────────────────────────────
 
-@pytest.fixture(scope="session")
-def event_loop():
-    """Single event loop for the entire test session."""
-    loop = asyncio.new_event_loop()
-    yield loop
-    loop.close()
-
-
-@pytest_asyncio.fixture(scope="session")
+@pytest_asyncio.fixture(scope="session", loop_scope="session")
 async def test_engine():
     """Create all tables in the test database once per session."""
     test_url = os.environ["DATABASE_URL"]
@@ -55,7 +46,7 @@ async def test_engine():
     async with eng.begin() as conn:
         # pgvector extension must exist in the test DB (created by migration)
         await conn.execute(
-            __import__("sqlalchemy").text("CREATE EXTENSION IF NOT EXISTS vector")
+            text("CREATE EXTENSION IF NOT EXISTS vector")
         )
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
@@ -75,10 +66,17 @@ async def db_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
 
 
 @pytest_asyncio.fixture
-async def client() -> AsyncGenerator[AsyncClient, None]:
-    """Async HTTP client for testing FastAPI endpoints via ASGI transport."""
+async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
+    """Async HTTP client sharing the test DB session for proper rollback isolation."""
+    from app.infrastructure.db import get_session
+
+    async def override_get_session():
+        yield db_session
+
+    app.dependency_overrides[get_session] = override_get_session
     async with AsyncClient(
         transport=ASGITransport(app=app),
         base_url="http://testserver",
     ) as ac:
         yield ac
+    app.dependency_overrides.clear()
