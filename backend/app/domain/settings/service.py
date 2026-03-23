@@ -12,6 +12,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from typing import Literal
 
 import httpx
 from sqlalchemy import select
@@ -22,8 +23,7 @@ from app.infrastructure.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
-ValidationStatusLiteral = str
-# Allowed values: "valid" | "invalid" | "insufficient_permissions" | "unchecked"
+ValidationStatusLiteral = Literal["valid", "invalid", "insufficient_permissions", "unchecked"]
 
 
 @dataclass
@@ -245,8 +245,11 @@ async def validate_ollama_connection(
 
         if response.status_code == 200:
             status = "valid"
-            version_data = response.json()
-            version = version_data.get("version", "unknown")
+            try:
+                version_data = response.json()
+                version = version_data.get("version", "unknown")
+            except (ValueError, KeyError):
+                version = "unknown"
             message = f"Ollama endpoint is reachable (version: {version})."
         elif response.status_code == 401:
             status = "invalid"
@@ -265,7 +268,7 @@ async def validate_ollama_connection(
     # Persist (URL is not sensitive; fingerprint only for key)
     row = await _get_or_create_settings(session)
     row.ollama_base_url = base_url
-    row.ollama_key_configured = True
+    row.ollama_key_configured = api_key is not None
     row.ollama_key_fingerprint = fingerprint
     row.ollama_validation_status = status
     row.ollama_validated_at = datetime.now(timezone.utc)
