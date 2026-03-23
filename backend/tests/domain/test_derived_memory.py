@@ -1,4 +1,4 @@
-"""Derived memory service tests — PIPE-02.
+"""Derived memory service tests — PIPE-02, PIPE-01.
 
 Tests will FAIL (RED) until app.domain.derived_memory.service is created.
 """
@@ -97,3 +97,69 @@ async def test_fact_source_status_defaults_to_active(db_session_phase2):
         ],
     )
     assert facts[0].source_status == "active"
+
+
+# ── Embedding tests (PIPE-01: local sentence-transformers) ────────────────────
+
+async def test_embed_text_returns_384_dim_vector():
+    """PIPE-01: embed_text returns 384-dim float list from all-MiniLM-L6-v2."""
+    from app.domain.derived_memory.service import embed_text
+    vector = await embed_text("Hello, world! This is a test sentence.")
+    assert isinstance(vector, list)
+    assert len(vector) == 384
+    assert all(isinstance(v, float) for v in vector)
+
+
+async def test_embed_text_normalized():
+    """PIPE-01: embed_text returns L2-normalized vector (norm ≈ 1.0)."""
+    import math
+    from app.domain.derived_memory.service import embed_text
+    vector = await embed_text("Recalium is a personal memory platform.")
+    norm = math.sqrt(sum(v * v for v in vector))
+    assert abs(norm - 1.0) < 0.01  # normalized within 1% tolerance
+
+
+async def test_write_embedding_stores_vector(db_session_phase2):
+    """PIPE-01: write_embedding writes Embedding row with correct model name and source_status."""
+    from app.domain.derived_memory.service import write_embedding
+
+    archive_item = await _make_archive_item(db_session_phase2)
+    vector = [0.1] * 384  # 384-dim placeholder vector
+
+    embedding = await write_embedding(
+        session=db_session_phase2,
+        raw_archive_id=archive_item.id,
+        vector=vector,
+    )
+
+    assert embedding.raw_archive_id == archive_item.id
+    assert embedding.embedding_model == "all-MiniLM-L6-v2"
+    assert embedding.source_status == "active"
+    assert len(embedding.embedding) == 384
+
+
+async def test_get_existing_embedding_returns_none_when_absent(db_session_phase2):
+    """BYOK-08: get_existing_embedding returns None when no embedding exists."""
+    from app.domain.derived_memory.service import get_existing_embedding
+
+    result = await get_existing_embedding(db_session_phase2, uuid.uuid4())
+    assert result is None
+
+
+async def test_get_existing_embedding_returns_embedding_when_present(db_session_phase2):
+    """BYOK-08: get_existing_embedding returns existing active embedding."""
+    from app.domain.derived_memory.service import write_embedding, get_existing_embedding
+
+    archive_item = await _make_archive_item(db_session_phase2)
+    vector = [0.2] * 384
+
+    await write_embedding(
+        session=db_session_phase2,
+        raw_archive_id=archive_item.id,
+        vector=vector,
+    )
+
+    result = await get_existing_embedding(db_session_phase2, archive_item.id)
+    assert result is not None
+    assert result.raw_archive_id == archive_item.id
+    assert result.source_status == "active"
