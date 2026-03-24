@@ -205,3 +205,26 @@ async def fact_row(db_session_phase3: AsyncSession, raw_archive_row):
     db_session_phase3.add(row)
     await db_session_phase3.flush()
     return row
+
+
+# ── Phase 4 model imports ─────────────────────────────────────────────────
+try:
+    importlib.import_module("app.domain.telemetry.models")
+except ImportError:
+    pass  # Phase 4 telemetry model not yet created
+
+try:
+    importlib.import_module("app.domain.backup.service")
+except ImportError:
+    pass  # Phase 4 backup service not yet created
+
+
+@pytest_asyncio.fixture
+async def db_session_phase4(test_engine) -> AsyncGenerator[AsyncSession, None]:
+    """Per-test async session for Phase 4 tests — same rollback semantics as db_session."""
+    factory = async_sessionmaker(
+        test_engine, class_=AsyncSession, expire_on_commit=False
+    )
+    async with factory() as session:
+        yield session
+        await session.rollback()
