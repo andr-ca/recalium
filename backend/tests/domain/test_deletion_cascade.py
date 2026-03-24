@@ -134,6 +134,32 @@ async def test_priv01_cascade_suppresses_fts_entries(db_session_phase4: AsyncSes
 
 
 @pytest.mark.asyncio
+async def test_priv01_cascade_suppresses_embeddings(db_session_phase4: AsyncSession):
+    """PRIV-01: cascade marks embeddings as source_removed."""
+    item = _make_archive()
+    db_session_phase4.add(item)
+    await db_session_phase4.flush()
+
+    embedding = Embedding(
+        raw_archive_id=item.id,
+        embedding_model="text-embedding-3-small",
+        embedding=[0.1] * 384,
+    )
+    db_session_phase4.add(embedding)
+    await db_session_phase4.flush()
+
+    await cascade_delete_archive_item(db_session_phase4, item.id)
+
+    result = await db_session_phase4.execute(
+        select(Embedding)
+        .where(Embedding.id == embedding.id)
+        .execution_options(populate_existing=True)
+    )
+    fetched = result.scalar_one()
+    assert fetched.source_status == "source_removed"
+
+
+@pytest.mark.asyncio
 async def test_priv02_canonical_marked_source_removed_not_deleted(db_session_phase4: AsyncSession):
     """PRIV-02: canonical memory from deleted source gets source_removed + required_review, NOT deleted."""
     item = _make_archive()

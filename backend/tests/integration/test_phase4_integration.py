@@ -117,7 +117,7 @@ async def test_priv02_canonical_survives_deletion_with_marker(
     await cascade_delete_archive_item(db_session_phase4, item.id)
 
     result = await db_session_phase4.execute(
-        select(CanonicalMemoryItem).where(CanonicalMemoryItem.id == cid)
+        select(CanonicalMemoryItem).where(CanonicalMemoryItem.id == cid).execution_options(populate_existing=True)
     )
     c = result.scalar_one_or_none()
     assert c is not None
@@ -146,13 +146,16 @@ async def test_port02_telemetry_increments_on_search(
     db_session_phase4: AsyncSession,
 ):
     """PORT-02: GET /api/search increments search telemetry counter."""
-    from datetime import date
     await client.get("/api/search?q=hello&mode=keyword")
 
     summary = await get_telemetry_summary(db_session_phase4, days=1)
-    today = next((r for r in summary if r["date"] == date.today().isoformat()), None)
-    # Telemetry may not be wired in test client due to session override — just verify no crash
+    # Note: telemetry increment from client.get("/api/search") is not visible here
+    # because the test client uses a separate session override. This test verifies
+    # the service itself doesn't crash when called.
     assert isinstance(summary, list)
+    for row in summary:
+        assert "date" in row
+        assert "searches" in row
 
 
 @pytest.mark.asyncio
@@ -189,3 +192,57 @@ async def test_webui06_audit_events_endpoint(client: AsyncClient):
     data = resp.json()
     assert "items" in data
     assert "count" in data
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PRIV-03, BYOK-01, BYOK-06, BKUP-02, BKUP-03, WEBUI-02, WEBUI-03
+# Implemented in later plans (04-03 through 04-07) — stubs for RED scaffold
+# ─────────────────────────────────────────────────────────────────────────────
+
+@pytest.mark.skip(reason="PRIV-03: implemented in 04-03 (backup service)")
+@pytest.mark.asyncio
+async def test_priv03_backup_ui_flags_pre_deletion_backups(client: AsyncClient):
+    """PRIV-03: UI flags backups that predate a deletion event."""
+    pass
+
+
+@pytest.mark.skip(reason="BYOK-01: implemented in 04-03 (cost estimation)")
+@pytest.mark.asyncio
+async def test_byok01_cost_estimate_api_returns_estimate(client: AsyncClient):
+    """BYOK-01: GET /api/cost-estimate returns token/cost estimate."""
+    pass
+
+
+@pytest.mark.skip(reason="BYOK-06: implemented in 04-05 (first-run wizard)")
+@pytest.mark.asyncio
+async def test_byok06_first_run_wizard_completes(client: AsyncClient):
+    """BYOK-06: First-run wizard sets API key and model settings."""
+    pass
+
+
+@pytest.mark.skip(reason="BKUP-02: implemented in 04-03 (backup restore)")
+@pytest.mark.asyncio
+async def test_bkup02_restore_completes_within_15_minutes(client: AsyncClient):
+    """BKUP-02: Restore operation endpoint exists and is callable."""
+    pass
+
+
+@pytest.mark.skip(reason="BKUP-03: implemented in 04-03 (backup restore)")
+@pytest.mark.asyncio
+async def test_bkup03_restore_recovers_all_data(client: AsyncClient):
+    """BKUP-03: Restore recovers archive and derived data."""
+    pass
+
+
+@pytest.mark.skip(reason="WEBUI-02: implemented in 04-04 (deletion UI)")
+@pytest.mark.asyncio
+async def test_webui02_archive_delete_button_visible(client: AsyncClient):
+    """WEBUI-02: Delete button visible on archive items in UI."""
+    pass
+
+
+@pytest.mark.skip(reason="WEBUI-03: implemented in 04-06 (audit UI)")
+@pytest.mark.asyncio
+async def test_webui03_audit_log_detail_drawer(client: AsyncClient):
+    """WEBUI-03: Audit log entry has expandable detail drawer."""
+    pass
