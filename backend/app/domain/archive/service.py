@@ -74,9 +74,11 @@ async def cascade_delete_archive_item(
         text(
             "UPDATE review_queue_items SET source_status = 'source_removed' "
             "WHERE conflict_group_id IN ("
-            "  SELECT id FROM conflict_groups WHERE source_status = 'source_removed'"
+            "  SELECT DISTINCT conflict_group_id FROM facts "
+            "  WHERE raw_archive_id = :archive_id AND conflict_group_id IS NOT NULL"
             ") AND source_status = 'active'"
         ),
+        {"archive_id": archive_id_str},
     )
 
     await session.execute(

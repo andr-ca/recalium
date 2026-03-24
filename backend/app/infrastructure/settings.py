@@ -9,6 +9,9 @@ from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+_LOCALHOST_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
+
+
 class Settings(BaseSettings):
     """Runtime configuration. All values from environment / .env file."""
 
@@ -60,7 +63,7 @@ class Settings(BaseSettings):
 
     @property
     def requires_auth(self) -> bool:
-        return self.app_bind_host != "127.0.0.1"
+        return self.app_bind_host not in _LOCALHOST_HOSTS
 
 
 _settings: Settings | None = None

@@ -7,6 +7,7 @@ Entrypoint for the ASGI server. Contains:
 """
 from __future__ import annotations
 
+import hmac
 import logging
 import os
 from collections.abc import AsyncGenerator
@@ -48,7 +49,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if requires_auth and not is_exempt:
             auth_header = request.headers.get("Authorization", "")
             expected = f"Bearer {settings.app_auth_bearer}"
-            if not auth_header or auth_header != expected:
+            if not auth_header or not hmac.compare_digest(auth_header, expected):
                 return _JSONResponse({"detail": "Authentication required"}, status_code=401)
         return await call_next(request)
 
