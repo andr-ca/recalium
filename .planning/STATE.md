@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-stopped_at: "Completed 04-08 — Phase 4 integration test suite GREEN (172 tests passing)"
-last_updated: "2026-03-23T20:00:00.000Z"
+status: complete
+stopped_at: "Completed 05-06 — Phase 5 integration tests GREEN (191 tests passing)"
+last_updated: "2026-03-24T00:00:00.000Z"
 progress:
   total_phases: 5
-  completed_phases: 4
-  total_plans: 32
-  completed_plans: 25
+  completed_phases: 5
+  total_plans: 38
+  completed_plans: 31
 ---
 
 # State: Recalium
@@ -24,7 +24,7 @@ progress:
 
 **Core Value:** A user's future AI session — on any tool, with any model — can retrieve relevant, source-backed context from prior conversations that happened anywhere, without re-explaining anything.
 
-**Current Focus:** Phase 04 — Privacy + Operations (next)
+**Current Focus:** Phase 05 — Service Hardening (complete)
 
 **Stack (committed):** Python 3.12+/FastAPI 0.135.1, React 19+TypeScript/Vite 8/Tailwind v4/shadcn/ui 2.x, PostgreSQL 16+pgvector 0.8.2, SQLAlchemy 2.x async/asyncpg 0.31.0/Alembic, MCP Python SDK ≥1.26,<2, sentence-transformers 5.3.0, uv 0.10.12 + pnpm 10.32.1
 
@@ -35,6 +35,7 @@ progress:
 Phase: 02 (Processing Pipeline) — COMPLETE ✓
 Phase: 03 (Retrieval + Review) — COMPLETE ✓ (8/8 plans executed, 126 tests passing)
 Phase: 04 (Privacy + Operations) — COMPLETE ✓ (8/8 plans executed, 172 tests passing)
+Phase: 05 (Service Hardening) — COMPLETE ✓ (6/6 plans executed, 191 tests passing)
 
 ### Progress Bar
 
@@ -43,9 +44,9 @@ Phase 1 [Foundation          ] ░░░░░░░░░░░░░░░░�
 Phase 2 [Processing Pipeline ] ████████████████████  100% (8/8 plans complete)
 Phase 3 [Retrieval + Review  ] ████████████████████  100% (8/8 plans complete)
 Phase 4 [Privacy + Operations] ████████████████████  100% (8/8 plans complete)
-Phase 5 [Service Hardening   ] ░░░░░░░░░░░░░░░░░░░░  0%
+Phase 5 [Service Hardening   ] ████████████████████  100% (6/6 plans complete)
 
-Overall ▓▓▓▓▓▓▓░░░░░░░░░░░░░  38/52 requirements complete (Phase 2+3+4 reqs verified by tests)
+Overall ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  52/52 requirements complete (all phases verified)
 ```
 
 ---
@@ -57,7 +58,7 @@ Overall ▓▓▓▓▓▓▓░░░░░░░░░░░░░  38/52 requ
 | Ingest P95 latency | ≤ 1s | — | Not yet measured |
 | Search P95 latency | ≤ 2s | — | Not yet measured |
 | Backup restore SLA | ≤ 15 min | — | Not yet measured |
-| Requirements complete | 52/52 | 25/52 | Phase 2+3 reqs (PIPE-01–05, PRIV-04, PRIV-05, BYOK-07, BYOK-08, CANM-06, SRCH-01–06, MCP-01, MCP-03, MCP-04, CANM-01–05, WEBUI-05) verified |
+| Requirements complete | 52/52 | 52/52 | All phases verified |
 
 ---
 
@@ -167,15 +168,16 @@ _(none)_
 | Phase 3 complete | 2026-03-23 | All 8 plans executed; 41 new tests (126 total); 15 reqs verified (SRCH-01–06, MCP-01, MCP-03, MCP-04, CANM-01–05, WEBUI-05) |
 
 | Phase 4 plans written | 2026-03-23 | 8 plan files created in `.planning/phases/04-privacy-operations/`; ready for execution |
+| Phase 5 complete | 2026-03-24 | All 6 plans executed; 191 total tests green; 4 reqs verified (INGT-04, INGT-05, MCP-02, PORT-01) |
 
 ---
 
 ## Resume Point
 
-**Stopped at:** Phase 4 plans written (04-01 through 04-08)
-**Resume file:** `.planning/phases/04-privacy-operations/04-01-PLAN.md`
-**Next step:** Execute Phase 4 plans in wave order: wave 1 (04-01), wave 1 (04-02), wave 2 (04-03 through 04-05 in parallel), wave 3 (04-06 and 04-07 in parallel), wave 4 (04-08)
+**Stopped at:** Phase 5 complete — all 5 phases done, 191 tests passing
+**Resume file:** N/A — milestone complete
+**Next step:** Lifecycle audit → complete → cleanup
 
 ---
 
-*Last updated: 2026-03-23 after writing Phase 4 plans (04-01 through 04-08)*
+*Last updated: 2026-03-24 after completing Phase 5 — all 5 phases done, 191 tests passing, milestone complete*

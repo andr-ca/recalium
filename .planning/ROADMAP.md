@@ -14,7 +14,7 @@
 - [x] **Phase 2: Processing Pipeline** — Async derived-memory worker, fact extraction, sensitivity gate, dedup materialization (completed 2026-03-23)
 - [x] **Phase 3: Retrieval + Review** — Hybrid search, MCP retrieve, canonical memory workflows, review queue (completed 2026-03-23)
 - [x] **Phase 4: Privacy + Operations** — Deletion cascade UI, backup/restore, first-run wizard, accessibility, audit view (completed 2026-03-23)
-- [ ] **Phase 5: Service Hardening** — MCP ingest, watched folder, portability bundle, API/MCP contract hardening
+- [x] **Phase 5: Service Hardening** — MCP ingest, watched folder, portability bundle, API/MCP contract hardening (completed 2026-03-24)
 
 ---
 
@@ -132,7 +132,15 @@ Plans:
 3. User exports their full memory archive as a JSON bundle (open memory bundle format v1) and successfully re-imports it into a fresh Recalium instance without bespoke conversion tools.
 4. All module boundaries have been reviewed for deploy-profile separation (local vs. hosted seams); API and MCP contracts are versioned; the system can be described as ready for future service extraction.
 
-**Plans:** TBD
+**Plans:** 6/6 plans complete
+
+Plans:
+- [x] 05-01-PLAN.md — Watched import folder service + settings (INGT-04)
+- [x] 05-02-PLAN.md — MCP ingest tool (MCP-02, INGT-05)
+- [x] 05-03-PLAN.md — Portability bundle export/import + API versioning (PORT-01)
+- [x] 05-04-PLAN.md — Service boundary comments (PORT-01)
+- [x] 05-05-PLAN.md — Phase 5 integration test suite + db_session_phase5 fixture
+- [x] 05-06-PLAN.md — Phase 5 integration tests GREEN + roadmap/state update
 
 ---
 
@@ -144,7 +152,7 @@ Plans:
 | 2. Processing Pipeline | 8/8 | Complete | 2026-03-23 |
 | 3. Retrieval + Review | 8/8 | Complete | 2026-03-23 |
 | 4. Privacy + Operations | 8/8 | Complete | 2026-03-23 |
-| 5. Service Hardening | 0/TBD | Not started | — |
+| 5. Service Hardening | 6/6 | Complete | 2026-03-24 |
 
 ---
 
@@ -173,4 +181,4 @@ Plans:
 ---
 
 *Roadmap created: 2026-03-22*
-*Last updated: 2026-03-23 after completing Phase 4 (all 8 plans executed, 172 tests passing, 13 Phase 4 reqs verified)*
+*Last updated: 2026-03-24 after completing Phase 5 (all 6 plans executed, 191 tests passing, 4 Phase 5 reqs verified)*
