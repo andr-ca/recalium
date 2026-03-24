@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
-from typing import List, Optional
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -83,7 +82,7 @@ async def create_manual_canonical(
 async def get_canonical_item(
     session: AsyncSession,
     item_id: uuid.UUID,
-) -> Optional[CanonicalMemoryItem]:
+) -> CanonicalMemoryItem | None:
     """Return a canonical item by id, or None if not found."""
     result = await session.execute(
         select(CanonicalMemoryItem).where(CanonicalMemoryItem.id == item_id)
@@ -94,8 +93,8 @@ async def get_canonical_item(
 async def update_canonical_item(
     session: AsyncSession,
     item_id: uuid.UUID,
-    content: Optional[str] = None,
-    status: Optional[str] = None,
+    content: str | None = None,
+    status: str | None = None,
 ) -> CanonicalMemoryItem:
     """Partially update a canonical item's content and/or status (CANM-01).
 
@@ -144,7 +143,7 @@ async def mark_canonical_stale(
 
 async def list_canonical_items(
     session: AsyncSession,
-) -> List[CanonicalMemoryItem]:
+) -> list[CanonicalMemoryItem]:
     """Return all active canonical items (CANM-02: highest retrieval priority)."""
     result = await session.execute(
         select(CanonicalMemoryItem).where(

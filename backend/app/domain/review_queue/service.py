@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
-from typing import List
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -44,7 +43,7 @@ async def materialize_review_item(
 
 async def list_pending_review_items(
     session: AsyncSession,
-) -> List[ReviewQueueItem]:
+) -> list[ReviewQueueItem]:
     """Return all pending, active review queue items (CANM-05)."""
     result = await session.execute(
         select(ReviewQueueItem).where(

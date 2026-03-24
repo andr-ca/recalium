@@ -27,20 +27,18 @@ from app.domain.canonical_memory.models import CanonicalMemoryItem
 
 
 @pytest.mark.asyncio
-async def test_promote_fact_to_canonical_creates_item(db_session_phase3: AsyncSession):
+async def test_promote_fact_to_canonical_creates_item(db_session_phase3: AsyncSession, raw_archive_row, fact_row):
     """CANM-01 + CANM-03: explicit promote creates canonical item."""
-    fake_fact_id = uuid.uuid4()
-    fake_archive_id = uuid.uuid4()
     item = await promote_fact_to_canonical(
         session=db_session_phase3,
-        fact_id=fake_fact_id,
-        raw_archive_id=fake_archive_id,
+        fact_id=fact_row.id,
+        raw_archive_id=raw_archive_row.id,
         content="The user prefers Python over JavaScript.",
         promoted_by="user_ui",
     )
     assert item.status == "active"
     assert item.promoted_from == "fact"
-    assert item.fact_id == fake_fact_id
+    assert item.fact_id == fact_row.id
 
 
 @pytest.mark.asyncio
@@ -60,12 +58,12 @@ async def test_promote_without_source_span_requires_confirmed(db_session_phase3:
 
 
 @pytest.mark.asyncio
-async def test_promote_without_source_span_with_confirmed_succeeds(db_session_phase3: AsyncSession):
+async def test_promote_without_source_span_with_confirmed_succeeds(db_session_phase3: AsyncSession, raw_archive_row, fact_row):
     """CANM-04: fact without source_span but confirmed=True succeeds."""
     item = await promote_fact_to_canonical(
         session=db_session_phase3,
-        fact_id=uuid.uuid4(),
-        raw_archive_id=uuid.uuid4(),
+        fact_id=fact_row.id,
+        raw_archive_id=raw_archive_row.id,
         content="fact without span but confirmed",
         promoted_by="user_ui",
         has_source_span=False,
@@ -129,14 +127,13 @@ async def test_list_canonical_items_active_only(db_session_phase3: AsyncSession)
 
 
 @pytest.mark.asyncio
-async def test_canonical_item_has_source_link(db_session_phase3: AsyncSession):
+async def test_canonical_item_has_source_link(db_session_phase3: AsyncSession, raw_archive_row, fact_row):
     """WEBUI-05: canonical item retains source archive link for provenance navigation."""
-    archive_id = uuid.uuid4()
     item = await promote_fact_to_canonical(
         session=db_session_phase3,
-        fact_id=uuid.uuid4(),
-        raw_archive_id=archive_id,
+        fact_id=fact_row.id,
+        raw_archive_id=raw_archive_row.id,
         content="fact content",
         promoted_by="user_ui",
     )
-    assert item.raw_archive_id == archive_id
+    assert item.raw_archive_id == raw_archive_row.id

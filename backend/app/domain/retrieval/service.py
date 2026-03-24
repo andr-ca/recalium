@@ -156,6 +156,7 @@ def apply_budget_trimming(
 
     for item in sorted_items:
         item_len = len(item.content)
+        # We continue scanning even if this item doesn't fit — a smaller later item might.
         if used + item_len <= budget:
             result.append(item)
             used += item_len
@@ -343,6 +344,9 @@ async def retrieve(
     cache_key = _cache_key(req)
     if cache_key in _cache:
         logger.debug("Retrieval cache hit for query=%r", req.query[:50])
+        # NOTE: Audit events are intentionally NOT emitted on cache hits.
+        # The original retrieve() call already recorded the audit event.
+        # Emitting on every cache hit would inflate audit log counts.
         return _cache[cache_key]
 
     degraded = False
@@ -414,7 +418,8 @@ async def retrieve(
         },
     )
     session.add(audit_event)
-    await session.commit()
+    await session.flush()
+    # NOTE: Commit is left to the caller (API dependency or MCP session manager).
 
     _cache[cache_key] = response
     return response

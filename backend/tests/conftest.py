@@ -18,6 +18,7 @@ import importlib
 import os
 from typing import AsyncGenerator
 
+import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
@@ -151,3 +152,56 @@ async def db_session_phase3(test_engine) -> AsyncGenerator[AsyncSession, None]:
     async with factory() as session:
         yield session
         await session.rollback()
+
+
+@pytest_asyncio.fixture
+async def raw_archive_row(db_session_phase3: AsyncSession):
+    """Creates a minimal RawArchiveItem row for use in canonical memory tests.
+
+    Returns the created RawArchiveItem instance.
+    """
+    import hashlib
+
+    try:
+        from app.domain.archive.models import RawArchiveItem
+    except ImportError:
+        pytest.skip("RawArchiveItem model not available")
+
+    import uuid
+    content = "Test content for canonical memory fixtures."
+    row = RawArchiveItem(
+        id=uuid.uuid4(),
+        source_type="test",
+        raw_content=content,
+        content_hash=hashlib.sha256(content.encode()).hexdigest(),
+    )
+    db_session_phase3.add(row)
+    await db_session_phase3.flush()
+    return row
+
+
+@pytest_asyncio.fixture
+async def fact_row(db_session_phase3: AsyncSession, raw_archive_row):
+    """Creates a minimal Fact row for use in canonical memory tests.
+
+    Depends on raw_archive_row to satisfy the facts.raw_archive_id FK.
+    Returns the created Fact instance.
+    """
+    try:
+        from app.domain.derived_memory.models import Fact
+    except ImportError:
+        pytest.skip("Fact model not available")
+
+    import uuid
+    row = Fact(
+        id=uuid.uuid4(),
+        raw_archive_id=raw_archive_row.id,
+        fact_text="Test fact for canonical memory fixtures.",
+        source_span="Test content",
+        confidence_tier="high",
+        derivation_method="rule_based",
+        derivation_model="local_rules_v1",
+    )
+    db_session_phase3.add(row)
+    await db_session_phase3.flush()
+    return row
