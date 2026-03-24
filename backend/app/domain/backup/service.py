@@ -15,8 +15,6 @@ import logging
 import os
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from urllib.parse import urlparse
-
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -226,7 +224,7 @@ async def backup_predates_deletion(
     result = await session.execute(
         text(
             "SELECT 1 FROM audit_events "
-            "WHERE event_type LIKE '%delete%' "
+            "WHERE event_type = 'archive_delete' "
             "AND occurred_at > :ts "
             "LIMIT 1"
         ),

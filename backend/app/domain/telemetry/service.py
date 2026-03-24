@@ -20,7 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
-# Maps event_type string → telemetry column name
+# Safety: col is always from this allowlist; f-string interpolation is intentional.
 _EVENT_TO_COLUMN: dict[str, str] = {
     "search": "searches",
     "retrieval": "retrievals",
@@ -50,8 +50,8 @@ async def increment_telemetry(
 
     await session.execute(
         text(
-            f"INSERT INTO telemetry (date, {col}) VALUES (:date, 1) "
-            f"ON CONFLICT (date) DO UPDATE SET {col} = telemetry.{col} + 1"
+            f'INSERT INTO telemetry ("date", {col}) VALUES (:date, 1) '
+            f'ON CONFLICT ("date") DO UPDATE SET {col} = telemetry.{col} + 1'
         ),
         {"date": day},
     )
@@ -73,7 +73,7 @@ async def get_telemetry_summary(
         text(
             "SELECT date, searches, retrievals, facts_reviewed, "
             "canonical_created, mcp_retrievals, ui_retrievals "
-            "FROM telemetry WHERE date >= :cutoff ORDER BY date DESC"
+            'FROM telemetry WHERE "date" >= :cutoff ORDER BY "date" DESC'
         ),
         {"cutoff": cutoff},
     )
