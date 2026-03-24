@@ -123,6 +123,19 @@ export async function retryJob(jobId: string): Promise<{ status: string; job_id:
   });
 }
 
+export interface ArchiveItemDetail {
+  id: string;
+  source_type: string;
+  source_name: string | null;
+  ingested_at: string;
+  raw_content: string;
+  status_badge: string;
+}
+
+export async function getArchiveItem(id: string): Promise<ArchiveItemDetail> {
+  return request<ArchiveItemDetail>(`/archive/${id}`);
+}
+
 // ── Settings / BYOK ────────────────────────────────────────────────────────
 
 export async function getSettings(): Promise<SettingsResponse> {
@@ -139,29 +152,29 @@ export async function validateKey(data: ValidateKeyRequest): Promise<ValidateKey
 // ── Search / Retrieval ──────────────────────────────────────────────────────
 
 export interface RetrievalItem {
-  id: string
-  type: "canonical" | "fact" | "summary" | "excerpt"
-  content: string
-  score: number
-  source_id: string
-  source_system: string
-  captured_at: string
-  conflict_label: string | null
+  id: string;
+  type: "canonical" | "fact" | "summary" | "excerpt";
+  content: string;
+  score: number;
+  source_id: string;
+  source_system: string;
+  captured_at: string;
+  conflict_label: string | null;
   provenance: {
-    derivation_method: string
-    derivation_model: string
-    source_excerpt: string
-  }
+    derivation_method: string;
+    derivation_model: string;
+    source_excerpt: string;
+  };
 }
 
 export interface RetrievalResponse {
-  query: string
-  retrieval_mode: string
-  budget_used: number
-  budget_limit: number
-  trimming_reason: "budget_met" | "result_exhausted"
-  degraded_mode: boolean
-  items: RetrievalItem[]
+  query: string;
+  retrieval_mode: string;
+  budget_used: number;
+  budget_limit: number;
+  trimming_reason: "budget_met" | "result_exhausted";
+  degraded_mode: boolean;
+  items: RetrievalItem[];
 }
 
 export async function searchMemory(
@@ -169,133 +182,138 @@ export async function searchMemory(
   mode: "keyword" | "semantic" | "hybrid" = "hybrid",
   limit = 20,
 ): Promise<RetrievalResponse> {
-  const params = new URLSearchParams({ q, mode, limit: String(limit) })
-  return request<RetrievalResponse>(`/search?${params}`)
+  const params = new URLSearchParams({ q, mode, limit: String(limit) });
+  return request<RetrievalResponse>(`/search?${params}`);
 }
 
 // ── Facts ────────────────────────────────────────────────────────────────────
 
 export interface FactItem {
-  id: string
-  raw_archive_id: string
-  fact_text: string
-  source_span: string
-  confidence_tier: string
-  derivation_method: string
-  derivation_model: string
-  conflict_group_id: string | null
-  source_status: string
-  created_at: string
+  id: string;
+  raw_archive_id: string;
+  fact_text: string;
+  source_span: string;
+  confidence_tier: string;
+  derivation_method: string;
+  derivation_model: string;
+  conflict_group_id: string | null;
+  source_status: string;
+  created_at: string;
 }
 
 export async function listFacts(params?: { limit?: number; offset?: number }): Promise<{ facts: FactItem[]; count: number }> {
-  const p = new URLSearchParams()
-  if (params?.limit) p.set("limit", String(params.limit))
-  if (params?.offset) p.set("offset", String(params.offset))
-  return request<{ facts: FactItem[]; count: number }>(`/facts/?${p}`)
+  const p = new URLSearchParams();
+  if (params?.limit) p.set("limit", String(params.limit));
+  if (params?.offset) p.set("offset", String(params.offset));
+  return request<{ facts: FactItem[]; count: number }>(`/facts/?${p}`);
 }
 
-export async function promoteFactToCanonical(factId: string, confirmed = false): Promise<CanonicalItem> {
-  const p = new URLSearchParams({ confirmed: String(confirmed) })
-  return request<CanonicalItem>(`/canonical/promote?${p}`, {
+export async function promoteFactToCanonical(
+  factId: string,
+  rawArchiveId: string,
+  content: string,
+  hasSourceSpan: boolean,
+  confirmed = false,
+): Promise<CanonicalItem> {
+  return request<CanonicalItem>(`/canonical/promote`, {
     method: "POST",
     body: JSON.stringify({
       fact_id: factId,
-      raw_archive_id: "00000000-0000-0000-0000-000000000000",
-      content: "",
-      has_source_span: true,
+      raw_archive_id: rawArchiveId,
+      content,
+      has_source_span: hasSourceSpan,
       confirmed,
     }),
-  })
+  });
 }
 
 // ── Canonical Memory ─────────────────────────────────────────────────────────
 
 export interface CanonicalItem {
-  id: string
-  raw_archive_id: string | null
-  fact_id: string | null
-  content: string
-  status: string
-  source_status: string
-  promoted_from: string
-  promoted_by: string
-  provenance_note: string | null
-  created_at: string
-  updated_at: string
+  id: string;
+  raw_archive_id: string | null;
+  fact_id: string | null;
+  content: string;
+  status: string;
+  source_status: string;
+  promoted_from: string;
+  promoted_by: string;
+  provenance_note: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export async function listCanonical(params?: { include_non_active?: boolean; limit?: number; offset?: number }): Promise<{ items: CanonicalItem[]; count: number }> {
-  const p = new URLSearchParams()
-  if (params?.include_non_active) p.set("include_non_active", "true")
-  if (params?.limit) p.set("limit", String(params.limit))
-  if (params?.offset) p.set("offset", String(params.offset))
-  return request<{ items: CanonicalItem[]; count: number }>(`/canonical?${p}`)
+  const p = new URLSearchParams();
+  if (params?.include_non_active) p.set("include_non_active", "true");
+  if (params?.limit) p.set("limit", String(params.limit));
+  if (params?.offset) p.set("offset", String(params.offset));
+  return request<{ items: CanonicalItem[]; count: number }>(`/canonical?${p}`);
 }
 
 export async function updateCanonical(id: string, body: { content?: string; status?: string }): Promise<CanonicalItem> {
   return request<CanonicalItem>(`/canonical/${id}`, {
     method: "PATCH",
     body: JSON.stringify(body),
-  })
+  });
 }
 
 export async function deleteCanonical(id: string): Promise<void> {
   // DELETE returns 204 No Content, no JSON body
-  const response = await fetch(`${BASE_URL}/canonical/${id}`, { method: "DELETE" })
+  const response = await fetch(`${BASE_URL}/canonical/${id}`, { method: "DELETE" });
   if (!response.ok) {
-    const body = await response.json().catch(() => ({ detail: response.statusText }))
-    throw new ApiError(response.status, body.detail ?? response.statusText)
+    const body = await response.json().catch(() => ({ detail: response.statusText }));
+    throw new ApiError(response.status, body.detail ?? response.statusText);
   }
 }
 
 // ── Review Queue ─────────────────────────────────────────────────────────────
 
 export interface ReviewQueueItem {
-  id: string
-  conflict_group_id: string
-  item_type: string
-  status: string
-  source_status: string
-  resolution_note: string | null
-  resolved_by: string | null
-  created_at: string
-  resolved_at: string | null
+  id: string;
+  conflict_group_id: string;
+  item_type: string;
+  status: string;
+  source_status: string;
+  resolution_note: string | null;
+  resolved_by: string | null;
+  created_at: string;
+  resolved_at: string | null;
 }
 
 export async function listReviewQueue(status = "pending", limit = 100): Promise<{ items: ReviewQueueItem[]; count: number }> {
-  const p = new URLSearchParams({ status, limit: String(limit) })
-  return request<{ items: ReviewQueueItem[]; count: number }>(`/review-queue?${p}`)
+  const p = new URLSearchParams({ status, limit: String(limit) });
+  return request<{ items: ReviewQueueItem[]; count: number }>(`/review-queue?${p}`);
 }
 
 export async function resolveReviewItem(id: string, note?: string): Promise<ReviewQueueItem> {
   return request<ReviewQueueItem>(`/review-queue/${id}/resolve`, {
     method: "POST",
     body: JSON.stringify({ resolved_by: "user_ui", resolution_note: note ?? "" }),
-  })
+  });
 }
 
 export async function dismissReviewItem(id: string): Promise<ReviewQueueItem> {
   return request<ReviewQueueItem>(`/review-queue/${id}/dismiss`, {
     method: "POST",
     body: JSON.stringify({}),
-  })
+  });
 }
 
 // ── Audit ────────────────────────────────────────────────────────────────────
 
 export interface AuditEventItem {
-  id: string
-  event_type: string
-  actor: string
-  operation_metadata: Record<string, unknown>
-  occurred_at: string
+  id: string;
+  event_type: string;
+  actor: string;
+  operation_metadata: Record<string, unknown>;
+  occurred_at: string;
 }
 
 export async function listAuditEvents(params?: { limit?: number; offset?: number; event_type?: string }): Promise<{ items: AuditEventItem[]; count: number }> {
-  const p = new URLSearchParams()
-  if (params?.limit) p.set("limit", String(params.limit))
-  if (params?.offset) p.set("offset", String(params.offset))
-  if (params?.event_type) p.set("event_type", params.event_type)
-  return request<{ items: AuditEventItem[]; count: number }>(`/audit/events?${p}`)
+  const p = new URLSearchParams();
+  if (params?.limit) p.set("limit", String(params.limit));
+  if (params?.offset) p.set("offset", String(params.offset));
+  if (params?.event_type) p.set("event_type", params.event_type);
+  return request<{ items: AuditEventItem[]; count: number }>(`/audit/events?${p}`);
 }

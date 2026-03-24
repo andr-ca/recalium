@@ -23,11 +23,18 @@ export function FactsPage() {
   }, [])
 
   async function handlePromote(fact: FactItem) {
-    const needsConfirm = !fact.source_span?.trim()
+    const hasSourceSpan = !!fact.source_span?.trim()
+    const needsConfirm = !hasSourceSpan
     if (needsConfirm && !window.confirm("This fact has no source span. Promote to canonical memory anyway?")) return
     setPromoting(fact.id)
     try {
-      await promoteFactToCanonical(fact.id, needsConfirm)
+      await promoteFactToCanonical(
+        fact.id,
+        fact.raw_archive_id,
+        fact.fact_text,
+        hasSourceSpan,
+        needsConfirm,
+      )
       setPromotedIds((prev) => new Set([...prev, fact.id]))
     } catch (err) {
       alert(err instanceof ApiError ? err.detail : "Promote failed")

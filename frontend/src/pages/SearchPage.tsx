@@ -1,9 +1,16 @@
 import * as React from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { searchMemory, type RetrievalItem, type RetrievalResponse, ApiError } from "@/lib/api"
+import { searchMemory, getArchiveItem, type RetrievalItem, type RetrievalResponse, type ArchiveItemDetail, ApiError } from "@/lib/api"
 
 type Mode = "hybrid" | "keyword" | "semantic"
+
+const TYPE_VARIANT: Record<string, "default" | "secondary" | "outline"> = {
+  canonical: "default",
+  fact: "secondary",
+  summary: "outline",
+  excerpt: "outline",
+}
 
 export function SearchPage() {
   const [query, setQuery] = React.useState("")
@@ -26,13 +33,6 @@ export function SearchPage() {
     } finally {
       setLoading(false)
     }
-  }
-
-  const TYPE_VARIANT: Record<string, "default" | "secondary" | "outline"> = {
-    canonical: "default",
-    fact: "secondary",
-    summary: "outline",
-    excerpt: "outline",
   }
 
   return (
@@ -120,13 +120,12 @@ export function SearchPage() {
 }
 
 function ProvenanceInlinePanel({ sourceId, onClose }: { sourceId: string; onClose: () => void }) {
-  const [item, setItem] = React.useState<{ source_type: string; ingested_at: string; raw_content: string } | null>(null)
+  const [item, setItem] = React.useState<ArchiveItemDetail | null>(null)
   const [loading, setLoading] = React.useState(true)
 
   React.useEffect(() => {
     setLoading(true)
-    fetch(`/api/archive/${sourceId}`)
-      .then((r) => r.ok ? r.json() : null)
+    getArchiveItem(sourceId)
       .then(setItem)
       .catch(() => setItem(null))
       .finally(() => setLoading(false))
