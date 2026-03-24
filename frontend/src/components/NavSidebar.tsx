@@ -41,6 +41,7 @@ export function NavSidebar() {
                   title={`Available in a future update (Phase ${item.phase})`}
                   className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium opacity-40 cursor-not-allowed select-none"
                   aria-disabled="true"
+                  tabIndex={-1}
                 >
                   <Icon className="h-4 w-4" aria-hidden="true" />
                   {item.label}

@@ -50,7 +50,7 @@ export function FactsPage() {
         <p className="text-sm text-muted-foreground mt-1">Facts extracted from your archive with source provenance.</p>
       </div>
 
-      {loading && <p className="text-sm text-muted-foreground">Loading…</p>}
+      {loading && <p role="status" className="text-sm text-muted-foreground">Loading…</p>}
 
       <div className="space-y-3">
         {facts.map((fact) => (
@@ -66,6 +66,7 @@ export function FactsPage() {
                 size="sm"
                 disabled={promoting === fact.id || promotedIds.has(fact.id)}
                 onClick={() => handlePromote(fact)}
+                aria-label={`${promotedIds.has(fact.id) ? "Already promoted" : "Promote"} fact: ${fact.fact_text.slice(0, 40)}`}
               >
                 {promotedIds.has(fact.id) ? "Promoted" : "Promote"}
               </Button>

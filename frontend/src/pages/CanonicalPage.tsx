@@ -67,7 +67,7 @@ export function CanonicalPage() {
         </p>
       </div>
 
-      {loading && <p className="text-sm text-muted-foreground">Loading…</p>}
+      {loading && <p role="status" className="text-sm text-muted-foreground">Loading…</p>}
 
       <div className="space-y-3">
         {items.map((item) => (
@@ -79,22 +79,24 @@ export function CanonicalPage() {
                 <span className="text-xs text-muted-foreground">by {item.promoted_by}</span>
               </div>
               <div className="flex gap-1">
-                <Button variant="ghost" size="sm" onClick={() => { setEditingId(item.id); setEditContent(item.content) }}>Edit</Button>
-                <Button variant="ghost" size="sm" onClick={() => handleMarkStatus(item.id, "disputed")}>Dispute</Button>
-                <Button variant="ghost" size="sm" onClick={() => handleMarkStatus(item.id, "stale")}>Stale</Button>
-                <Button variant="ghost" size="sm" className="text-destructive" onClick={() => handleDelete(item.id)}>Delete</Button>
+                <Button variant="ghost" size="sm" onClick={() => { setEditingId(item.id); setEditContent(item.content) }} aria-label={`Edit canonical item ${item.id.slice(0, 8)}`}>Edit</Button>
+                <Button variant="ghost" size="sm" onClick={() => handleMarkStatus(item.id, "disputed")} aria-label={`Mark canonical item ${item.id.slice(0, 8)} as disputed`}>Dispute</Button>
+                <Button variant="ghost" size="sm" onClick={() => handleMarkStatus(item.id, "stale")} aria-label={`Mark canonical item ${item.id.slice(0, 8)} as stale`}>Stale</Button>
+                <Button variant="ghost" size="sm" className="text-destructive" onClick={() => handleDelete(item.id)} aria-label={`Delete canonical item ${item.id.slice(0, 8)}`}>Delete</Button>
               </div>
             </div>
             {editingId === item.id ? (
               <div className="flex gap-2">
+                <label htmlFor={`edit-canonical-${item.id}`} className="sr-only">Edit content for canonical item {item.id.slice(0, 8)}</label>
                 <input
+                  id={`edit-canonical-${item.id}`}
                   type="text"
                   value={editContent}
                   onChange={(e) => setEditContent(e.target.value)}
-                  className="flex-1 h-9 rounded-md border border-input bg-background px-3 text-sm"
+                  className="flex-1 h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 />
-                <Button size="sm" onClick={() => handleSaveEdit(item.id)}>Save</Button>
-                <Button size="sm" variant="outline" onClick={() => setEditingId(null)}>Cancel</Button>
+                <Button size="sm" onClick={() => handleSaveEdit(item.id)} aria-label={`Save edit for canonical item ${item.id.slice(0, 8)}`}>Save</Button>
+                <Button size="sm" variant="outline" onClick={() => setEditingId(null)} aria-label="Cancel edit">Cancel</Button>
               </div>
             ) : (
               <p className="text-sm">{item.content}</p>

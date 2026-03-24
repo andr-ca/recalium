@@ -53,7 +53,7 @@ export function ReviewQueuePage() {
         <p className="text-sm text-muted-foreground mt-1">Duplicate and conflicting facts flagged for review.</p>
       </div>
 
-      {loading && <p className="text-sm text-muted-foreground">Loading…</p>}
+      {loading && <p role="status" className="text-sm text-muted-foreground">Loading…</p>}
 
       <div className="space-y-3">
         {items.map((item) => (
@@ -65,8 +65,8 @@ export function ReviewQueuePage() {
                 <span className="text-xs text-muted-foreground">{new Date(item.created_at).toLocaleDateString()}</span>
               </div>
               <div className="flex gap-2">
-                <Button size="sm" variant="outline" disabled={acting === item.id} onClick={() => handleResolve(item.id)}>Resolve</Button>
-                <Button size="sm" variant="ghost" disabled={acting === item.id} onClick={() => handleDismiss(item.id)}>Dismiss</Button>
+                <Button size="sm" variant="outline" disabled={acting === item.id} onClick={() => handleResolve(item.id)} aria-label={`Resolve review item ${item.id.slice(0, 8)}`}>Resolve</Button>
+                <Button size="sm" variant="ghost" disabled={acting === item.id} onClick={() => handleDismiss(item.id)} aria-label={`Dismiss review item ${item.id.slice(0, 8)}`}>Dismiss</Button>
               </div>
             </div>
             <p className="text-xs text-muted-foreground font-mono">group: {item.conflict_group_id}</p>

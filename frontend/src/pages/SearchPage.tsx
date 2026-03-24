@@ -45,12 +45,14 @@ export function SearchPage() {
       </div>
 
       <form onSubmit={handleSearch} className="flex gap-2 items-center">
+        <label htmlFor="search-query" className="sr-only">Search query</label>
         <input
+          id="search-query"
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search your memory…"
-          className="flex-1 h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+          className="flex-1 h-10 rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-primary focus:outline-none"
         />
         <div className="flex gap-1">
           {(["hybrid", "keyword", "semantic"] as Mode[]).map((m) => (
@@ -60,6 +62,7 @@ export function SearchPage() {
               variant={mode === m ? "default" : "outline"}
               size="sm"
               onClick={() => setMode(m)}
+              aria-pressed={mode === m}
             >
               {m}
             </Button>
@@ -70,46 +73,50 @@ export function SearchPage() {
         </Button>
       </form>
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
 
-      {response && (
-        <div className="space-y-4">
-          <div className="flex items-center gap-4 text-sm text-muted-foreground">
-            <span>{response.items.length} results</span>
-            <span>mode: {response.retrieval_mode}</span>
-            <span>budget: {response.budget_used}/{response.budget_limit}</span>
-            {response.degraded_mode && <Badge variant="destructive">degraded</Badge>}
-          </div>
-
-          {response.items.map((item: RetrievalItem) => (
-            <div key={item.id} className="border rounded-lg p-4 space-y-2">
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <Badge variant={TYPE_VARIANT[item.type] ?? "outline"}>{item.type}</Badge>
-                  {item.conflict_label && (
-                    <Badge variant="destructive">{item.conflict_label}</Badge>
-                  )}
-                  <span className="text-xs text-muted-foreground">{item.source_system}</span>
-                  <span className="text-xs text-muted-foreground">score: {item.score.toFixed(4)}</span>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setPanelSourceId(panelSourceId === item.source_id ? null : item.source_id)}
-                >
-                  Source
-                </Button>
-              </div>
-              <p className="text-sm whitespace-pre-wrap">{item.content}</p>
-              {item.provenance?.derivation_method && (
-                <p className="text-xs text-muted-foreground">
-                  via {item.provenance.derivation_method} · {item.provenance.derivation_model}
-                </p>
-              )}
+      <div aria-live="polite" aria-busy={loading}>
+        {response && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-4 text-sm text-muted-foreground">
+              <span>{response.items.length} results</span>
+              <span>mode: {response.retrieval_mode}</span>
+              <span>budget: {response.budget_used}/{response.budget_limit}</span>
+              {response.degraded_mode && <Badge variant="destructive">degraded</Badge>}
             </div>
-          ))}
-        </div>
-      )}
+
+            {response.items.map((item: RetrievalItem) => (
+              <div key={item.id} className="border rounded-lg p-4 space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge variant={TYPE_VARIANT[item.type] ?? "outline"}>{item.type}</Badge>
+                    {item.conflict_label && (
+                      <Badge variant="destructive">{item.conflict_label}</Badge>
+                    )}
+                    <span className="text-xs text-muted-foreground">{item.source_system}</span>
+                    <span className="text-xs text-muted-foreground">score: {item.score.toFixed(4)}</span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setPanelSourceId(panelSourceId === item.source_id ? null : item.source_id)}
+                    aria-label={`View source for ${item.type} item`}
+                    aria-pressed={panelSourceId === item.source_id}
+                  >
+                    Source
+                  </Button>
+                </div>
+                <p className="text-sm whitespace-pre-wrap">{item.content}</p>
+                {item.provenance?.derivation_method && (
+                  <p className="text-xs text-muted-foreground">
+                    via {item.provenance.derivation_method} · {item.provenance.derivation_model}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Inline provenance panel — no Sheet component available */}
       {panelSourceId && (
@@ -135,9 +142,9 @@ function ProvenanceInlinePanel({ sourceId, onClose }: { sourceId: string; onClos
     <div className="border rounded-lg p-4 bg-muted/30 space-y-2">
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium">Source Archive Item</span>
-        <Button variant="ghost" size="sm" onClick={onClose}>Close</Button>
+        <Button variant="ghost" size="sm" onClick={onClose} aria-label="Close provenance panel">Close</Button>
       </div>
-      {loading && <p className="text-sm text-muted-foreground">Loading…</p>}
+      {loading && <p role="status" className="text-sm text-muted-foreground">Loading…</p>}
       {!loading && !item && <p className="text-sm text-muted-foreground">Not found.</p>}
       {!loading && item && (
         <>

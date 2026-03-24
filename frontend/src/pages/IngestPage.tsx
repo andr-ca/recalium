@@ -79,6 +79,7 @@ export function IngestPage() {
             )}
             aria-selected={activeTab === tab}
             role="tab"
+            tabIndex={activeTab === tab ? 0 : -1}
           >
             {tab === "paste" ? (
               <><FileText className="inline h-4 w-4 mr-1.5" aria-hidden="true" />Paste Text</>
@@ -91,7 +92,7 @@ export function IngestPage() {
 
       {/* Paste tab */}
       {activeTab === "paste" && (
-        <form onSubmit={handlePasteSubmit} className="flex flex-col gap-4">
+        <form onSubmit={handlePasteSubmit} className="flex flex-col gap-4" role="tabpanel" aria-label="Paste text tab">
           <div className="flex flex-col gap-1.5">
             <label htmlFor="source-name" className="text-sm font-medium">
               Source name <span className="text-muted-foreground">(optional)</span>
@@ -130,7 +131,7 @@ export function IngestPage() {
 
       {/* File upload tab */}
       {activeTab === "file" && (
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-4" role="tabpanel" aria-label="Upload file tab">
           <div
             onDrop={handleDrop}
             onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
