@@ -118,5 +118,9 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    # Drop FK constraints explicitly before dropping tables (prevents FK violation errors)
+    op.drop_constraint("review_queue_items_conflict_group_id_fkey", "review_queue_items", type_="foreignkey")
     op.drop_table("review_queue_items")
+    op.drop_constraint("canonical_memory_raw_archive_id_fkey", "canonical_memory", type_="foreignkey")
+    op.drop_constraint("canonical_memory_fact_id_fkey", "canonical_memory", type_="foreignkey")
     op.drop_table("canonical_memory")

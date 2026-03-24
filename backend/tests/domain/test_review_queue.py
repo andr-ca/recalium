@@ -24,6 +24,8 @@ from app.domain.review_queue.models import ReviewQueueItem
 async def test_materialize_review_item_creates_pending(db_session_phase3: AsyncSession):
     """CANM-05: materializing a conflict group creates a pending review item."""
     conflict_group_id = uuid.uuid4()
+    # TODO(03-08): Replace with a proper test that inserts a conflict_group row first.
+    # This currently tests FK enforcement, not service behavior.
     with pytest.raises(Exception):  # FK violation expected on empty DB
         await materialize_review_item(
             session=db_session_phase3,
