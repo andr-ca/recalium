@@ -47,6 +47,9 @@ class Settings(Base):
     ollama_validation_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
     ollama_validated_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
 
+    # Configurable audit verbosity toggle (WEBUI-06)
+    verbose_audit: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
     updated_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False,
         default=lambda: datetime.now(timezone.utc),

@@ -23,6 +23,8 @@ from app.api.routes.search import router as search_router
 from app.api.routes.canonical import router as canonical_router
 from app.api.routes.review_queue import router as review_queue_router
 from app.api.routes.audit import router as audit_router
+from app.api.routes.backup import router as backup_router
+from app.api.routes.telemetry import router as telemetry_router
 from app.infrastructure.db import get_engine, get_session_factory
 from app.infrastructure.settings import get_settings
 from app.mcp_server.server import create_mcp_server, mcp_app as _mcp_app
@@ -76,6 +78,7 @@ def _assert_no_keys_in_schema() -> None:
     import app.domain.derived_memory.models  # noqa: F401
     import app.domain.canonical_memory.models  # noqa: F401
     import app.domain.review_queue.models  # noqa: F401
+    import app.domain.telemetry.models  # noqa: F401
 
     forbidden_suffixes = ("_key", "_secret", "_token", "_password")
     allowed_suffixes = ("_fingerprint", "_configured", "_validation_status", "_validated_at")
@@ -129,6 +132,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     _worker_task = _asyncio.create_task(worker_loop(), name="pipeline-worker")
     logger.info("Pipeline worker task started")
 
+    # Start backup scheduler task (daily at midnight UTC, BKUP-01)
+    _backup_task = _asyncio.create_task(_backup_scheduler(), name="backup-scheduler")
+    logger.info("Backup scheduler task started")
+
     logger.info("DB pool initialized. Application ready.")
     logger.info("MCP retrieve_memory tool registered (SSE transport on /mcp/sse)")
     yield
@@ -141,13 +148,54 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         pass
     logger.info("Pipeline worker task stopped")
 
+    # Shutdown backup scheduler cleanly
+    _backup_task.cancel()
+    try:
+        await _backup_task
+    except _asyncio.CancelledError:
+        pass
+    logger.info("Backup scheduler task stopped")
+
     # Shutdown: dispose DB connection pool
     await engine.dispose()
     logger.info("DB pool disposed. Application shutdown complete.")
 
 
+async def _backup_scheduler() -> None:
+    """Run a daily backup at midnight UTC (BKUP-01).
+
+    Waits until the next midnight UTC, creates a backup, then repeats every 24h.
+    Cancelled cleanly on shutdown.
+    """
+    import asyncio as _asyncio
+    from datetime import datetime, timezone, timedelta
+    from app.domain.backup.service import create_backup, delete_old_backups, DEFAULT_BACKUP_DIR
+
+    while True:
+        now = datetime.now(timezone.utc)
+        next_midnight = (now + timedelta(days=1)).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
+        wait_seconds = (next_midnight - now).total_seconds()
+        logger.info("Backup scheduler: next backup in %.0f seconds", wait_seconds)
+        try:
+            await _asyncio.sleep(wait_seconds)
+        except _asyncio.CancelledError:
+            break
+
+        try:
+            result = await create_backup(backup_dir=DEFAULT_BACKUP_DIR)
+            deleted = await delete_old_backups(backup_dir=DEFAULT_BACKUP_DIR, retention_days=30)
+            logger.info(
+                "Scheduled backup complete: %s, deleted %d old backups",
+                result["filename"],
+                deleted,
+            )
+        except Exception as exc:
+            logger.error("Scheduled backup failed: %s", exc)
+
+
 def create_app() -> FastAPI:
-    """Create and configure the FastAPI application."""
     settings = get_settings()
 
     app = FastAPI(
@@ -169,6 +217,10 @@ def create_app() -> FastAPI:
     app.include_router(canonical_router)
     app.include_router(review_queue_router)
     app.include_router(audit_router)
+
+    # Phase 4 routes (have their own /api prefix)
+    app.include_router(backup_router)
+    app.include_router(telemetry_router)
 
     # MCP SSE transport — bound to /mcp prefix.
     # SECURITY: Upstream proxy/uvicorn must bind to 127.0.0.1 only (DNS rebinding prevention).
