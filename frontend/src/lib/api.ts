@@ -321,10 +321,10 @@ export interface AuditEventItem {
   occurred_at: string;
 }
 
-export async function listAuditEvents(params?: { limit?: number; offset?: number; event_type?: string }): Promise<{ items: AuditEventItem[]; count: number }> {
+export async function listAuditEvents(params?: { limit?: number; offset?: number; event_type?: string | null }): Promise<{ items: AuditEventItem[]; count: number }> {
   const p = new URLSearchParams();
   if (params?.limit) p.set("limit", String(params.limit));
-  if (params?.offset) p.set("offset", String(params.offset));
+  if (params?.offset !== undefined) p.set("offset", String(params.offset));
   if (params?.event_type) p.set("event_type", params.event_type);
   return request<{ items: AuditEventItem[]; count: number }>(`/audit/events?${p}`);
 }

@@ -1,7 +1,7 @@
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { getSettings, validateKey, ApiError, type SettingsKeyStatus } from "@/lib/api";
+import { getSettings, validateKey, getTelemetrySummary, ApiError, type SettingsKeyStatus, type TelemetrySummary } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 type Provider = "openai" | "anthropic" | "ollama";
@@ -65,6 +65,87 @@ const PROVIDERS_CONFIG: Array<{
   },
 ];
 
+function TelemetrySection({
+  telemetry7,
+  telemetryAll,
+  telemetryLoading,
+  verboseAudit,
+  onVerboseAuditChange,
+}: {
+  telemetry7: TelemetrySummary | null;
+  telemetryAll: TelemetrySummary | null;
+  telemetryLoading: boolean;
+  verboseAudit: boolean;
+  onVerboseAuditChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+}) {
+  const searches7d = telemetry7 ? telemetry7.summary.reduce((s, d) => s + d.searches, 0) : 0;
+  const retrievals7d = telemetry7 ? telemetry7.summary.reduce((s, d) => s + d.retrievals, 0) : 0;
+  const factsTotal = telemetryAll ? telemetryAll.summary.reduce((s, d) => s + d.facts_reviewed, 0) : 0;
+  const canonicalTotal = telemetryAll ? telemetryAll.summary.reduce((s, d) => s + d.canonical_created, 0) : 0;
+  const mcpTotal = telemetryAll ? telemetryAll.summary.reduce((s, d) => s + d.mcp_retrievals, 0) : 0;
+  const uiTotal = telemetryAll ? telemetryAll.summary.reduce((s, d) => s + d.ui_retrievals, 0) : 0;
+
+  const hasData = telemetry7 !== null || telemetryAll !== null;
+
+  return (
+    <section className="mt-10" aria-labelledby="telemetry-heading">
+      <h2 id="telemetry-heading" className="text-lg font-semibold mb-1">Local Telemetry</h2>
+      <p className="text-sm text-muted-foreground mb-4">
+        Usage metrics collected locally.{" "}
+        <strong>Telemetry never leaves this machine.</strong>
+      </p>
+
+      {telemetryLoading ? (
+        <p className="text-sm text-muted-foreground">Loading telemetry…</p>
+      ) : !hasData ? (
+        <p className="text-sm text-muted-foreground">Telemetry available after processing begins.</p>
+      ) : (
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+          <div>
+            <dt className="text-muted-foreground">Searches (last 7 days)</dt>
+            <dd className="font-semibold">{searches7d}</dd>
+          </div>
+          <div>
+            <dt className="text-muted-foreground">Retrievals (last 7 days)</dt>
+            <dd className="font-semibold">{retrievals7d}</dd>
+          </div>
+          <div>
+            <dt className="text-muted-foreground">Facts reviewed (total)</dt>
+            <dd className="font-semibold">{factsTotal}</dd>
+          </div>
+          <div>
+            <dt className="text-muted-foreground">Canonical items created (total)</dt>
+            <dd className="font-semibold">{canonicalTotal}</dd>
+          </div>
+          <div>
+            <dt className="text-muted-foreground">MCP retrievals (total)</dt>
+            <dd className="font-semibold">{mcpTotal}</dd>
+          </div>
+          <div>
+            <dt className="text-muted-foreground">UI retrievals (total)</dt>
+            <dd className="font-semibold">{uiTotal}</dd>
+          </div>
+        </dl>
+      )}
+
+      {/* Verbose audit toggle */}
+      <div className="mt-5 flex items-center gap-3">
+        <input
+          id="verbose-audit-toggle"
+          type="checkbox"
+          checked={verboseAudit}
+          onChange={onVerboseAuditChange}
+          className="h-4 w-4 rounded border-input accent-primary"
+        />
+        <label htmlFor="verbose-audit-toggle" className="text-sm">
+          Verbose audit logging{" "}
+          <span className="text-muted-foreground">(logs additional metadata per event — client-side preference only in v1)</span>
+        </label>
+      </div>
+    </section>
+  );
+}
+
 export function SettingsPage() {
   const [providers, setProviders] = React.useState<Record<Provider, ProviderState>>({
     openai: { ...DEFAULT_PROVIDER_STATE },
@@ -72,6 +153,12 @@ export function SettingsPage() {
     ollama: { ...DEFAULT_PROVIDER_STATE },
   });
   const [isLoading, setIsLoading] = React.useState(true);
+  const [telemetry7, setTelemetry7] = React.useState<TelemetrySummary | null>(null);
+  const [telemetryAll, setTelemetryAll] = React.useState<TelemetrySummary | null>(null);
+  const [telemetryLoading, setTelemetryLoading] = React.useState(true);
+  const [verboseAudit, setVerboseAudit] = React.useState<boolean>(
+    () => localStorage.getItem("verbose_audit") === "true"
+  );
 
   // Load current settings on mount
   React.useEffect(() => {
@@ -96,13 +183,36 @@ export function SettingsPage() {
     load();
   }, []);
 
+  React.useEffect(() => {
+    async function loadTelemetry() {
+      setTelemetryLoading(true);
+      try {
+        const [t7, tAll] = await Promise.all([
+          getTelemetrySummary(7),
+          getTelemetrySummary(365),
+        ]);
+        setTelemetry7(t7);
+        setTelemetryAll(tAll);
+      } catch {
+        // Non-fatal
+      } finally {
+        setTelemetryLoading(false);
+      }
+    }
+    loadTelemetry();
+  }, []);
+
   const updateProvider = React.useCallback((p: Provider, patch: Partial<ProviderState>) => {
     setProviders((prev) => ({ ...prev, [p]: { ...prev[p], ...patch } }));
   }, []);
 
+  // Ref keeps latest providers snapshot so handleValidate never captures a stale closure
+  const providersRef = React.useRef(providers);
+  React.useEffect(() => { providersRef.current = providers; }, [providers]);
+
   const handleValidate = React.useCallback(async (provider: Provider) => {
-    // Capture input values BEFORE the optimistic state update to avoid stale closure reads
-    const { keyInput, baseUrl } = providers[provider];
+    // Read from ref so we always get the current keyInput/baseUrl, even if state updated
+    const { keyInput, baseUrl } = providersRef.current[provider];
     setProviders((prev) => ({ ...prev, [provider]: { ...prev[provider], isValidating: true, error: null } }));
     try {
       const result = await validateKey({
@@ -135,7 +245,13 @@ export function SettingsPage() {
         },
       }));
     }
-  }, [providers]);
+  }, []);
+
+  function handleVerboseAuditChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const val = e.target.checked;
+    setVerboseAudit(val);
+    localStorage.setItem("verbose_audit", String(val));
+  }
 
   if (isLoading) {
     return (
@@ -259,6 +375,9 @@ export function SettingsPage() {
           );
         })}
       </div>
+
+      {/* Telemetry Section */}
+      <TelemetrySection telemetry7={telemetry7} telemetryAll={telemetryAll} telemetryLoading={telemetryLoading} verboseAudit={verboseAudit} onVerboseAuditChange={handleVerboseAuditChange} />
 
       <div className="mt-8 rounded-lg border border-muted bg-muted/30 px-4 py-3">
         <p className="text-xs text-muted-foreground">
