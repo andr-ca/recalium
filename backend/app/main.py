@@ -16,6 +16,10 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from app.api.routes import router as api_router
+from app.api.routes.search import router as search_router
+from app.api.routes.canonical import router as canonical_router
+from app.api.routes.review_queue import router as review_queue_router
+from app.api.routes.audit import router as audit_router
 from app.infrastructure.db import get_engine, get_session_factory
 from app.infrastructure.settings import get_settings
 from app.mcp_server.server import create_mcp_server, mcp_app as _mcp_app
@@ -126,6 +130,12 @@ def create_app() -> FastAPI:
 
     # API routes under /api prefix
     app.include_router(api_router, prefix="/api")
+
+    # Phase 3 routes (have their own /api prefix)
+    app.include_router(search_router)
+    app.include_router(canonical_router)
+    app.include_router(review_queue_router)
+    app.include_router(audit_router)
 
     # MCP SSE transport — bound to /mcp prefix.
     # SECURITY: Upstream proxy/uvicorn must bind to 127.0.0.1 only (DNS rebinding prevention).
