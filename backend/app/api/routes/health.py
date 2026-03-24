@@ -27,5 +27,5 @@ async def health_check(session: AsyncSession = Depends(get_session)) -> dict:
         db_status = "ok"
     except Exception as e:
         logger.error("DB health check failed: %s", e)
-        return {"status": "degraded", "db": "error", "detail": "database unreachable"}
-    return {"status": "ok", "db": db_status}
+        return {"status": "degraded", "db": "error", "detail": "database unreachable", "api_version": "1"}
+    return {"status": "ok", "db": db_status, "api_version": "1"}
