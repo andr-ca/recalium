@@ -29,6 +29,7 @@ export interface ArchiveItem {
   status_badge: JobStatusBadge;
   job_id: string | null;
   job_error: string | null;
+  deleted_at?: string | null;
 }
 
 export interface ArchiveListResponse {
@@ -108,12 +109,13 @@ export async function ingestFile(file: File): Promise<IngestResponse> {
 // ── Archive ────────────────────────────────────────────────────────────────
 
 export async function listArchive(
-  params: { offset?: number; limit?: number; q?: string } = {}
+  params: { offset?: number; limit?: number; q?: string; include_deleted?: boolean } = {}
 ): Promise<ArchiveListResponse> {
   const qs = new URLSearchParams();
   if (params.offset !== undefined) qs.set("offset", String(params.offset));
   if (params.limit !== undefined) qs.set("limit", String(params.limit));
   if (params.q) qs.set("q", params.q);
+  if (params.include_deleted) qs.set("include_deleted", "true");
   return request<ArchiveListResponse>(`/archive?${qs}`);
 }
 
@@ -121,6 +123,15 @@ export async function retryJob(jobId: string): Promise<{ status: string; job_id:
   return request<{ status: string; job_id: string }>(`/jobs/${jobId}/reprocess`, {
     method: "POST",
   });
+}
+
+export async function deleteArchiveItem(id: string): Promise<void> {
+  // DELETE returns 204 No Content — must use raw fetch, not request() which calls .json()
+  const response = await fetch(`${BASE_URL}/archive/${id}`, { method: "DELETE" });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({ detail: response.statusText }));
+    throw new ApiError(response.status, body.detail ?? response.statusText);
+  }
 }
 
 export interface ArchiveItemDetail {

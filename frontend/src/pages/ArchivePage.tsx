@@ -1,6 +1,6 @@
 import * as React from "react";
 import { ArchiveItemCard } from "@/components/ArchiveItemCard";
-import { listArchive, ApiError, type ArchiveItem } from "@/lib/api";
+import { listArchive, deleteArchiveItem, ApiError, type ArchiveItem } from "@/lib/api";
 
 type LoadState =
   | { status: "idle" }
@@ -14,11 +14,17 @@ export function ArchivePage() {
   const [state, setState] = React.useState<LoadState>({ status: "idle" });
   const [searchQuery, setSearchQuery] = React.useState("");
   const [offset, setOffset] = React.useState(0);
+  const [showDeleted, setShowDeleted] = React.useState(false);
 
-  const loadArchive = React.useCallback(async (q: string, off: number) => {
+  const loadArchive = React.useCallback(async (q: string, off: number, includeDeleted: boolean) => {
     setState({ status: "loading" });
     try {
-      const result = await listArchive({ offset: off, limit: PAGE_SIZE, q: q || undefined });
+      const result = await listArchive({
+        offset: off,
+        limit: PAGE_SIZE,
+        q: q || undefined,
+        include_deleted: includeDeleted || undefined,
+      });
       setState({ status: "success", items: result.items, total: result.total });
     } catch (err) {
       const message = err instanceof ApiError ? err.detail : "Failed to load archive.";
@@ -28,8 +34,15 @@ export function ArchivePage() {
 
   // Initial load
   React.useEffect(() => {
-    loadArchive("", 0);
+    loadArchive("", 0, false);
   }, [loadArchive]);
+
+  // Reload when showDeleted changes
+  React.useEffect(() => {
+    loadArchive(searchQuery, 0, showDeleted);
+    setOffset(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showDeleted]);
 
   // Auto-refresh every 5s while any item is still processing
   React.useEffect(() => {
@@ -42,22 +55,22 @@ export function ArchivePage() {
     if (!hasProcessing) return;
 
     const timer = setInterval(() => {
-      loadArchive(searchQuery, offset);
+      loadArchive(searchQuery, offset, showDeleted);
     }, 5000);
 
     return () => clearInterval(timer);
-  }, [state, searchQuery, offset, loadArchive]);
+  }, [state, searchQuery, offset, showDeleted, loadArchive]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setOffset(0);
-    loadArchive(searchQuery, 0);
+    loadArchive(searchQuery, 0, showDeleted);
   };
 
   const handlePrevPage = () => {
     const newOffset = Math.max(0, offset - PAGE_SIZE);
     setOffset(newOffset);
-    loadArchive(searchQuery, newOffset);
+    loadArchive(searchQuery, newOffset, showDeleted);
   };
 
   const handleNextPage = () => {
@@ -65,8 +78,21 @@ export function ArchivePage() {
     const newOffset = offset + PAGE_SIZE;
     if (newOffset < state.total) {
       setOffset(newOffset);
-      loadArchive(searchQuery, newOffset);
+      loadArchive(searchQuery, newOffset, showDeleted);
     }
+  };
+
+  const handleDelete = async (id: string) => {
+    await deleteArchiveItem(id);
+    // Remove item from local state on success
+    setState((prev) => {
+      if (prev.status !== "success") return prev;
+      return {
+        ...prev,
+        items: prev.items.filter((item) => item.id !== id),
+        total: prev.total - 1,
+      };
+    });
   };
 
   const total = state.status === "success" ? state.total : 0;
@@ -83,7 +109,7 @@ export function ArchivePage() {
       </div>
 
       {/* Search */}
-      <form onSubmit={handleSearch} className="flex gap-2 mb-6">
+      <form onSubmit={handleSearch} className="flex gap-2 mb-4">
         <input
           type="search"
           value={searchQuery}
@@ -99,6 +125,18 @@ export function ArchivePage() {
           Search
         </button>
       </form>
+
+      {/* Show deleted toggle */}
+      <label className="flex items-center gap-2 mb-6 text-sm text-muted-foreground cursor-pointer w-fit">
+        <input
+          type="checkbox"
+          checked={showDeleted}
+          onChange={(e) => setShowDeleted(e.target.checked)}
+          className="rounded border-input"
+          aria-label="Show deleted items"
+        />
+        Show deleted items
+      </label>
 
       {/* States */}
       {state.status === "loading" && (
@@ -134,14 +172,19 @@ export function ArchivePage() {
       {state.status === "success" && state.items.length > 0 && (
         <>
           <ul className="flex flex-col gap-3" aria-label="Archive items">
-            {state.items.map((item) => (
-              <li key={item.id}>
-                <ArchiveItemCard
-                  item={item}
-                  onRetried={() => loadArchive(searchQuery, offset)}
-                />
-              </li>
-            ))}
+            {state.items.map((item) => {
+              const isDeleted = item.deleted_at != null;
+              return (
+                <li key={item.id}>
+                  <ArchiveItemCard
+                    item={item}
+                    onRetried={() => loadArchive(searchQuery, offset, showDeleted)}
+                    onDelete={isDeleted ? undefined : handleDelete}
+                    isDeleted={isDeleted}
+                  />
+                </li>
+              );
+            })}
           </ul>
 
           {/* Pagination */}
@@ -152,6 +195,7 @@ export function ArchivePage() {
               </span>
               <div className="flex gap-2">
                 <button
+                  type="button"
                   onClick={handlePrevPage}
                   disabled={offset === 0}
                   className="rounded-md border px-3 py-1.5 text-xs hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed"
@@ -160,6 +204,7 @@ export function ArchivePage() {
                   ← Previous
                 </button>
                 <button
+                  type="button"
                   onClick={handleNextPage}
                   disabled={offset + PAGE_SIZE >= total}
                   className="rounded-md border px-3 py-1.5 text-xs hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed"
