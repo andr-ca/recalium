@@ -35,6 +35,7 @@ async def ingest_text_content(
     session: AsyncSession,
     content: str,
     source_name: str | None = None,
+    actor: str = "user_ui",
 ) -> IngestResult:
     """Ingest plain text or JSON content (paste mode)."""
     content = content.strip()
@@ -42,7 +43,7 @@ async def ingest_text_content(
         raise ValueError(f"Content too short to ingest (got {len(content)} chars, need ≥ 10)")
 
     parsed = detect_and_parse(content=content, filename=None, source_name=source_name)
-    return await _persist_ingest(session=session, parsed=parsed, actor="user_ui")
+    return await _persist_ingest(session=session, parsed=parsed, actor=actor)
 
 
 async def ingest_file_content(

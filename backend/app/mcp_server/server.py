@@ -135,6 +135,7 @@ async def ingest_memory(
                 session=session,
                 content=content,
                 source_name=source_name,
+                actor=actor,
             )
             await session.commit()
         except ValueError as exc:
