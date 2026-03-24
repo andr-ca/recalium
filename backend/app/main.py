@@ -137,6 +137,18 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     _backup_task = _asyncio.create_task(_backup_scheduler(), name="backup-scheduler")
     logger.info("Backup scheduler task started")
 
+    # Start file watcher task if configured (INGT-04)
+    _watcher_task = None
+    if settings.watch_dir:
+        from app.domain.ingest.watcher import file_watcher_loop
+        _watcher_task = _asyncio.create_task(
+            file_watcher_loop(settings.watch_dir, settings.watch_poll_interval),
+            name="file-watcher",
+        )
+        logger.info("File watcher task started: watching %s", settings.watch_dir)
+    else:
+        logger.info("File watcher disabled (WATCH_DIR not set)")
+
     logger.info("DB pool initialized. Application ready.")
     logger.info("MCP retrieve_memory tool registered (SSE transport on /mcp/sse)")
     yield
@@ -156,6 +168,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except _asyncio.CancelledError:
         pass
     logger.info("Backup scheduler task stopped")
+
+    # Shutdown file watcher cleanly
+    if _watcher_task is not None:
+        _watcher_task.cancel()
+        try:
+            await _watcher_task
+        except _asyncio.CancelledError:
+            pass
+        logger.info("File watcher task stopped")
 
     # Shutdown: dispose DB connection pool
     await engine.dispose()

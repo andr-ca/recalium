@@ -101,6 +101,55 @@ async def retrieve_memory(
     }
 
 
+@mcp_app.tool()
+async def ingest_memory(
+    content: str = "",
+    source_name: str | None = None,
+    source_type: str = "mcp_ingest",
+    actor: str = "mcp_client",
+) -> dict[str, Any]:
+    """Ingest raw content into the Recalium memory archive via MCP.
+
+    Args:
+        content: The raw text content to ingest (required, minimum 10 characters).
+        source_name: Optional label for the source (e.g. "claude-session-2026-03-24").
+        source_type: Source type label (default: "mcp_ingest").
+        actor: MCP client identity string for audit trail (default: "mcp_client").
+
+    Returns:
+        On success: {"status": "accepted", "item_count": N, "archive_ids": [...]}
+        On error: {"error": "<descriptive message>"}
+    """
+    # MCP-02: validate required fields and return descriptive errors
+    if not content or not content.strip():
+        return {"error": "content is required and must be non-empty"}
+    if len(content.strip()) < 10:
+        return {"error": "content too short (minimum 10 characters)"}
+
+    from app.domain.ingest.service import ingest_text_content  # noqa: PLC0415
+
+    factory = get_session_factory()
+    async with factory() as session:
+        try:
+            result = await ingest_text_content(
+                session=session,
+                content=content,
+                source_name=source_name,
+            )
+            await session.commit()
+        except ValueError as exc:
+            return {"error": str(exc)}
+        except Exception as exc:
+            logger.error("MCP ingest_memory failed: %s", exc)
+            return {"error": f"Ingest failed: {exc}"}
+
+    return {
+        "status": "accepted",
+        "item_count": result.item_count,
+        "archive_ids": [str(aid) for aid in result.archive_ids],
+    }
+
+
 def create_mcp_server() -> FastMCP:
     """Return the configured MCP app instance.
 

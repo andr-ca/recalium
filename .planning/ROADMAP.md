@@ -13,7 +13,7 @@
 - [x] **Phase 1: Foundation** — Durable local storage, raw ingest, BYOK key storage pattern, web UI shell (completed 2026-03-23)
 - [x] **Phase 2: Processing Pipeline** — Async derived-memory worker, fact extraction, sensitivity gate, dedup materialization (completed 2026-03-23)
 - [x] **Phase 3: Retrieval + Review** — Hybrid search, MCP retrieve, canonical memory workflows, review queue (completed 2026-03-23)
-- [ ] **Phase 4: Privacy + Operations** — Deletion cascade UI, backup/restore, first-run wizard, accessibility, audit view
+- [x] **Phase 4: Privacy + Operations** — Deletion cascade UI, backup/restore, first-run wizard, accessibility, audit view (completed 2026-03-23)
 - [ ] **Phase 5: Service Hardening** — MCP ingest, watched folder, portability bundle, API/MCP contract hardening
 
 ---
@@ -104,17 +104,17 @@ Plans:
 4. All core workflows (ingest, search, fact review, canonical edit, review queue, restore) are operable by keyboard only with no critical accessibility failures (no missing labels, keyboard traps, or unannounced state changes).
 5. Audit view shows a paginated access-event list with per-event detail drawer; more detailed logging is configurable; local telemetry (searches/day, retrievals/day, facts reviewed, canonical items created, MCP vs UI retrievals) is visible in Settings and never leaves the local system.
 
-**Plans:** 8/8 plans written (awaiting execution)
+**Plans:** 8/8 plans complete
 
 Plans:
-- [ ] 04-01-PLAN.md — Deletion cascade service + auth middleware (PRIV-01, PRIV-02, PRIV-06)
-- [ ] 04-02-PLAN.md — Test scaffold RED (6 test files: cascade, archive DELETE, auth, backup, telemetry, integration)
-- [ ] 04-03-PLAN.md — Backup/restore service + telemetry + migration 0004
-- [ ] 04-04-PLAN.md — Archive deletion UI (delete button + confirmation + show-deleted toggle)
-- [ ] 04-05-PLAN.md — First-run wizard + cost estimation (BYOK-01, BYOK-06)
-- [ ] 04-06-PLAN.md — Audit improvements (event_type filter, detail drawer) + telemetry UI in Settings
-- [ ] 04-07-PLAN.md — Accessibility audit + keyboard navigation fixes (WEBUI-02, WEBUI-03)
-- [ ] 04-08-PLAN.md — Phase 4 integration test suite GREEN
+- [x] 04-01-PLAN.md — Deletion cascade service + auth middleware (PRIV-01, PRIV-02, PRIV-06)
+- [x] 04-02-PLAN.md — Test scaffold RED (6 test files: cascade, archive DELETE, auth, backup, telemetry, integration)
+- [x] 04-03-PLAN.md — Backup/restore service + telemetry + migration 0004
+- [x] 04-04-PLAN.md — Archive deletion UI (delete button + confirmation + show-deleted toggle)
+- [x] 04-05-PLAN.md — First-run wizard + cost estimation (BYOK-01, BYOK-06)
+- [x] 04-06-PLAN.md — Audit improvements (event_type filter, detail drawer) + telemetry UI in Settings
+- [x] 04-07-PLAN.md — Accessibility audit + keyboard navigation fixes (WEBUI-02, WEBUI-03)
+- [x] 04-08-PLAN.md — Phase 4 integration test suite GREEN
 
 ---
 
@@ -143,7 +143,7 @@ Plans:
 | 1. Foundation | 0/TBD | Complete    | 2026-03-23 |
 | 2. Processing Pipeline | 8/8 | Complete | 2026-03-23 |
 | 3. Retrieval + Review | 8/8 | Complete | 2026-03-23 |
-| 4. Privacy + Operations | 0/8 | Not started (plans written) | — |
+| 4. Privacy + Operations | 8/8 | Complete | 2026-03-23 |
 | 5. Service Hardening | 0/TBD | Not started | — |
 
 ---
@@ -173,4 +173,4 @@ Plans:
 ---
 
 *Roadmap created: 2026-03-22*
-*Last updated: 2026-03-23 after writing Phase 4 plans (04-01 through 04-08, awaiting execution)*
+*Last updated: 2026-03-23 after completing Phase 4 (all 8 plans executed, 172 tests passing, 13 Phase 4 reqs verified)*

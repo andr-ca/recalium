@@ -41,6 +41,10 @@ class Settings(BaseSettings):
     app_auth_bearer: str = ""
     # Bearer token required when app_bind_host != "127.0.0.1". Must be set if exposing beyond localhost.
 
+    # Watched import folder (INGT-04)
+    watch_dir: str = ""  # Empty string = watcher disabled
+    watch_poll_interval: int = 10  # Seconds between directory polls
+
     # BYOK keys (optional — empty string means not configured)
     # These are read at runtime for validation only; never persisted to DB.
     openai_api_key: str = ""
