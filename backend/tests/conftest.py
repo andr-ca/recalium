@@ -14,6 +14,7 @@ loop" errors).
 """
 from __future__ import annotations
 
+import importlib
 import os
 from typing import AsyncGenerator
 
@@ -123,6 +124,29 @@ async def db_session_phase2(test_engine_phase2) -> AsyncGenerator[AsyncSession, 
     """Per-test async session for Phase 2 tests — same rollback semantics as db_session."""
     factory = async_sessionmaker(
         test_engine_phase2, class_=AsyncSession, expire_on_commit=False
+    )
+    async with factory() as session:
+        yield session
+        await session.rollback()
+
+
+# ── Phase 3 model imports ─────────────────────────────────────────────────
+try:
+    importlib.import_module("app.domain.canonical_memory.models")
+except ImportError:
+    pass  # Phase 3 models not yet created
+
+try:
+    importlib.import_module("app.domain.review_queue.models")
+except ImportError:
+    pass  # Phase 3 models not yet created
+
+
+@pytest_asyncio.fixture
+async def db_session_phase3(test_engine) -> AsyncGenerator[AsyncSession, None]:
+    """Per-test async session for Phase 3 tests — same rollback semantics as db_session."""
+    factory = async_sessionmaker(
+        test_engine, class_=AsyncSession, expire_on_commit=False
     )
     async with factory() as session:
         yield session
