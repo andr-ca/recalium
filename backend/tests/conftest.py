@@ -66,6 +66,13 @@ async def test_engine():
         _schema_created = True
 
     yield eng
+
+    # Reset the db.py module-level singletons so the next test gets a fresh
+    # engine bound to the next test's event loop (prevents asyncpg loop mismatch).
+    import app.infrastructure.db as _db_module
+    _db_module._engine = None
+    _db_module._async_session_factory = None
+
     await eng.dispose()
 
 
@@ -222,6 +229,29 @@ except ImportError:
 @pytest_asyncio.fixture
 async def db_session_phase4(test_engine) -> AsyncGenerator[AsyncSession, None]:
     """Per-test async session for Phase 4 tests — same rollback semantics as db_session."""
+    factory = async_sessionmaker(
+        test_engine, class_=AsyncSession, expire_on_commit=False
+    )
+    async with factory() as session:
+        yield session
+        await session.rollback()
+
+
+# ── Phase 5 module imports ─────────────────────────────────────────────────
+try:
+    importlib.import_module("app.domain.ingest.watcher")
+except ImportError:
+    pass  # Phase 5 watcher not yet created
+
+try:
+    importlib.import_module("app.api.routes.portability")
+except ImportError:
+    pass  # Phase 5 portability routes not yet created
+
+
+@pytest_asyncio.fixture
+async def db_session_phase5(test_engine) -> AsyncGenerator[AsyncSession, None]:
+    """Per-test async session for Phase 5 tests — same rollback semantics as db_session."""
     factory = async_sessionmaker(
         test_engine, class_=AsyncSession, expire_on_commit=False
     )
