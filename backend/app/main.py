@@ -14,6 +14,8 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import JSONResponse as _JSONResponse
 
 from app.api.routes import router as api_router
 from app.api.routes.search import router as search_router
@@ -28,6 +30,27 @@ logger = logging.getLogger(__name__)
 
 # Basic logging setup — will be reconfigured in lifespan with proper level from settings
 logging.basicConfig(level=logging.INFO, format="%(levelname)s [%(name)s] %(message)s")
+
+
+_AUTH_EXEMPT_PREFIXES = ("/health", "/api/docs", "/api/redoc", "/openapi.json")
+_AUTH_REQUIRED_PREFIXES = ("/api/", "/mcp/")
+
+
+class AuthMiddleware(BaseHTTPMiddleware):
+    """Bearer token auth for non-localhost deployments (PRIV-06)."""
+    async def dispatch(self, request, call_next):
+        settings = get_settings()
+        if not settings.requires_auth:
+            return await call_next(request)
+        path = request.url.path
+        requires_auth = any(path.startswith(p) for p in _AUTH_REQUIRED_PREFIXES)
+        is_exempt = any(path.startswith(p) for p in _AUTH_EXEMPT_PREFIXES)
+        if requires_auth and not is_exempt:
+            auth_header = request.headers.get("Authorization", "")
+            expected = f"Bearer {settings.app_auth_bearer}"
+            if not auth_header or auth_header != expected:
+                return _JSONResponse({"detail": "Authentication required"}, status_code=401)
+        return await call_next(request)
 
 
 def _assert_no_keys_in_schema() -> None:
@@ -85,6 +108,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     logger.info(f"Starting Recalium in {settings.app_env} mode")
 
+    # Security: enforce auth bearer when binding beyond localhost
+    if settings.requires_auth and not settings.app_auth_bearer:
+        raise RuntimeError(
+            "SECURITY: APP_BIND_HOST is non-localhost but APP_AUTH_BEARER is empty. "
+            "Set APP_AUTH_BEARER in .env before exposing Recalium beyond localhost."
+        )
+
     # Initialize DB connection pool
     engine = get_engine()
     get_session_factory()  # Warm up session factory
@@ -127,6 +157,8 @@ def create_app() -> FastAPI:
         docs_url="/api/docs" if settings.is_development else None,
         redoc_url="/api/redoc" if settings.is_development else None,
     )
+
+    app.add_middleware(AuthMiddleware)
 
     # API routes under /api prefix
     app.include_router(api_router, prefix="/api")

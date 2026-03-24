@@ -32,6 +32,12 @@ class Settings(BaseSettings):
     log_level: str = "info"
     app_port: int = 8000
 
+    # Network exposure settings
+    app_bind_host: str = "127.0.0.1"
+    # When set to anything other than 127.0.0.1, auth is required.
+    app_auth_bearer: str = ""
+    # Bearer token required when app_bind_host != "127.0.0.1". Must be set if exposing beyond localhost.
+
     # BYOK keys (optional — empty string means not configured)
     # These are read at runtime for validation only; never persisted to DB.
     openai_api_key: str = ""
@@ -51,6 +57,10 @@ class Settings(BaseSettings):
     @property
     def is_development(self) -> bool:
         return self.app_env == "development"
+
+    @property
+    def requires_auth(self) -> bool:
+        return self.app_bind_host != "127.0.0.1"
 
 
 _settings: Settings | None = None

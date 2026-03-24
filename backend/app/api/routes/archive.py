@@ -2,13 +2,16 @@
 from __future__ import annotations
 
 import logging
+import uuid
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy import select, func, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.archive.models import RawArchiveItem
+from app.domain.archive.service import cascade_delete_archive_item, ArchiveItemNotFoundError
 from app.domain.jobs.models import Job
 from app.infrastructure.db import get_session
 
@@ -26,6 +29,7 @@ class ArchiveItemOut(BaseModel):
     status_badge: str  # Phase 2+: derived from pipeline job status
     job_id: str | None
     job_error: str | None
+    deleted_at: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -68,18 +72,21 @@ async def list_archive(
     offset: int = Query(default=0, ge=0, description="Pagination offset"),
     limit: int = Query(default=50, ge=1, le=200, description="Page size (max 200)"),
     q: str | None = Query(default=None, description="Keyword filter on source_name (future: FTS)"),
+    include_deleted: bool = Query(default=False, description="Include soft-deleted items"),
     session: AsyncSession = Depends(get_session),
 ) -> ArchiveListResponse:
     """GET /api/archive — returns paginated raw archive items.
 
     Filters:
-    - Always excludes soft-deleted items (deleted_at IS NULL).
+    - Always excludes soft-deleted items (deleted_at IS NULL) unless include_deleted=true.
     - Optional keyword filter on source_name (basic ILIKE in Phase 1; FTS in Phase 3).
 
     Ordered by ingested_at DESC (newest first).
     """
     # Base query: exclude soft-deleted items (D-10 — ALL read queries must filter)
-    base_stmt = select(RawArchiveItem).where(RawArchiveItem.deleted_at.is_(None))
+    base_stmt = select(RawArchiveItem)
+    if not include_deleted:
+        base_stmt = base_stmt.where(RawArchiveItem.deleted_at.is_(None))
 
     # Optional keyword filter
     if q and q.strip():
@@ -127,3 +134,45 @@ async def list_archive(
         offset=offset,
         limit=limit,
     )
+
+
+@router.get("/{item_id}")
+async def get_archive_item(item_id: str, session: AsyncSession = Depends(get_session)) -> dict:
+    """GET /api/archive/{item_id} — return a single archive item by ID."""
+    try:
+        archive_uuid = uuid.UUID(item_id)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Invalid archive item ID format")
+    result = await session.execute(
+        select(RawArchiveItem).where(
+            RawArchiveItem.id == archive_uuid,
+            RawArchiveItem.deleted_at.is_(None),
+        )
+    )
+    item = result.scalar_one_or_none()
+    if item is None:
+        raise HTTPException(status_code=404, detail="Archive item not found")
+    return {
+        "id": str(item.id),
+        "source_type": item.source_type,
+        "ingested_at": item.ingested_at.isoformat(),
+        "raw_content": item.raw_content[:2000],
+        "deleted_at": item.deleted_at.isoformat() if item.deleted_at else None,
+    }
+
+
+@router.delete("/{item_id}", status_code=204)
+async def delete_archive_item(
+    item_id: str,
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    """DELETE /api/archive/{item_id} — soft-delete archive item and cascade (PRIV-01, PRIV-02)."""
+    try:
+        archive_uuid = uuid.UUID(item_id)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Invalid archive item ID format")
+    try:
+        await cascade_delete_archive_item(session, archive_uuid, actor="user_ui")
+    except ArchiveItemNotFoundError:
+        raise HTTPException(status_code=404, detail="Archive item not found or already deleted")
+    return Response(status_code=204)
