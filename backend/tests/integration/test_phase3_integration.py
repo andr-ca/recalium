@@ -95,12 +95,17 @@ async def test_srch01_keyword_search_via_api(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_srch02_semantic_search_no_embeddings_returns_empty(db_session_phase3: AsyncSession):
-    """SRCH-02: semantic search with no embeddings returns empty pool, not error."""
+    """SRCH-02: semantic search with no embeddings returns empty pool, not error.
+
+    Service returns ([], True) when no embedding rows exist — degraded_mode must be True.
+    """
     req = RetrievalRequest(query="semantic query test", mode="semantic", budget=2000)
     resp = await retrieve(db_session_phase3, req)
     assert isinstance(resp, RetrievalResponse)
     assert resp.retrieval_mode == "semantic"
     assert isinstance(resp.items, list)
+    # No embeddings in test DB → service sets degraded=True
+    assert resp.degraded_mode is True
 
 
 @pytest.mark.asyncio
@@ -175,6 +180,12 @@ def test_srch04_budget_trimming_priority_order():
     # canonical comes first and fits; excerpt (400 chars) should be excluded
     assert any(i.type == "canonical" for i in trimmed)
     assert not any(i.type == "excerpt" for i in trimmed)
+    # Positional order: canonical must appear before fact in the output list
+    types = [i.type for i in trimmed]
+    canonical_idx = types.index("canonical") if "canonical" in types else None
+    fact_idx = types.index("fact") if "fact" in types else None
+    if canonical_idx is not None and fact_idx is not None:
+        assert canonical_idx < fact_idx, "canonical must precede fact in output"
 
 
 def test_srch04_budget_trimming_skips_item_that_doesnt_fit():
@@ -221,6 +232,25 @@ async def test_srch05_search_returns_within_envelope(client: AsyncClient):
     # All required fields for a complete response envelope
     for field in ("query", "retrieval_mode", "budget_used", "budget_limit", "trimming_reason", "items"):
         assert field in data, f"Missing field: {field}"
+
+
+@pytest.mark.asyncio
+async def test_srch05_search_limit_param_respected(client: AsyncClient):
+    """SRCH-05: ?limit=1 returns at most 1 item in the response."""
+    resp = await client.get("/api/search?q=test&mode=keyword&limit=1")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "items" in data
+    assert len(data["items"]) <= 1
+
+
+@pytest.mark.asyncio
+async def test_srch05_search_offset_param_accepted(client: AsyncClient):
+    """SRCH-05: ?offset= param is accepted without error (pagination contract)."""
+    resp0 = await client.get("/api/search?q=test&mode=keyword&limit=5&offset=0")
+    resp1 = await client.get("/api/search?q=test&mode=keyword&limit=5&offset=1")
+    assert resp0.status_code == 200
+    assert resp1.status_code == 200
 
 
 # ─────────────────────────────────────────────────────────────────────────────
