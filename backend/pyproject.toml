@@ -18,10 +18,10 @@ dependencies = [
     "httpx==0.28.1",
     # MCP SDK (pin <2 — v2 has breaking transport changes)
     "mcp>=1.26,<2",
-    # Embeddings (local, no API key required)
-    "sentence-transformers==5.3.0",
     # pgvector Python client (enables Vector column type in ORM)
     "pgvector==0.4.2",
+    # LRU + TTL cache for retrieval service
+    "cachetools>=5.0,<6",
     # BYOK providers
     "openai>=1.0,<2",
     "anthropic>=0.20,<1",
@@ -34,6 +34,19 @@ dev = [
     "httpx>=0.28",
     "ruff>=0.9",
     "mypy>=1.0",
+]
+# Local embedding model (sentence-transformers).
+# Install the right torch variant to control image size:
+#   uv pip install "recalium[local-ml-cpu]"   → CPU-only torch (~1.5 GB image delta)
+#   uv pip install "recalium[local-ml-gpu]"   → CUDA torch    (~4 GB image delta)
+# Omit both to use only external providers (OpenAI / Anthropic / Ollama).
+local-ml-cpu = [
+    "torch>=2.0,<3 ; extra == 'local-ml-cpu'",
+    "sentence-transformers==5.3.0",
+]
+local-ml-gpu = [
+    "torch>=2.0,<3 ; extra == 'local-ml-gpu'",
+    "sentence-transformers==5.3.0",
 ]
 
 [tool.uv]
