@@ -1,0 +1,157 @@
+import * as React from "react"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { searchMemory, type RetrievalItem, type RetrievalResponse, ApiError } from "@/lib/api"
+
+type Mode = "hybrid" | "keyword" | "semantic"
+
+export function SearchPage() {
+  const [query, setQuery] = React.useState("")
+  const [mode, setMode] = React.useState<Mode>("hybrid")
+  const [response, setResponse] = React.useState<RetrievalResponse | null>(null)
+  const [loading, setLoading] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
+  const [panelSourceId, setPanelSourceId] = React.useState<string | null>(null)
+
+  async function handleSearch(e: React.FormEvent) {
+    e.preventDefault()
+    if (!query.trim()) return
+    setLoading(true)
+    setError(null)
+    try {
+      const result = await searchMemory(query, mode)
+      setResponse(result)
+    } catch (err) {
+      setError(err instanceof ApiError ? err.detail : "Search failed")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const TYPE_VARIANT: Record<string, "default" | "secondary" | "outline"> = {
+    canonical: "default",
+    fact: "secondary",
+    summary: "outline",
+    excerpt: "outline",
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-semibold">Search Memory</h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          Retrieve relevant items using keyword, semantic, or hybrid search.
+        </p>
+      </div>
+
+      <form onSubmit={handleSearch} className="flex gap-2 items-center">
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search your memory…"
+          className="flex-1 h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+        />
+        <div className="flex gap-1">
+          {(["hybrid", "keyword", "semantic"] as Mode[]).map((m) => (
+            <Button
+              key={m}
+              type="button"
+              variant={mode === m ? "default" : "outline"}
+              size="sm"
+              onClick={() => setMode(m)}
+            >
+              {m}
+            </Button>
+          ))}
+        </div>
+        <Button type="submit" disabled={loading}>
+          {loading ? "Searching…" : "Search"}
+        </Button>
+      </form>
+
+      {error && <p className="text-sm text-destructive">{error}</p>}
+
+      {response && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-4 text-sm text-muted-foreground">
+            <span>{response.items.length} results</span>
+            <span>mode: {response.retrieval_mode}</span>
+            <span>budget: {response.budget_used}/{response.budget_limit}</span>
+            {response.degraded_mode && <Badge variant="destructive">degraded</Badge>}
+          </div>
+
+          {response.items.map((item: RetrievalItem) => (
+            <div key={item.id} className="border rounded-lg p-4 space-y-2">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Badge variant={TYPE_VARIANT[item.type] ?? "outline"}>{item.type}</Badge>
+                  {item.conflict_label && (
+                    <Badge variant="destructive">{item.conflict_label}</Badge>
+                  )}
+                  <span className="text-xs text-muted-foreground">{item.source_system}</span>
+                  <span className="text-xs text-muted-foreground">score: {item.score.toFixed(4)}</span>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setPanelSourceId(panelSourceId === item.source_id ? null : item.source_id)}
+                >
+                  Source
+                </Button>
+              </div>
+              <p className="text-sm whitespace-pre-wrap">{item.content}</p>
+              {item.provenance?.derivation_method && (
+                <p className="text-xs text-muted-foreground">
+                  via {item.provenance.derivation_method} · {item.provenance.derivation_model}
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Inline provenance panel — no Sheet component available */}
+      {panelSourceId && (
+        <ProvenanceInlinePanel sourceId={panelSourceId} onClose={() => setPanelSourceId(null)} />
+      )}
+    </div>
+  )
+}
+
+function ProvenanceInlinePanel({ sourceId, onClose }: { sourceId: string; onClose: () => void }) {
+  const [item, setItem] = React.useState<{ source_type: string; ingested_at: string; raw_content: string } | null>(null)
+  const [loading, setLoading] = React.useState(true)
+
+  React.useEffect(() => {
+    setLoading(true)
+    fetch(`/api/archive/${sourceId}`)
+      .then((r) => r.ok ? r.json() : null)
+      .then(setItem)
+      .catch(() => setItem(null))
+      .finally(() => setLoading(false))
+  }, [sourceId])
+
+  return (
+    <div className="border rounded-lg p-4 bg-muted/30 space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-medium">Source Archive Item</span>
+        <Button variant="ghost" size="sm" onClick={onClose}>Close</Button>
+      </div>
+      {loading && <p className="text-sm text-muted-foreground">Loading…</p>}
+      {!loading && !item && <p className="text-sm text-muted-foreground">Not found.</p>}
+      {!loading && item && (
+        <>
+          <div className="flex items-center gap-2">
+            <Badge variant="outline">{item.source_type}</Badge>
+            <span className="text-xs text-muted-foreground">{new Date(item.ingested_at).toLocaleString()}</span>
+          </div>
+          <p className="text-xs font-mono whitespace-pre-wrap text-muted-foreground leading-relaxed">
+            {item.raw_content?.slice(0, 2000)}
+            {(item.raw_content?.length ?? 0) > 2000 && " …(truncated)"}
+          </p>
+        </>
+      )}
+    </div>
+  )
+}

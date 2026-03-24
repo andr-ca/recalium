@@ -3,7 +3,11 @@ import { Layout } from "@/components/Layout";
 import { IngestPage } from "@/pages/IngestPage";
 import { ArchivePage } from "@/pages/ArchivePage";
 import { SettingsPage } from "@/pages/SettingsPage";
-import { DisabledPage } from "@/pages/DisabledPage";
+import { SearchPage } from "@/pages/SearchPage";
+import { FactsPage } from "@/pages/FactsPage";
+import { CanonicalPage } from "@/pages/CanonicalPage";
+import { ReviewQueuePage } from "@/pages/ReviewQueuePage";
+import { AuditPage } from "@/pages/AuditPage";
 
 export function App() {
   return (
@@ -14,12 +18,11 @@ export function App() {
           <Route path="/ingest" element={<IngestPage />} />
           <Route path="/archive" element={<ArchivePage />} />
           <Route path="/settings" element={<SettingsPage />} />
-          {/* Phase 2+ routes — visible but disabled in nav */}
-          <Route path="/facts" element={<DisabledPage title="Facts" phase="2" />} />
-          <Route path="/canonical" element={<DisabledPage title="Canonical Memory" phase="2" />} />
-          <Route path="/search" element={<DisabledPage title="Search" phase="2" />} />
-          <Route path="/review-queue" element={<DisabledPage title="Review Queue" phase="2" />} />
-          <Route path="/audit" element={<DisabledPage title="Audit" phase="3" />} />
+          <Route path="/search" element={<SearchPage />} />
+          <Route path="/facts" element={<FactsPage />} />
+          <Route path="/canonical" element={<CanonicalPage />} />
+          <Route path="/review-queue" element={<ReviewQueuePage />} />
+          <Route path="/audit" element={<AuditPage />} />
         </Route>
       </Routes>
     </BrowserRouter>
