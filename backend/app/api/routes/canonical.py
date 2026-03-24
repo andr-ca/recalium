@@ -32,15 +32,12 @@ router = APIRouter(prefix="/api/canonical", tags=["canonical"])
 
 class CreateCanonicalBody(BaseModel):
     content: str
-    promoted_from: str = "manual"
     promoted_by: str = "user_ui"
-    provenance_note: str | None = None
 
 
 class UpdateCanonicalBody(BaseModel):
     content: str | None = None
     status: str | None = None
-    provenance_note: str | None = None
 
 
 class PromoteBody(BaseModel):
@@ -62,7 +59,7 @@ def _item_to_dict(item) -> dict:
         "source_status": item.source_status,
         "promoted_from": item.promoted_from,
         "promoted_by": item.promoted_by,
-        "provenance_note": getattr(item, "provenance_note", None),
+        "provenance_note": item.provenance_note,
         "created_at": item.created_at.isoformat() if item.created_at else None,
         "updated_at": item.updated_at.isoformat() if item.updated_at else None,
     }

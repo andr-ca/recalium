@@ -6,10 +6,9 @@ MCP-04: Includes client identity (actor field).
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.domain.audit.models import AuditEvent
+from app.domain.audit.service import list_audit_events
 from app.infrastructure.db import get_session
 
 router = APIRouter(prefix="/api/audit", tags=["audit"])
@@ -23,12 +22,7 @@ async def list_events(
     session: AsyncSession = Depends(get_session),
 ) -> dict:
     """Return paginated audit events, newest first."""
-    stmt = select(AuditEvent)
-    if event_type is not None:
-        stmt = stmt.where(AuditEvent.event_type == event_type)
-    stmt = stmt.order_by(AuditEvent.occurred_at.desc()).limit(limit).offset(offset)
-    result = await session.execute(stmt)
-    events = result.scalars().all()
+    events = await list_audit_events(session, limit=limit, offset=offset, event_type=event_type)
     return {
         "items": [
             {
