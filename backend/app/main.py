@@ -25,6 +25,7 @@ from app.api.routes.review_queue import router as review_queue_router
 from app.api.routes.audit import router as audit_router
 from app.api.routes.backup import router as backup_router
 from app.api.routes.telemetry import router as telemetry_router
+from app.api.routes.status import router as status_router
 from app.infrastructure.db import get_engine, get_session_factory
 from app.infrastructure.settings import get_settings
 from app.mcp_server.server import create_mcp_server, mcp_app as _mcp_app
@@ -221,6 +222,7 @@ def create_app() -> FastAPI:
     # Phase 4 routes (have their own /api prefix)
     app.include_router(backup_router)
     app.include_router(telemetry_router)
+    app.include_router(status_router)
 
     # MCP SSE transport — bound to /mcp prefix.
     # SECURITY: Upstream proxy/uvicorn must bind to 127.0.0.1 only (DNS rebinding prevention).

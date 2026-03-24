@@ -328,3 +328,66 @@ export async function listAuditEvents(params?: { limit?: number; offset?: number
   if (params?.event_type) p.set("event_type", params.event_type);
   return request<{ items: AuditEventItem[]; count: number }>(`/audit/events?${p}`);
 }
+
+// ── Onboarding ──────────────────────────────────────────────────────────────
+
+export interface OnboardingStatus {
+  should_show_wizard: boolean;
+  has_archive_items: boolean;
+  has_configured_key: boolean;
+}
+
+export async function getOnboardingStatus(): Promise<OnboardingStatus> {
+  return request<OnboardingStatus>("/status/onboarding");
+}
+
+// ── Backup ───────────────────────────────────────────────────────────────────
+
+export interface BackupItem {
+  filename: string;
+  created_at: string | null;
+  size_bytes: number;
+  has_post_deletion_events: boolean;
+}
+
+export interface BackupListResponse {
+  backups: BackupItem[];
+  count: number;
+}
+
+export async function listBackups(): Promise<BackupListResponse> {
+  return request<BackupListResponse>("/backup/list");
+}
+
+export async function triggerBackup(): Promise<{ status: string; filename: string }> {
+  return request<{ status: string; filename: string }>("/backup/trigger", { method: "POST" });
+}
+
+export async function restoreBackup(filename: string): Promise<{ status: string; filename: string }> {
+  return request<{ status: string; filename: string }>("/backup/restore", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ filename }),
+  });
+}
+
+// ── Telemetry ─────────────────────────────────────────────────────────────────
+
+export interface TelemetryDay {
+  date: string;
+  searches: number;
+  retrievals: number;
+  facts_reviewed: number;
+  canonical_created: number;
+  mcp_retrievals: number;
+  ui_retrievals: number;
+}
+
+export interface TelemetrySummary {
+  days: number;
+  summary: TelemetryDay[];
+}
+
+export async function getTelemetrySummary(days = 30): Promise<TelemetrySummary> {
+  return request<TelemetrySummary>(`/telemetry/summary?days=${days}`);
+}
