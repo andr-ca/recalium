@@ -18,6 +18,7 @@ from fastapi.staticfiles import StaticFiles
 from app.api.routes import router as api_router
 from app.infrastructure.db import get_engine, get_session_factory
 from app.infrastructure.settings import get_settings
+from app.mcp_server.server import create_mcp_server, mcp_app as _mcp_app
 
 logger = logging.getLogger(__name__)
 
@@ -94,6 +95,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("Pipeline worker task started")
 
     logger.info("DB pool initialized. Application ready.")
+    logger.info("MCP retrieve_memory tool registered (SSE transport on /mcp/sse)")
     yield
 
     # Shutdown pipeline worker cleanly
@@ -124,6 +126,10 @@ def create_app() -> FastAPI:
 
     # API routes under /api prefix
     app.include_router(api_router, prefix="/api")
+
+    # MCP SSE transport — bound to /mcp prefix.
+    # SECURITY: Upstream proxy/uvicorn must bind to 127.0.0.1 only (DNS rebinding prevention).
+    app.mount("/mcp", _mcp_app.sse_app())
 
     # Serve React SPA static files (built frontend)
     # In development, Vite dev server handles static; in production, serve from dist.
