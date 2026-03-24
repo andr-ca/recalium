@@ -19,6 +19,7 @@ pytest.importorskip("app.domain.canonical_memory.service")
 pytest.importorskip("app.domain.review_queue.service")
 
 from httpx import AsyncClient
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.retrieval.service import (
@@ -27,9 +28,11 @@ from app.domain.retrieval.service import (
     RetrievalRequest,
     RetrievalResponse,
     apply_budget_trimming,
+    invalidate_cache,
     retrieve,
     rrf_score,
 )
+from app.domain.derived_memory.models import ConflictGroup
 from app.domain.canonical_memory.service import (
     CanonicalItemNotFoundError,
     PromotionNotConfirmedError,
@@ -140,6 +143,8 @@ async def test_srch03_hybrid_falls_back_to_keyword_when_no_embeddings(db_session
     resp = await retrieve(db_session_phase3, req)
     assert isinstance(resp, RetrievalResponse)
     assert isinstance(resp.items, list)
+    # With no embeddings the service sets degraded_mode=True and effective_mode="keyword"
+    assert resp.degraded_mode is True or resp.retrieval_mode == "keyword"
 
 
 @pytest.mark.asyncio
@@ -343,8 +348,13 @@ async def test_mcp01_post_retrieve_endpoint(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_mcp03_search_emits_audit_event_type_search(db_session_phase3: AsyncSession):
-    """MCP-03: retrieve() called with actor='user_ui' emits event_type='search'."""
-    from sqlalchemy import select
+    """MCP-03: retrieve() called with actor='user_ui' emits event_type='search'.
+
+    invalidate_cache() is called before every audit test: the retrieval cache is
+    process-level (not session-scoped), so a cached result from a prior test would
+    suppress audit event emission for the same query.
+    """
+    invalidate_cache()
     req = RetrievalRequest(query="audit emission test", mode="keyword", budget=2000, actor="user_ui")
     await retrieve(db_session_phase3, req)
 
@@ -352,7 +362,7 @@ async def test_mcp03_search_emits_audit_event_type_search(db_session_phase3: Asy
         select(AuditEvent).where(AuditEvent.event_type == "search").order_by(AuditEvent.occurred_at.desc())
     )
     events = list(result.scalars().all())
-    assert len(events) >= 1
+    assert len(events) == 1
     event = events[0]
     assert event.actor == "user_ui"
     assert event.operation_metadata is not None
@@ -378,10 +388,10 @@ async def test_mcp03_audit_events_endpoint_returns_events(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_mcp04_mcp_retrieve_emits_mcp_retrieve_event(db_session_phase3: AsyncSession):
-    """MCP-04: retrieve() with non-user_ui actor emits event_type='mcp_retrieve'."""
-    from sqlalchemy import select
-    from app.domain.retrieval.service import invalidate_cache
+    """MCP-04: retrieve() with non-user_ui actor emits event_type='mcp_retrieve'.
 
+    invalidate_cache() ensures the process-level cache doesn't suppress audit emission.
+    """
     # Invalidate cache to ensure a fresh audit event is emitted
     invalidate_cache()
 
@@ -399,7 +409,7 @@ async def test_mcp04_mcp_retrieve_emits_mcp_retrieve_event(db_session_phase3: As
         .order_by(AuditEvent.occurred_at.desc())
     )
     events = list(result.scalars().all())
-    assert len(events) >= 1
+    assert len(events) == 1
     event = events[0]
     assert event.actor == "mcp_client"
     assert event.operation_metadata is not None
@@ -407,10 +417,10 @@ async def test_mcp04_mcp_retrieve_emits_mcp_retrieve_event(db_session_phase3: As
 
 @pytest.mark.asyncio
 async def test_mcp04_audit_event_records_client_identity(db_session_phase3: AsyncSession):
-    """MCP-04: audit event records actor (client identity) field."""
-    from sqlalchemy import select
-    from app.domain.retrieval.service import invalidate_cache
+    """MCP-04: audit event records actor (client identity) field.
 
+    invalidate_cache() ensures the process-level cache doesn't suppress audit emission.
+    """
     invalidate_cache()
     actor = "test_mcp_client_identity_" + str(uuid.uuid4())[:8]
     req = RetrievalRequest(query="client identity unique test", mode="keyword", budget=2000, actor=actor)
@@ -528,6 +538,7 @@ async def test_canm02_list_all_items_have_active_source_status(db_session_phase3
     """CANM-02: every item returned by list_canonical_items has source_status='active'."""
     await create_manual_canonical(db_session_phase3, "canm02 list check", "user_ui")
     items = await list_canonical_items(db_session_phase3)
+    assert len(items) >= 1, "Expected at least one item in the list"
     assert all(i.source_status == "active" for i in items)
 
 
@@ -632,8 +643,6 @@ async def test_canm05_dismiss_review_item_not_found_raises(db_session_phase3: As
 @pytest.mark.asyncio
 async def test_canm05_materialize_and_resolve_review_item(db_session_phase3: AsyncSession):
     """CANM-05: materialize → list pending → resolve workflow."""
-    from app.domain.derived_memory.models import ConflictGroup
-
     # Create a real conflict_group row to satisfy the FK
     group = ConflictGroup(id=uuid.uuid4(), group_type="duplicate")
     db_session_phase3.add(group)
@@ -666,8 +675,6 @@ async def test_canm05_materialize_and_resolve_review_item(db_session_phase3: Asy
 @pytest.mark.asyncio
 async def test_canm05_materialize_and_dismiss_review_item(db_session_phase3: AsyncSession):
     """CANM-05: materialize → dismiss workflow."""
-    from app.domain.derived_memory.models import ConflictGroup
-
     group = ConflictGroup(id=uuid.uuid4(), group_type="overlap")
     db_session_phase3.add(group)
     await db_session_phase3.flush()
