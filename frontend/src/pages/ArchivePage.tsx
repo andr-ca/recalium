@@ -9,6 +9,7 @@ type LoadState =
   | { status: "error"; message: string };
 
 const PAGE_SIZE = 50;
+const PROCESSING_STATUSES: ReadonlyArray<string> = ["Processing"];
 
 export function ArchivePage() {
   const [state, setState] = React.useState<LoadState>({ status: "idle" });
@@ -39,16 +40,14 @@ export function ArchivePage() {
 
   // Reload when showDeleted changes
   React.useEffect(() => {
-    loadArchive(searchQuery, 0, showDeleted);
     setOffset(0);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showDeleted]);
+    loadArchive(searchQuery, 0, showDeleted);
+  }, [showDeleted, searchQuery, loadArchive]);
 
   // Auto-refresh every 5s while any item is still processing
   React.useEffect(() => {
     if (state.status !== "success") return;
 
-    const PROCESSING_STATUSES: ReadonlyArray<string> = ["Processing"];
     const hasProcessing = state.items.some((item) =>
       PROCESSING_STATUSES.includes(item.status_badge)
     );
@@ -83,6 +82,7 @@ export function ArchivePage() {
   };
 
   const handleDelete = async (id: string) => {
+    // Throws on failure — ArchiveItemCard catches and displays the error inline
     await deleteArchiveItem(id);
     // Remove item from local state on success
     setState((prev) => {

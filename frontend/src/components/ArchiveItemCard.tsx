@@ -1,8 +1,7 @@
 import * as React from "react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import type { ArchiveItem } from "@/lib/api";
-import { retryJob } from "@/lib/api";
+import { retryJob, ApiError, type ArchiveItem } from "@/lib/api";
 
 interface ArchiveItemCardProps {
   item: ArchiveItem;
@@ -77,9 +76,15 @@ export function ArchiveItemCard({ item, onRetried, onDelete, isDeleted = false }
     try {
       await onDelete(item.id);
     } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : "Delete failed");
-      setIsDeleting(false);
+      const msg = err instanceof ApiError
+        ? err.detail
+        : err instanceof Error
+        ? err.message
+        : "Delete failed";
+      setDeleteError(msg);
       setConfirmDelete(false);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
