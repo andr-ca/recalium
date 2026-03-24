@@ -27,8 +27,8 @@ until pg_isready -h "${PGHOST}" -p "${PGPORT}" -U "${PGUSER}" -d "${PGDB}" -q; d
 done
 
 echo "[entrypoint] PostgreSQL is ready. Running migrations..."
-cd /app
-alembic -c backend/alembic.ini upgrade head
+cd /app/backend
+alembic upgrade head
 
 echo "[entrypoint] Migrations complete. Starting Uvicorn..."
 exec uvicorn app.main:app \

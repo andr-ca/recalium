@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import sqlalchemy as sa
 from alembic import op
+from sqlalchemy.dialects import postgresql
 
 revision: str = "0002"
 down_revision = "0001"
@@ -40,7 +41,7 @@ def upgrade() -> None:
         # source_status ENUM created in 0001; reference only, do not create.
         sa.Column(
             "source_status",
-            sa.Enum("active", "source_removed", name="source_status", create_type=False),
+            postgresql.ENUM(name="source_status", create_type=False),
             nullable=False,
             server_default="active",
         ),
@@ -75,7 +76,7 @@ def upgrade() -> None:
         # source_status ENUM created in 0001; reference only, do not create.
         sa.Column(
             "source_status",
-            sa.Enum("active", "source_removed", name="source_status", create_type=False),
+            postgresql.ENUM(name="source_status", create_type=False),
             nullable=False,
             server_default="active",
         ),
@@ -121,7 +122,7 @@ def upgrade() -> None:
         ),
         sa.Column(
             "source_status",
-            sa.Enum("active", "source_removed", name="source_status", create_type=False),
+            postgresql.ENUM(name="source_status", create_type=False),
             nullable=False,
             server_default="active",
         ),
@@ -157,7 +158,7 @@ def upgrade() -> None:
         # "all-MiniLM-L6-v2"
         sa.Column(
             "source_status",
-            sa.Enum("active", "source_removed", name="source_status", create_type=False),
+            postgresql.ENUM(name="source_status", create_type=False),
             nullable=False,
             server_default="active",
         ),
@@ -197,7 +198,7 @@ def upgrade() -> None:
         sa.Column("text_content", sa.Text, nullable=False),
         sa.Column(
             "source_status",
-            sa.Enum("active", "source_removed", name="source_status", create_type=False),
+            postgresql.ENUM(name="source_status", create_type=False),
             nullable=False,
             server_default="active",
         ),

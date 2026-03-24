@@ -11,8 +11,8 @@
 ## Phases
 
 - [x] **Phase 1: Foundation** — Durable local storage, raw ingest, BYOK key storage pattern, web UI shell (completed 2026-03-23)
-- [ ] **Phase 2: Processing Pipeline** — Async derived-memory worker, fact extraction, sensitivity gate, dedup materialization
-- [ ] **Phase 3: Retrieval + Review** — Hybrid search, MCP retrieve, canonical memory workflows, review queue
+- [x] **Phase 2: Processing Pipeline** — Async derived-memory worker, fact extraction, sensitivity gate, dedup materialization (completed 2026-03-23)
+- [x] **Phase 3: Retrieval + Review** — Hybrid search, MCP retrieve, canonical memory workflows, review queue (completed 2026-03-23)
 - [ ] **Phase 4: Privacy + Operations** — Deletion cascade UI, backup/restore, first-run wizard, accessibility, audit view
 - [ ] **Phase 5: Service Hardening** — MCP ingest, watched folder, portability bundle, API/MCP contract hardening
 
@@ -55,17 +55,7 @@
 5. User can switch providers per function (e.g., change the summarization provider) without triggering reprocessing of already-completed items; items with stale embeddings fall back to FTS only.
 6. Conflict detection flags contradictory facts across sources and exposes them in the Facts view for review.
 
-**Plans:** 7/8 plans executed
-
-Plans:
-- [x] 02-01-PLAN.md — Derived memory schema (migration 0002, ORM models, pgvector dep)
-- [x] 02-02-PLAN.md — Test scaffold (RED state — all 7 test files created)
-- [x] 02-03-PLAN.md — Worker loop, jobs service, sensitivity gate
-- [x] 02-04-PLAN.md — LLM dispatcher (summarize, extract, FTS, reprocess endpoint)
-- [x] 02-05-PLAN.md — Embeddings (local sentence-transformers, write_embedding wired)
-- [x] 02-06-PLAN.md — Conflict detection (pgvector cosine similarity, conflict_groups)
-- [x] 02-07-PLAN.md — Job status UI (archive badge, retry button, 5s polling)
-- [ ] 02-08-PLAN.md — Integration tests (full suite GREEN, all 10 req IDs covered)
+**Plans:** 8/8 plans complete
 
 ---
 
@@ -85,7 +75,17 @@ Plans:
 5. User can inspect any fact's provenance chain (fact → summary → raw archive → original conversation), promote it to canonical memory with explicit confirmation, mark it disputed/stale, edit it, or delete it.
 6. Canonical memory items are ranked above extracted facts in retrieval results; conflicting extracted facts appear as lower-ranked evidence with explicit conflict labels.
 
-**Plans:** TBD
+**Plans:** 8/8 plans complete
+
+Plans:
+- [x] 03-01-PLAN.md — Migration 0003 + ORM models (canonical_memory, review_queue_items)
+- [x] 03-02-PLAN.md — Test scaffold RED (5 test files: retrieval, canonical, review_queue, mcp, api_routes)
+- [x] 03-03-PLAN.md — Core retrieval service (keyword/semantic/hybrid/RRF/budget/cache/audit)
+- [x] 03-04-PLAN.md — Canonical memory service + review queue service (CANM-01–05)
+- [x] 03-05-PLAN.md — MCP server (retrieve tool, AuditEvent emission, 127.0.0.1 binding)
+- [x] 03-06-PLAN.md — API routes (search, retrieve, canonical CRUD, review queue, audit)
+- [x] 03-07-PLAN.md — Frontend pages (Search, Facts, Canonical, ReviewQueue, Audit, ProvenanceSidePanel)
+- [x] 03-08-PLAN.md — Integration test suite GREEN (all 15 requirement IDs covered)
 
 ---
 
@@ -131,8 +131,8 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 0/TBD | Complete    | 2026-03-23 |
-| 2. Processing Pipeline | 7/8 | In Progress|  |
-| 3. Retrieval + Review | 0/TBD | Not started | — |
+| 2. Processing Pipeline | 8/8 | Complete | 2026-03-23 |
+| 3. Retrieval + Review | 8/8 | Complete | 2026-03-23 |
 | 4. Privacy + Operations | 0/TBD | Not started | — |
 | 5. Service Hardening | 0/TBD | Not started | — |
 
@@ -163,4 +163,4 @@ Plans:
 ---
 
 *Roadmap created: 2026-03-22*
-*Last updated: 2026-03-22 after initial creation*
+*Last updated: 2026-03-23 after Phase 3 complete (03-01 through 03-08 executed, 126 tests passing)*

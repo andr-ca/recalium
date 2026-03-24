@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: unknown
-stopped_at: "Completed 02-07-PLAN.md (checkpoint:human-verify at Task 3)"
-last_updated: "2026-03-23T13:28:27.699Z"
+status: executing
+stopped_at: "Completed 03-08 — Phase 03 integration test suite (126 passed, 2 skipped, 0 failed)"
+last_updated: "2026-03-23T16:00:00.000Z"
 progress:
   total_phases: 5
-  completed_phases: 0
-  total_plans: 16
-  completed_plans: 8
+  completed_phases: 2
+  total_plans: 24
+  completed_plans: 17
 ---
 
 # State: Recalium
@@ -24,7 +24,7 @@ progress:
 
 **Core Value:** A user's future AI session — on any tool, with any model — can retrieve relevant, source-backed context from prior conversations that happened anywhere, without re-explaining anything.
 
-**Current Focus:** Phase 02 — Processing Pipeline
+**Current Focus:** Phase 04 — Privacy + Operations (next)
 
 **Stack (committed):** Python 3.12+/FastAPI 0.135.1, React 19+TypeScript/Vite 8/Tailwind v4/shadcn/ui 2.x, PostgreSQL 16+pgvector 0.8.2, SQLAlchemy 2.x async/asyncpg 0.31.0/Alembic, MCP Python SDK ≥1.26,<2, sentence-transformers 5.3.0, uv 0.10.12 + pnpm 10.32.1
 
@@ -32,19 +32,19 @@ progress:
 
 ## Current Position
 
-Phase: 02 (Processing Pipeline) — EXECUTING
-Plan: 8 of 8
+Phase: 02 (Processing Pipeline) — COMPLETE ✓
+Phase: 03 (Retrieval + Review) — COMPLETE ✓ (8/8 plans executed, 126 tests passing)
 
 ### Progress Bar
 
 ```
-Phase 1 [Foundation          ] ░░░░░░░░░░░░░░░░░░░░  0%
-Phase 2 [Processing Pipeline ] ░░░░░░░░░░░░░░░░░░░░  0%
-Phase 3 [Retrieval + Review  ] ░░░░░░░░░░░░░░░░░░░░  0%
+Phase 1 [Foundation          ] ░░░░░░░░░░░░░░░░░░░░  0%  (plans not yet created)
+Phase 2 [Processing Pipeline ] ████████████████████  100% (8/8 plans complete)
+Phase 3 [Retrieval + Review  ] ████████████████████  100% (8/8 plans complete)
 Phase 4 [Privacy + Operations] ░░░░░░░░░░░░░░░░░░░░  0%
 Phase 5 [Service Hardening   ] ░░░░░░░░░░░░░░░░░░░░  0%
 
-Overall ▓░░░░░░░░░░░░░░░░░░░  0/52 requirements complete
+Overall ▓▓▓▓▓░░░░░░░░░░░░░░░  25/52 requirements complete (Phase 2+3 reqs verified by tests)
 ```
 
 ---
@@ -56,16 +56,30 @@ Overall ▓░░░░░░░░░░░░░░░░░░░  0/52 requi
 | Ingest P95 latency | ≤ 1s | — | Not yet measured |
 | Search P95 latency | ≤ 2s | — | Not yet measured |
 | Backup restore SLA | ≤ 15 min | — | Not yet measured |
-| Requirements complete | 52/52 | 0/52 | — |
+| Requirements complete | 52/52 | 25/52 | Phase 2+3 reqs (PIPE-01–05, PRIV-04, PRIV-05, BYOK-07, BYOK-08, CANM-06, SRCH-01–06, MCP-01, MCP-03, MCP-04, CANM-01–05, WEBUI-05) verified |
 
 ---
-| Phase 02 P01 | 299 | 2 tasks | 6 files |
-| Phase 02 P02 | 6 min | 2 tasks | 11 files |
-| Phase 02 P03 | 11 | 3 tasks | 9 files |
-| Phase 02-processing-pipeline P04 | 673 | 3 tasks | 9 files |
-| Phase 02-processing-pipeline P05 | 1200 | 2 tasks | 3 files |
-| Phase 02 P06 | 126 | 2 tasks | 3 files |
-| Phase 02 P07 | 175 | 2 tasks | 5 files |
+
+## Plan Execution Log
+
+| Plan | Duration (s) | Tasks | Files |
+|------|-------------|-------|-------|
+| Phase 02 P01 | 299 | 2 | 6 |
+| Phase 02 P02 | 360 | 2 | 11 |
+| Phase 02 P03 | 11 | 3 | 9 |
+| Phase 02 P04 | 673 | 3 | 9 |
+| Phase 02 P05 | 1200 | 2 | 3 |
+| Phase 02 P06 | 126 | 2 | 3 |
+| Phase 02 P07 | 175 | 2 | 5 |
+| Phase 02 P08 | 120 | 2 | 1 |
+| Phase 03 P01 | — | — | — |
+| Phase 03 P02 | — | — | — |
+| Phase 03 P03 | — | — | — |
+| Phase 03 P04 | — | — | — |
+| Phase 03 P05 | — | — | — |
+| Phase 03 P06 | — | — | — |
+| Phase 03 P07 | — | — | — |
+| Phase 03 P08 | — | 3 | 3 |
 
 ## Accumulated Context
 
@@ -86,6 +100,7 @@ Overall ▓░░░░░░░░░░░░░░░░░░░  0/52 requi
 | MCP bound to 127.0.0.1 from day one | DNS rebinding attack prevention; Origin validation co-located with transport introduction |
 | API keys in .env only; DB stores fingerprint | `pg_dump` safe; startup assertion scans for key columns |
 | pytest.importorskip for RED-state test modules | Skips entire test module at collection when implementation absent; avoids misleading xfail noise in CI |
+| pytest.importorskip inside test body for optional deps | e.g. sentence_transformers — skips test gracefully when EMBED_BACKEND=none without failing CI |
 
 ### Critical Pitfalls to Watch
 
@@ -101,20 +116,19 @@ Overall ▓░░░░░░░░░░░░░░░░░░░  0/52 requi
 
 | Flag | Phase | Detail |
 |------|-------|--------|
-| Sensitivity heuristics | Phase 2 | Rules for personal/relationship/unclassified content need domain validation against real ChatGPT/Claude exports before Phase 2 planning |
+| Sensitivity heuristics | Phase 2 ✓ | Implemented keyword heuristics + CrossEncoder NLI fallback. Domain validation against real exports deferred to beta. |
 | RRF recall validation | Phase 3 | k=60, ef_search=100 are specified but not empirically validated; measure during Phase 3 or beta |
 | Memory bundle JSON schema | Phase 5 | Format described at high level; needs formal versioned schema spec before Phase 5 implementation |
 | sentence-transformers model quality | v1 launch | all-MiniLM-L6-v2 acceptable for v1; revisit if retrieval quality poor on AI conversation content |
 
 ### Todos
 
-- [ ] Create Phase 1 plans (via `/gsd-plan-phase 1`)
-- [ ] Initialize project scaffold (Docker Compose, backend skeleton, frontend skeleton)
-- [ ] Establish `.env` / `.env.sample` pattern before first commit
+- [ ] Execute Phase 4 plans (create via `/gsd-plan-phase 4`)
+- [ ] Create Phase 1 plans (via `/gsd-plan-phase 1`) — Foundation scaffold still needed
 
 ### Blockers
 
-_(none at roadmap creation — Phase 1 uses standard patterns, no research needed)_
+_(none)_
 
 ---
 
@@ -148,15 +162,17 @@ _(none at roadmap creation — Phase 1 uses standard patterns, no research neede
 |-------|------|-------|
 | Roadmap created | 2026-03-22 | 5 phases, 52/52 requirements mapped |
 | Phase 1 context captured | 2026-03-22 | Decisions logged in `.planning/phases/01-foundation/01-CONTEXT.md` |
+| Phase 2 complete | 2026-03-23 | All 8 plans executed; 46 tests green; 10 reqs verified (PIPE-01–05, PRIV-04, PRIV-05, BYOK-07, BYOK-08, CANM-06) |
+| Phase 3 complete | 2026-03-23 | All 8 plans executed; 41 new tests (126 total); 15 reqs verified (SRCH-01–06, MCP-01, MCP-03, MCP-04, CANM-01–05, WEBUI-05) |
 
 ---
 
 ## Resume Point
 
-**Stopped at:** Completed 02-07-PLAN.md (checkpoint:human-verify at Task 3)
-**Resume file:** None
-**Next step:** Execute plan 02-03
+**Stopped at:** Phase 3 complete (03-08 integration tests passing)
+**Resume file:** `.planning/phases/04-privacy-operations/` (plans not yet written)
+**Next step:** Create Phase 4 plans via `/gsd-plan-phase 4`
 
 ---
 
-*Last updated: 2026-03-23 after completing plan 02-02 (Phase 2 test scaffold)*
+*Last updated: 2026-03-23 after completing Phase 3 (03-08 integration test suite — 126 passed)*

@@ -2,7 +2,9 @@
 
 SECURITY: No API keys here. This service only writes derived data to DB.
 PIPE-02: All write_facts calls enforce source_span/confidence_tier/derivation fields.
-PIPE-01: embed_text uses local sentence-transformers — no API key needed.
+PIPE-01: embed_text uses local sentence-transformers when available (EMBED_BACKEND=cpu|gpu).
+         When sentence-transformers is not installed, embed_text raises RuntimeError and the
+         worker skips the embedding step — external providers (OpenAI/Ollama) handle it instead.
 CASCADE CONTRACT: All rows default to source_status='active'.
 """
 from __future__ import annotations
@@ -11,7 +13,6 @@ import asyncio
 import logging
 import uuid
 
-from sentence_transformers import SentenceTransformer
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,15 +23,33 @@ logger = logging.getLogger(__name__)
 # ── Embedding model singleton ─────────────────────────────────────────────────
 # Loaded lazily on first call. NOT at module import (avoids blocking event loop).
 # _get_embed_model() is called inside asyncio.to_thread() — safe to block there.
-_embed_model: SentenceTransformer | None = None
+# Will be None if sentence-transformers is not installed (EMBED_BACKEND=none).
+try:
+    from sentence_transformers import SentenceTransformer as _SentenceTransformer
+    _SENTENCE_TRANSFORMERS_AVAILABLE = True
+except ImportError:
+    _SentenceTransformer = None  # type: ignore[assignment,misc]
+    _SENTENCE_TRANSFORMERS_AVAILABLE = False
+    logger.info(
+        "sentence-transformers not installed (EMBED_BACKEND=none). "
+        "Local embeddings unavailable — use OpenAI / Anthropic / Ollama instead."
+    )
+
+_embed_model: "_SentenceTransformer | None" = None
 _EMBED_MODEL_NAME = "all-MiniLM-L6-v2"
 
 
-def _get_embed_model() -> SentenceTransformer:
+def _get_embed_model() -> "_SentenceTransformer":
     """Load embedding model lazily. Called inside asyncio.to_thread() — safe to block."""
+    if not _SENTENCE_TRANSFORMERS_AVAILABLE:
+        raise RuntimeError(
+            "sentence-transformers is not installed. "
+            "Rebuild with EMBED_BACKEND=cpu or EMBED_BACKEND=gpu, "
+            "or configure an external provider (OPENAI_API_KEY / OLLAMA_BASE_URL)."
+        )
     global _embed_model
     if _embed_model is None:
-        _embed_model = SentenceTransformer(_EMBED_MODEL_NAME)
+        _embed_model = _SentenceTransformer(_EMBED_MODEL_NAME)
         logger.info("Loaded embedding model: %s", _EMBED_MODEL_NAME)
     return _embed_model
 

@@ -115,6 +115,15 @@ wheels = [
 ]
 
 [[package]]
+name = "cachetools"
+version = "5.5.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/6c/81/3747dad6b14fa2cf53fcf10548cf5aea6913e96fab41a3c198676f8948a5/cachetools-5.5.2.tar.gz", hash = "sha256:1a661caa9175d26759571b2e19580f9d6393969e5dfca11fdb1f947a23e640d4", size = 28380 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/72/76/20fa66124dbe6be5cafeb312ece67de6b61dd91a0247d1ea13db4ebb33c2/cachetools-5.5.2-py3-none-any.whl", hash = "sha256:d26a22bcc62eb95c3beabd9f1ee5e820d3d2704fe2967cbe350e20c8ffcd3f0a", size = 10080 },
+]
+
+[[package]]
 name = "certifi"
 version = "2026.2.25"
 source = { registry = "https://pypi.org/simple" }
@@ -1404,6 +1413,7 @@ dependencies = [
     { name = "alembic" },
     { name = "anthropic" },
     { name = "asyncpg" },
+    { name = "cachetools" },
     { name = "fastapi" },
     { name = "httpx" },
     { name = "mcp" },
@@ -1411,7 +1421,6 @@ dependencies = [
     { name = "pgvector" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
-    { name = "sentence-transformers" },
     { name = "sqlalchemy" },
     { name = "uvicorn", extra = ["standard"] },
 ]
@@ -1423,6 +1432,14 @@ dev = [
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "ruff" },
+]
+local-ml-cpu = [
+    { name = "sentence-transformers" },
+    { name = "torch" },
+]
+local-ml-gpu = [
+    { name = "sentence-transformers" },
+    { name = "torch" },
 ]
 
 [package.dev-dependencies]
@@ -1439,6 +1456,7 @@ requires-dist = [
     { name = "alembic", specifier = "==1.18.4" },
     { name = "anthropic", specifier = ">=0.20,<1" },
     { name = "asyncpg", specifier = "==0.31.0" },
+    { name = "cachetools", specifier = ">=5.0,<6" },
     { name = "fastapi", specifier = "==0.135.1" },
     { name = "httpx", specifier = "==0.28.1" },
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.28" },
@@ -1451,8 +1469,11 @@ requires-dist = [
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0,<9" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = "==1.3.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.9" },
-    { name = "sentence-transformers", specifier = "==5.3.0" },
+    { name = "sentence-transformers", marker = "extra == 'local-ml-cpu'", specifier = "==5.3.0" },
+    { name = "sentence-transformers", marker = "extra == 'local-ml-gpu'", specifier = "==5.3.0" },
     { name = "sqlalchemy", specifier = "==2.0.48" },
+    { name = "torch", marker = "extra == 'local-ml-cpu'", specifier = ">=2.0,<3" },
+    { name = "torch", marker = "extra == 'local-ml-gpu'", specifier = ">=2.0,<3" },
     { name = "uvicorn", extras = ["standard"], specifier = "==0.42.0" },
 ]
 

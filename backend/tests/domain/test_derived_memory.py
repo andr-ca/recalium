@@ -103,6 +103,7 @@ async def test_fact_source_status_defaults_to_active(db_session_phase2):
 
 async def test_embed_text_returns_384_dim_vector():
     """PIPE-01: embed_text returns 384-dim float list from all-MiniLM-L6-v2."""
+    pytest.importorskip("sentence_transformers", reason="sentence-transformers not installed (EMBED_BACKEND=none)")
     from app.domain.derived_memory.service import embed_text
     vector = await embed_text("Hello, world! This is a test sentence.")
     assert isinstance(vector, list)
@@ -112,6 +113,7 @@ async def test_embed_text_returns_384_dim_vector():
 
 async def test_embed_text_normalized():
     """PIPE-01: embed_text returns L2-normalized vector (norm ≈ 1.0)."""
+    pytest.importorskip("sentence_transformers", reason="sentence-transformers not installed (EMBED_BACKEND=none)")
     import math
     from app.domain.derived_memory.service import embed_text
     vector = await embed_text("Recalium is a personal memory platform.")
