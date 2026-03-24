@@ -51,6 +51,7 @@ async def ingest_file_content(
     filename: str,
     content: str,
     source_name: str | None = None,
+    actor: str = "user_ui",
 ) -> IngestResult:
     """Ingest content from an uploaded file (.json, .txt, .md)."""
     allowed_extensions = {".json", ".txt", ".md"}
@@ -70,7 +71,7 @@ async def ingest_file_content(
         filename=filename,
         source_name=source_name or filename,
     )
-    return await _persist_ingest(session=session, parsed=parsed, actor="user_ui")
+    return await _persist_ingest(session=session, parsed=parsed, actor=actor)
 
 
 async def _persist_ingest(

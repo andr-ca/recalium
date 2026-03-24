@@ -134,6 +134,7 @@ async def import_bundle(
             await session.flush()
             imported += 1
         except Exception as exc:
+            await session.rollback()
             errors.append(f"Item {i} ({source_name!r}): {exc}")
 
     await session.commit()

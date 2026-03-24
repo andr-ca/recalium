@@ -88,6 +88,7 @@ async def _ingest_file(
                 filename=file_path.name,
                 content=content,
                 source_name=file_path.stem,
+                actor="file_watcher",
             )
             await session.commit()
         logger.info(

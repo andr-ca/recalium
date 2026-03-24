@@ -105,7 +105,6 @@ async def retrieve_memory(
 async def ingest_memory(
     content: str = "",
     source_name: str | None = None,
-    source_type: str = "mcp_ingest",
     actor: str = "mcp_client",
 ) -> dict[str, Any]:
     """Ingest raw content into the Recalium memory archive via MCP.
@@ -113,7 +112,6 @@ async def ingest_memory(
     Args:
         content: The raw text content to ingest (required, minimum 10 characters).
         source_name: Optional label for the source (e.g. "claude-session-2026-03-24").
-        source_type: Source type label (default: "mcp_ingest").
         actor: MCP client identity string for audit trail (default: "mcp_client").
 
     Returns:
