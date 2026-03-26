@@ -1,0 +1,32 @@
+---
+// website/src/components/ProblemSection.astro
+const silos = [
+  { name: 'ChatGPT', detail: 'remembers → only in ChatGPT' },
+  { name: 'Claude', detail: 'remembers → only in Claude' },
+  { name: 'Gemini', detail: 'remembers → only in Gemini' },
+];
+---
+
+<section class="py-24 px-6 border-t border-border">
+  <div class="max-w-4xl mx-auto text-center">
+    <h2 class="text-3xl md:text-4xl font-extrabold tracking-tight mb-4 text-text-primary">
+      The memory lock-in problem
+    </h2>
+    <p class="text-text-muted mb-14 max-w-xl mx-auto">
+      Each platform keeps your context to itself. Start a new tool and you start over.
+    </p>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10">
+      {silos.map(({ name, detail }) => (
+        <div class="bg-surface border border-border rounded-card p-6 text-left">
+          <p class="font-semibold text-text-secondary mb-1">{name}</p>
+          <p class="text-sm text-text-muted">{detail}</p>
+        </div>
+      ))}
+    </div>
+
+    <p class="text-text-secondary font-medium">
+      Switch tools and start over. <span class="gradient-text">Recalium fixes this.</span>
+    </p>
+  </div>
+</section>

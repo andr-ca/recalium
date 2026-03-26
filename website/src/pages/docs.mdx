@@ -1,0 +1,109 @@
+---
+layout: ../layouts/DocsLayout.astro
+title: "Recalium — Getting Started"
+description: "Install Recalium, import your AI conversation history, and connect it to your AI tools via MCP in minutes."
+---
+
+# Getting Started
+
+Recalium runs locally via Docker. This guide takes you from zero to your first memory-augmented AI interaction.
+
+---
+
+<h2 id="prerequisites">Prerequisites</h2>
+
+**Required:**
+- [Docker Desktop](https://docs.docker.com/get-docker/) (or Docker Engine + Compose plugin on Linux)
+
+**Optional but recommended:**
+- An OpenAI or Anthropic API key — enables AI-powered extraction and semantic search. Keyword search and manual ingestion work without one.
+
+---
+
+<h2 id="install">Install</h2>
+
+Clone the repository and start the stack:
+
+```bash
+git clone https://github.com/recalium/recalium.git
+cd recalium
+docker compose up
+```
+
+Recalium starts on **http://localhost:8080**. The MCP server listens on **http://localhost:3000**.
+
+On first run, a setup wizard walks you through initial configuration.
+
+---
+
+<h2 id="first-run">First Run</h2>
+
+**1. Configure your AI provider (optional)**
+
+In the setup wizard, enter your OpenAI or Anthropic API key. Skip this step to use keyword search only.
+
+**2. Import your conversation history**
+
+Three import paths:
+- **Paste** — paste raw text directly into the import UI
+- **Upload** — upload a ChatGPT export ZIP or Claude export JSON
+- **Watched folder** — drop files into `~/.recalium/inbox` and they're ingested automatically
+
+**3. Run your first search**
+
+Once import completes, try a keyword or semantic search from the search bar. Each result shows the source it came from.
+
+---
+
+<h2 id="mcp-setup">MCP Setup</h2>
+
+Configure Recalium as an MCP server in your AI client so it can retrieve memory automatically.
+
+**Claude Code (`~/.claude/settings.json`):**
+
+```json
+{
+  "mcpServers": {
+    "recalium": {
+      "url": "http://localhost:3000/mcp",
+      "transport": "http"
+    }
+  }
+}
+```
+
+**Cursor (`~/.cursor/mcp.json`):**
+
+```json
+{
+  "servers": {
+    "recalium": {
+      "url": "http://localhost:3000/mcp"
+    }
+  }
+}
+```
+
+After configuring, your AI client will automatically call Recalium for relevant context on each request.
+
+---
+
+<h2 id="configuration">Configuration</h2>
+
+Copy `.env.sample` to `.env` in the repo root and edit as needed:
+
+| Variable | Default | Description |
+|---|---|---|
+| `RECALIUM_PORT` | `8080` | Web UI port |
+| `MCP_PORT` | `3000` | MCP server port |
+| `OPENAI_API_KEY` | — | OpenAI key for extraction and embeddings |
+| `ANTHROPIC_API_KEY` | — | Anthropic key (alternative to OpenAI) |
+| `RECALIUM_DATA_DIR` | `./data` | Where memory is stored on disk |
+| `SENSITIVITY_GATE` | `true` | Enable/disable the sensitivity pre-classifier |
+| `LOG_LEVEL` | `info` | `debug`, `info`, `warn`, `error` |
+
+Restart the stack after changing `.env`:
+
+```bash
+docker compose down && docker compose up
+```

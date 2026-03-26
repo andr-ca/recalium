@@ -78,7 +78,7 @@ All code changes must be documented.
 After completing implementation and tests:
 1. Identify affected documentation.
 2. Update existing docs or create new docs in `docs/`.
-3. Update `CHANGES.md` with what changed and why.
+3. Update the project changelog (for example `CHANGES.md` or `CHANGELOG.md`) with what changed and why, if present.
 4. Verify examples, schemas, and links are current.
 
 Minimum documentation scope (as applicable):

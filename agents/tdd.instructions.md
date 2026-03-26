@@ -66,35 +66,15 @@ This applies to ALL development work:
 
 
 
-2\. Write a test that describes the desired behavior
+2. Write a test that describes the desired behavior
 
 
 
-3\. Run the test - it MUST fail (because implementation doesn't exist yet)
+3. Run the test - it MUST fail (because implementation doesn't exist yet)
 
 
 
-4\. Verify it fails for the RIGHT reason (not syntax errors)
-
-
-
-&nbsp;
-
-
-
-\*\*Why this matters:\*\*
-
-
-
-\- Proves the test can detect the problem
-
-
-
-\- Ensures you're testing the right thing
-
-
-
-\- Prevents false positives (tests that always pass)
+4. Verify it fails for the RIGHT reason (not syntax errors)
 
 
 
@@ -102,11 +82,31 @@ This applies to ALL development work:
 
 
 
-\### 2. 🟢 GREEN - Write Minimal Code to Pass
+**Why this matters:**
 
 
 
-1\. Write the SIMPLEST code that makes the test pass
+- Proves the test can detect the problem
+
+
+
+- Ensures you're testing the right thing
+
+
+
+- Prevents false positives (tests that always pass)
+
+
+
+&nbsp;
+
+
+
+### 2. 🟢 GREEN - Write Minimal Code to Pass
+
+
+
+1. Write the SIMPLEST code that makes the test pass
 
 
 
