@@ -35,7 +35,7 @@
 4. User opens Settings, enters an OpenAI/Anthropic/Ollama API key, and the system validates it with a lightweight test call — reporting success, failure, or insufficient permissions — without storing the key in the database.
 5. System is fully usable for ingestion, archive browsing, and keyword search when no API keys are configured (degraded mode is transparent, not a blocker).
 
-**Plans:** 1/8 plans complete
+**Plans:** Complete (plans executed directly without formal plan files)
 
 ---
 
@@ -148,7 +148,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 0/TBD | Complete    | 2026-03-23 |
+| 1. Foundation | — | Complete    | 2026-03-23 |
 | 2. Processing Pipeline | 8/8 | Complete | 2026-03-23 |
 | 3. Retrieval + Review | 8/8 | Complete | 2026-03-23 |
 | 4. Privacy + Operations | 8/8 | Complete | 2026-03-23 |
