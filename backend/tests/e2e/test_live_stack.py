@@ -58,3 +58,58 @@ async def test_bearer_auth_wrong_token(live_client: httpx.AsyncClient) -> None:
         headers={"Authorization": "Bearer definitely-wrong-token"},
     )
     assert resp.status_code == 401
+
+
+# ── Ingest ───────────────────────────────────────────────────────────────────
+
+async def test_ingest_text_success(live_client: httpx.AsyncClient) -> None:
+    """POST /api/ingest with valid text returns 202 and an archive ID."""
+    tag = uuid4()
+    resp = await live_client.post(
+        "/api/ingest",
+        json={"content": f"E2E-{tag} test memory recalium integration suite"},
+    )
+    assert resp.status_code == 202
+    body = resp.json()
+    assert "archive_ids" in body
+    assert len(body["archive_ids"]) >= 1
+    # Register for cleanup
+    for aid in body["archive_ids"]:
+        live_client.register(aid)
+
+
+async def test_ingest_text_too_short(live_client: httpx.AsyncClient) -> None:
+    """POST /api/ingest with content under 10 chars returns 422."""
+    resp = await live_client.post("/api/ingest", json={"content": "short"})
+    assert resp.status_code == 422
+
+
+async def test_ingest_text_empty(live_client: httpx.AsyncClient) -> None:
+    """POST /api/ingest with empty content returns 422."""
+    resp = await live_client.post("/api/ingest", json={"content": ""})
+    assert resp.status_code == 422
+
+
+async def test_ingest_file_txt(live_client: httpx.AsyncClient) -> None:
+    """POST /api/ingest/file with a .txt file returns 202 and an archive ID."""
+    tag = uuid4()
+    content = f"E2E-{tag} test file memory recalium integration suite".encode()
+    resp = await live_client.post(
+        "/api/ingest/file",
+        files={"file": ("e2e_test.txt", content, "text/plain")},
+    )
+    assert resp.status_code == 202
+    body = resp.json()
+    assert len(body["archive_ids"]) >= 1
+    for aid in body["archive_ids"]:
+        live_client.register(aid)
+
+
+async def test_ingest_file_unsupported_type(live_client: httpx.AsyncClient) -> None:
+    """POST /api/ingest/file with binary content (non-UTF-8) returns 422."""
+    # Send raw bytes that are not valid UTF-8
+    resp = await live_client.post(
+        "/api/ingest/file",
+        files={"file": ("binary.bin", b"\xff\xfe\x00\x01invalid", "application/octet-stream")},
+    )
+    assert resp.status_code == 422
