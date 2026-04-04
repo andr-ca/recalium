@@ -160,3 +160,53 @@ async def test_archive_delete_nonexistent(live_client: httpx.AsyncClient) -> Non
     fake_id = str(uuid4())
     resp = await live_client.delete(f"/api/archive/{fake_id}")
     assert resp.status_code == 404
+
+
+# ── Search ────────────────────────────────────────────────────────────────────
+
+async def test_keyword_search_finds_item(live_client: httpx.AsyncClient) -> None:
+    """Ingest a UUID-tagged item, then search for its tag and find it."""
+    tag = uuid4()
+    content = f"E2E-{tag} keyword search recalium integration"
+    ingest_resp = await live_client.post("/api/ingest", json={"content": content})
+    assert ingest_resp.status_code == 202
+    item_id = ingest_resp.json()["archive_ids"][0]
+    live_client.register(item_id)
+
+    search_resp = await live_client.get(
+        "/api/search",
+        params={"q": str(tag), "mode": "keyword"},
+    )
+    assert search_resp.status_code == 200
+    body = search_resp.json()
+    assert "items" in body
+    # At least one result should contain our UUID tag
+    found = any(str(tag) in item.get("content", "") for item in body["items"])
+    assert found, f"UUID tag {tag} not found in search results: {body['items']}"
+
+
+async def test_search_returns_empty_for_no_match(live_client: httpx.AsyncClient) -> None:
+    """Search for a UUID that was never ingested returns empty results (not error)."""
+    never_ingested_tag = str(uuid4())
+    resp = await live_client.get(
+        "/api/search",
+        params={"q": never_ingested_tag, "mode": "keyword"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["items"] == []
+
+
+async def test_semantic_search_graceful_degraded(live_client: httpx.AsyncClient) -> None:
+    """Semantic search does not 500 — may return empty if embed backend is degraded."""
+    resp = await live_client.get(
+        "/api/search",
+        params={"q": "test memory recalium", "mode": "semantic"},
+    )
+    # Must not be a 500; 200 is expected (items may be empty in degraded mode)
+    assert resp.status_code != 500
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "items" in body
+    # degraded_mode may be true if embed backend is not configured
+    assert isinstance(body["degraded_mode"], bool)
