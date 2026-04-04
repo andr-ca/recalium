@@ -210,3 +210,58 @@ async def test_semantic_search_graceful_degraded(live_client: httpx.AsyncClient)
     assert "items" in body
     # degraded_mode may be true if embed backend is not configured
     assert isinstance(body["degraded_mode"], bool)
+
+
+# ── Canonical Memory ──────────────────────────────────────────────────────────
+
+async def test_create_canonical_item(live_client: httpx.AsyncClient) -> None:
+    """POST /api/canonical creates a manual canonical memory item (201)."""
+    tag = uuid4()
+    resp = await live_client.post(
+        "/api/canonical",
+        json={"content": f"E2E-{tag} canonical memory recalium integration"},
+    )
+    assert resp.status_code == 201
+    body = resp.json()
+    assert "id" in body
+    canonical_id = body["id"]
+    # Cleanup inline — canonical items use a different delete endpoint from archive
+    await live_client.delete(f"/api/canonical/{canonical_id}")
+
+
+async def test_canonical_list_contains_created_item(live_client: httpx.AsyncClient) -> None:
+    """Create a canonical item, then GET /api/canonical confirms it is present."""
+    tag = uuid4()
+    create_resp = await live_client.post(
+        "/api/canonical",
+        json={"content": f"E2E-{tag} canonical list test recalium integration"},
+    )
+    assert create_resp.status_code == 201
+    canonical_id = create_resp.json()["id"]
+
+    list_resp = await live_client.get("/api/canonical")
+    assert list_resp.status_code == 200
+    ids = [item["id"] for item in list_resp.json()["items"]]
+    assert canonical_id in ids
+
+    # Cleanup inline
+    delete_resp = await live_client.delete(f"/api/canonical/{canonical_id}")
+    assert delete_resp.status_code == 204
+
+
+async def test_delete_canonical_item(live_client: httpx.AsyncClient) -> None:
+    """Create then DELETE /api/canonical/{id} returns 204 and item is absent."""
+    tag = uuid4()
+    create_resp = await live_client.post(
+        "/api/canonical",
+        json={"content": f"E2E-{tag} delete canonical recalium integration"},
+    )
+    assert create_resp.status_code == 201
+    canonical_id = create_resp.json()["id"]
+
+    delete_resp = await live_client.delete(f"/api/canonical/{canonical_id}")
+    assert delete_resp.status_code == 204
+
+    list_resp = await live_client.get("/api/canonical")
+    ids = [item["id"] for item in list_resp.json()["items"]]
+    assert canonical_id not in ids
