@@ -100,6 +100,7 @@ async def test_ingest_file_txt(live_client: httpx.AsyncClient) -> None:
     )
     assert resp.status_code == 202
     body = resp.json()
+    assert "archive_ids" in body
     assert len(body["archive_ids"]) >= 1
     for aid in body["archive_ids"]:
         live_client.register(aid)
