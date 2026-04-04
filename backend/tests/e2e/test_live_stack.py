@@ -13,7 +13,6 @@ from uuid import uuid4
 
 import httpx
 import pytest
-import pytest_asyncio
 
 from tests.e2e.conftest import wait_for
 
@@ -129,7 +128,7 @@ async def test_archive_list_contains_ingested_item(live_client: httpx.AsyncClien
     item_id = ingest_resp.json()["archive_ids"][0]
     live_client.register(item_id)
 
-    list_resp = await live_client.get("/api/archive")
+    list_resp = await live_client.get("/api/archive", params={"limit": 200})
     assert list_resp.status_code == 200
     ids = [item["id"] for item in list_resp.json()["items"]]
     assert item_id in ids
@@ -150,7 +149,7 @@ async def test_archive_delete_removes_item(live_client: httpx.AsyncClient) -> No
     delete_resp = await live_client.delete(f"/api/archive/{item_id}")
     assert delete_resp.status_code == 204
 
-    list_resp = await live_client.get("/api/archive")
+    list_resp = await live_client.get("/api/archive", params={"limit": 200})
     ids = [item["id"] for item in list_resp.json()["items"]]
     assert item_id not in ids
 
@@ -283,17 +282,27 @@ async def test_export_bundle_format(live_client: httpx.AsyncClient) -> None:
 
 async def test_import_bundle_dedup(live_client: httpx.AsyncClient) -> None:
     """Import the current bundle a second time — duplicate content is skipped."""
-    # Export current state
+    # Ingest a known item first to ensure archive is non-empty (dedup requires content)
+    tag = uuid4()
+    seed_resp = await live_client.post(
+        "/api/ingest",
+        json={"content": f"E2E-{tag} bundle dedup seed recalium integration"},
+    )
+    assert seed_resp.status_code == 202
+    for aid in seed_resp.json()["archive_ids"]:
+        live_client.register(aid)
+
+    # Export current state (guaranteed non-empty)
     export_resp = await live_client.get("/api/export/bundle")
     assert export_resp.status_code == 200
     bundle = export_resp.json()
     original_count = len(bundle["items"])
+    assert original_count >= 1, "Bundle must be non-empty to test deduplication"
 
-    # Re-import the same bundle
+    # Re-import the same bundle — all items should be skipped
     import_resp = await live_client.post("/api/import/bundle", json=bundle)
     assert import_resp.status_code == 200
     result = import_resp.json()
-    # All items should be skipped (dedup by content_hash)
     assert result["imported"] == 0
     assert result["skipped"] == original_count
     assert result["errors"] == []
@@ -335,9 +344,16 @@ async def _mcp_call(client: httpx.AsyncClient, tool: str, arguments: dict) -> di
     session_endpoint: str | None = None
     async with client.stream("GET", "/mcp/sse") as sse_resp:
         assert sse_resp.status_code == 200, f"SSE handshake failed: {sse_resp.status_code}"
+        saw_endpoint_event = False
         async for line in sse_resp.aiter_lines():
             line = line.strip()
-            if line.startswith("data:"):
+            if line == "event: endpoint":
+                saw_endpoint_event = True
+            elif saw_endpoint_event and line.startswith("data:"):
+                session_endpoint = line[len("data:"):].strip()
+                break
+            elif not saw_endpoint_event and line.startswith("data:"):
+                # Fallback: server sends data: without prior event: line
                 session_endpoint = line[len("data:"):].strip()
                 break
         # session_endpoint is something like /mcp/messages?session_id=<uuid>
@@ -369,8 +385,8 @@ async def test_mcp_ingest_memory_success(live_client: httpx.AsyncClient) -> None
         # Result may be wrapped in JSON-RPC result envelope
         payload = result.get("result", result)
         # MCP ingest returns {"status": "accepted", "archive_ids": [...]}
-        # or errors are surfaced as {"error": "..."}
-        assert "error" not in payload or payload.get("status") == "accepted"
+        assert "error" not in payload
+        assert payload.get("status") == "accepted"
         if "archive_ids" in payload:
             for aid in payload["archive_ids"]:
                 live_client.register(aid)
@@ -400,3 +416,45 @@ async def test_mcp_retrieve_returns_results(live_client: httpx.AsyncClient) -> N
         assert isinstance(payload["items"], list)
     except AssertionError as e:
         pytest.xfail(f"MCP SSE transport not compatible with test harness: {e}")
+
+
+# ── Cleanup Verification ──────────────────────────────────────────────────────
+
+async def test_deleted_item_excluded_from_search(live_client: httpx.AsyncClient) -> None:
+    """Ingest → delete → search: deleted item does not appear in search results."""
+    tag = uuid4()
+    content = f"E2E-{tag} deleted search exclusion recalium integration"
+    ingest_resp = await live_client.post("/api/ingest", json={"content": content})
+    assert ingest_resp.status_code == 202
+    item_id = ingest_resp.json()["archive_ids"][0]
+
+    # Delete inline (don't register — it's already gone)
+    delete_resp = await live_client.delete(f"/api/archive/{item_id}")
+    assert delete_resp.status_code == 204
+
+    # Search for the UUID tag — must not appear
+    search_resp = await live_client.get(
+        "/api/search",
+        params={"q": str(tag), "mode": "keyword"},
+    )
+    assert search_resp.status_code == 200
+    found = any(str(tag) in item.get("content", "") for item in search_resp.json()["items"])
+    assert not found, f"Deleted item with tag {tag} still appears in search results"
+
+
+async def test_deleted_item_excluded_from_archive_list(live_client: httpx.AsyncClient) -> None:
+    """Ingest → delete → list archive: deleted item is absent from default listing."""
+    tag = uuid4()
+    ingest_resp = await live_client.post(
+        "/api/ingest",
+        json={"content": f"E2E-{tag} deleted archive exclusion recalium integration"},
+    )
+    assert ingest_resp.status_code == 202
+    item_id = ingest_resp.json()["archive_ids"][0]
+
+    delete_resp = await live_client.delete(f"/api/archive/{item_id}")
+    assert delete_resp.status_code == 204
+
+    list_resp = await live_client.get("/api/archive", params={"limit": 200})
+    ids = [item["id"] for item in list_resp.json()["items"]]
+    assert item_id not in ids

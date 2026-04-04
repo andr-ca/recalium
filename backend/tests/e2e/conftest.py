@@ -85,7 +85,7 @@ async def wait_for(
 
     On timeout, calls pytest.fail with a descriptive message.
     """
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     deadline = loop.time() + timeout
     while True:
         result = await async_fn()
