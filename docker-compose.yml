@@ -1,0 +1,67 @@
+# Recalium — production base compose file.
+# WARNING: Data lives at ./data/postgres and ./backups on the HOST.
+# NEVER run `docker compose down -v` — it will NOT destroy bind-mount data,
+# but that flag is dangerous in general. Use `docker compose down` only.
+
+services:
+  recalium-postgres:
+    image: pgvector/pgvector:pg16
+    container_name: recalium-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      # Bind mount — data on host filesystem, safe from `docker compose down -v`
+      - ./data/postgres:/var/lib/postgresql/data
+    networks:
+      - recalium-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  recalium-app:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      args:
+        # cpu  → sentence-transformers with CPU-only torch (~1.5 GB image delta)
+        # gpu  → sentence-transformers with CUDA torch    (~4 GB image delta)
+        # none → skip local ML; use OpenAI / Anthropic / Ollama only
+        EMBED_BACKEND: ${EMBED_BACKEND:-cpu}
+    container_name: recalium-app
+    restart: unless-stopped
+    depends_on:
+      recalium-postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@recalium-postgres:5432/${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_HOST: recalium-postgres
+      POSTGRES_PORT: "5432"
+      APP_ENV: ${APP_ENV:-production}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      EMBED_BACKEND: ${EMBED_BACKEND:-cpu}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-}
+      OLLAMA_API_KEY: ${OLLAMA_API_KEY:-}
+    ports:
+      # Bind to localhost only — prevents accidental LAN exposure
+      - "127.0.0.1:${APP_PORT:-8000}:8000"
+    volumes:
+      - ./backups:/app/backups
+      - ./import:/app/import
+    networks:
+      - recalium-net
+    entrypoint: ["/app/entrypoint.sh"]
+
+networks:
+  recalium-net:
+    driver: bridge

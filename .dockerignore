@@ -1,0 +1,46 @@
+# Recalium — Docker build context exclusions
+# Keeps build context small and prevents secrets from leaking into layers.
+
+# Python virtualenvs and caches
+backend/.venv
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+
+# Node / frontend build artefacts
+frontend/node_modules
+frontend/.next
+# Do NOT exclude frontend/dist — production stage copies it into the image
+
+# Local data & backups (host-mounted at runtime)
+data/
+backups/
+import/
+
+# Editor / OS noise
+.DS_Store
+**/.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Git history (not needed in image)
+.git
+.gitignore
+
+# Local env files (secrets must never enter a layer)
+.env
+.env.local
+.env.*.local
+backend/.env
+backend/.env.local
+
+# CI / docs (not needed at runtime)
+.github/
+docs/
+agents/

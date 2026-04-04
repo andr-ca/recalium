@@ -1,0 +1,30 @@
+# Development overrides — applied automatically by `docker compose up` in dev.
+# In production, use: `docker compose -f docker-compose.yml up`
+
+services:
+  recalium-postgres:
+    ports:
+      # Expose PG directly for local DB tools (dev only)
+      - "127.0.0.1:5435:5432"
+
+  recalium-app:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: development
+      args:
+        # cpu  → sentence-transformers with CPU-only torch (~1.5 GB image delta)
+        # gpu  → sentence-transformers with CUDA torch    (~4 GB image delta)
+        # none → skip local ML; use OpenAI / Anthropic / Ollama only
+        EMBED_BACKEND: ${EMBED_BACKEND:-none}
+    environment:
+      APP_ENV: development
+      LOG_LEVEL: debug
+      EMBED_BACKEND: ${EMBED_BACKEND:-none}
+    volumes:
+      - ./backend:/app/backend
+      - ./backups:/app/backups
+      - ./import:/app/import
+    # Use the dev entrypoint: waits for PG, runs migrations, then starts
+    # uvicorn with --reload so code changes are picked up immediately.
+    entrypoint: ["/app/dev-entrypoint.sh"]

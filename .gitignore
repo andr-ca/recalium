@@ -1,9 +1,44 @@
-# Environment files and secrets
+# Environment secrets — NEVER commit .env
 .env
 .env.local
 .env.*.local
-*.pem
-*.key
+
+# Bind-mount data directories — live on host, not in git
+data/
+backups/
+import/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.uv/
+dist/
+build/
+*.so
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+htmlcov/
+.coverage
+
+# Node / Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.pnpm-store/
+frontend/.vite/
+frontend/coverage/
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/settings.json
+*.swp
+*.swo
+
+# Docker
+docker-compose.override.yml.local
 
 # Logs and runtime output
 *.log
@@ -13,15 +48,16 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
+# Keys and secrets
+*.pem
+*.key
+
 # Databases and local data files
 *.sqlite
 *.sqlite3
 *.db
-data/
 
 # Build outputs and dist
-dist/
-build/
 out/
 .next/
 .nuxt/
@@ -33,11 +69,6 @@ out/
 *.tsbuildinfo
 .eslintcache
 .stylelintcache
-__pycache__/
-*.py[cod]
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
 
 # Dependencies
 node_modules/
@@ -46,27 +77,20 @@ node_modules/
 .yarn/cache
 .yarn/unplugged
 .yarn/build-state.yml
+.yarn/build-state.yml
 .yarn/install-state.gz
 
 # Virtual environments
-.venv/
 venv/
 env/
 
 # Coverage artifacts
 coverage/
 .nyc_output/
-htmlcov/
-.coverage
 *.lcov
 
-# OS and editor noise
-.DS_Store
+# OS noise
 Thumbs.db
-.idea/
-.vscode/settings.json
-*.swp
-*.swo
 
 # Temporary files
 tmp/
