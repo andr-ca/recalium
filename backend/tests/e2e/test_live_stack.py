@@ -265,3 +265,59 @@ async def test_delete_canonical_item(live_client: httpx.AsyncClient) -> None:
     list_resp = await live_client.get("/api/canonical")
     ids = [item["id"] for item in list_resp.json()["items"]]
     assert canonical_id not in ids
+
+
+# ── Portability ───────────────────────────────────────────────────────────────
+
+async def test_export_bundle_format(live_client: httpx.AsyncClient) -> None:
+    """GET /api/export/bundle returns 200 with required bundle keys."""
+    resp = await live_client.get("/api/export/bundle")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["format"] == "recalium-memory-bundle"
+    assert body["version"] == "1"
+    assert "exported_at" in body
+    assert "items" in body
+    assert isinstance(body["items"], list)
+
+
+async def test_import_bundle_dedup(live_client: httpx.AsyncClient) -> None:
+    """Import the current bundle a second time — duplicate content is skipped."""
+    # Export current state
+    export_resp = await live_client.get("/api/export/bundle")
+    assert export_resp.status_code == 200
+    bundle = export_resp.json()
+    original_count = len(bundle["items"])
+
+    # Re-import the same bundle
+    import_resp = await live_client.post("/api/import/bundle", json=bundle)
+    assert import_resp.status_code == 200
+    result = import_resp.json()
+    # All items should be skipped (dedup by content_hash)
+    assert result["imported"] == 0
+    assert result["skipped"] == original_count
+    assert result["errors"] == []
+
+
+async def test_import_bundle_invalid_version(live_client: httpx.AsyncClient) -> None:
+    """POST /api/import/bundle with wrong version returns 422."""
+    bad_bundle = {
+        "format": "recalium-memory-bundle",
+        "version": "999",
+        "exported_at": "2026-01-01T00:00:00Z",
+        "items": [],
+    }
+    resp = await live_client.post("/api/import/bundle", json=bad_bundle)
+    assert resp.status_code == 422
+
+
+async def test_import_bundle_invalid_format(live_client: httpx.AsyncClient) -> None:
+    """POST /api/import/bundle with wrong format string returns 422."""
+    bad_bundle = {
+        "format": "not-a-recalium-bundle",
+        "version": "1",
+        "exported_at": "2026-01-01T00:00:00Z",
+        "items": [],
+    }
+    resp = await live_client.post("/api/import/bundle", json=bad_bundle)
+    assert resp.status_code == 422
