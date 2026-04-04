@@ -238,7 +238,7 @@ async def test_canonical_list_contains_created_item(live_client: httpx.AsyncClie
     assert create_resp.status_code == 201
     canonical_id = create_resp.json()["id"]
 
-    list_resp = await live_client.get("/api/canonical")
+    list_resp = await live_client.get("/api/canonical", params={"limit": 200})
     assert list_resp.status_code == 200
     ids = [item["id"] for item in list_resp.json()["items"]]
     assert canonical_id in ids
@@ -261,7 +261,7 @@ async def test_delete_canonical_item(live_client: httpx.AsyncClient) -> None:
     delete_resp = await live_client.delete(f"/api/canonical/{canonical_id}")
     assert delete_resp.status_code == 204
 
-    list_resp = await live_client.get("/api/canonical")
+    list_resp = await live_client.get("/api/canonical", params={"limit": 200})
     ids = [item["id"] for item in list_resp.json()["items"]]
     assert canonical_id not in ids
 
@@ -349,11 +349,8 @@ async def _mcp_call(client: httpx.AsyncClient, tool: str, arguments: dict) -> di
             line = line.strip()
             if line == "event: endpoint":
                 saw_endpoint_event = True
-            elif saw_endpoint_event and line.startswith("data:"):
-                session_endpoint = line[len("data:"):].strip()
-                break
-            elif not saw_endpoint_event and line.startswith("data:"):
-                # Fallback: server sends data: without prior event: line
+            elif line.startswith("data:"):
+                # Accept data: after event: endpoint (preferred) or as bare fallback
                 session_endpoint = line[len("data:"):].strip()
                 break
         # session_endpoint is something like /mcp/messages?session_id=<uuid>
@@ -452,6 +449,7 @@ async def test_deleted_item_excluded_from_archive_list(live_client: httpx.AsyncC
     assert ingest_resp.status_code == 202
     item_id = ingest_resp.json()["archive_ids"][0]
 
+    # Do NOT register — we're deleting it inline
     delete_resp = await live_client.delete(f"/api/archive/{item_id}")
     assert delete_resp.status_code == 204
 
