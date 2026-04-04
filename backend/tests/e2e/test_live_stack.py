@@ -113,3 +113,49 @@ async def test_ingest_file_unsupported_type(live_client: httpx.AsyncClient) -> N
         files={"file": ("binary.bin", b"\xff\xfe\x00\x01invalid", "application/octet-stream")},
     )
     assert resp.status_code == 422
+
+
+# ── Archive ───────────────────────────────────────────────────────────────────
+
+async def test_archive_list_contains_ingested_item(live_client: httpx.AsyncClient) -> None:
+    """Ingest an item, then GET /api/archive confirms it is present."""
+    tag = uuid4()
+    ingest_resp = await live_client.post(
+        "/api/ingest",
+        json={"content": f"E2E-{tag} archive list test recalium integration"},
+    )
+    assert ingest_resp.status_code == 202
+    item_id = ingest_resp.json()["archive_ids"][0]
+    live_client.register(item_id)
+
+    list_resp = await live_client.get("/api/archive")
+    assert list_resp.status_code == 200
+    ids = [item["id"] for item in list_resp.json()["items"]]
+    assert item_id in ids
+
+
+async def test_archive_delete_removes_item(live_client: httpx.AsyncClient) -> None:
+    """Ingest an item, DELETE it, confirm it is absent from the archive list."""
+    tag = uuid4()
+    ingest_resp = await live_client.post(
+        "/api/ingest",
+        json={"content": f"E2E-{tag} delete test recalium integration"},
+    )
+    assert ingest_resp.status_code == 202
+    item_id = ingest_resp.json()["archive_ids"][0]
+    # Do NOT register — we're deleting it inline
+    # (cleanup_registry would try to delete again, which is fine but noisy)
+
+    delete_resp = await live_client.delete(f"/api/archive/{item_id}")
+    assert delete_resp.status_code == 204
+
+    list_resp = await live_client.get("/api/archive")
+    ids = [item["id"] for item in list_resp.json()["items"]]
+    assert item_id not in ids
+
+
+async def test_archive_delete_nonexistent(live_client: httpx.AsyncClient) -> None:
+    """DELETE /api/archive/<valid-uuid-that-does-not-exist> returns 404."""
+    fake_id = str(uuid4())
+    resp = await live_client.delete(f"/api/archive/{fake_id}")
+    assert resp.status_code == 404
