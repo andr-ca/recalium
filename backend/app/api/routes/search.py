@@ -18,7 +18,7 @@ from app.domain.retrieval.service import (
     invalidate_cache,
 )
 from app.infrastructure.db import get_session
-from app.infrastructure.settings import get_settings
+from app.infrastructure.settings import Settings, get_settings
 
 router = APIRouter(prefix="/api", tags=["search"])
 
@@ -109,10 +109,9 @@ async def retrieve_structured(
     return _response_to_dict(response)
 
 
-@router.post("/search/invalidate-cache", status_code=200)
-async def invalidate_search_cache() -> dict:
-    """Invalidate the retrieval LRU cache. Dev/test only — returns 403 in production."""
-    settings = get_settings()
+@router.post("/search/invalidate-cache")
+async def invalidate_search_cache(settings: Settings = Depends(get_settings)) -> dict:
+    """Flush the retrieval LRU cache. Only permitted in development mode (APP_ENV=development)."""
     if not settings.is_development:
         raise HTTPException(status_code=403, detail="Only available in development mode")
     invalidate_cache()
