@@ -185,22 +185,14 @@ async def test_archive_delete_nonexistent(live_client: httpx.AsyncClient) -> Non
 
 # ── Search ────────────────────────────────────────────────────────────────────
 
-@pytest.mark.xfail(
-    strict=False,
-    reason=(
-        "App architecture: FTS indexing is async (background job worker populates fts_entries). "
-        "Ingest only enqueues a pending_pipeline job; the search retrieval service also caches "
-        "results for 60s, so newly-ingested content is not visible in keyword search immediately."
-    ),
-)
 async def test_keyword_search_finds_item(live_client: httpx.AsyncClient) -> None:
     """Ingest a UUID-tagged item, then search for its tag and find it.
 
-    NOTE: This test is expected to xfail because keyword search uses FTS on fts_entries,
-    which are populated by the background job pipeline — not synchronously on ingest.
-    The retrieval service also caches results for 60s, compounding the delay.
+    Polls with cache invalidation to ensure freshly-indexed FTS data is visible.
+    Uses uuid4().hex (no hyphens) so PostgreSQL FTS tokenizes it as a single token,
+    allowing websearch_to_tsquery to match it reliably.
     """
-    tag = uuid4()
+    tag = uuid4().hex  # hex string: no hyphens → single FTS token, matchable by websearch_to_tsquery
     content = f"E2E-{tag} keyword search recalium integration"
     ingest_resp = await live_client.post("/api/ingest", json={"content": content})
     assert ingest_resp.status_code == 202
@@ -208,17 +200,18 @@ async def test_keyword_search_finds_item(live_client: httpx.AsyncClient) -> None
     live_client.register(item_id)
 
     async def _search_finds_tag() -> bool:
+        # Invalidate cache so stale results don't hide newly-indexed content
+        await live_client.post("/api/search/invalidate-cache")
         resp = await live_client.get(
             "/api/search",
-            params={"q": str(tag), "mode": "keyword"},
+            params={"q": tag, "mode": "keyword"},
         )
         if resp.status_code != 200:
             return False
-        return any(str(tag) in item.get("content", "") for item in resp.json()["items"])
+        return any(tag in item.get("content", "") for item in resp.json()["items"])
 
-    found = await wait_for(_search_finds_tag, timeout=15.0)
-    # wait_for already calls pytest.fail on timeout; the return value is truthy
-    _ = found  # prevent "variable assigned but never used" warnings
+    found = await wait_for(_search_finds_tag, timeout=30.0)
+    _ = found
 
 
 async def test_search_returns_empty_for_no_match(live_client: httpx.AsyncClient) -> None:
