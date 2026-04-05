@@ -8,11 +8,14 @@ and clean up via the session-scoped cleanup_registry fixture.
 """
 from __future__ import annotations
 
+import json as _json
 import os
 from uuid import uuid4
 
 import httpx
 import pytest
+from mcp import ClientSession
+from mcp.client.sse import sse_client
 
 from tests.e2e.conftest import wait_for
 
@@ -199,6 +202,11 @@ async def test_keyword_search_finds_item(live_client: httpx.AsyncClient) -> None
     item_id = ingest_resp.json()["archive_ids"][0]
     live_client.register(item_id)
 
+    # Verify invalidate-cache endpoint is available (dev mode only)
+    inv = await live_client.post("/api/search/invalidate-cache")
+    if inv.status_code == 403:
+        pytest.skip("invalidate-cache not available outside development mode")
+
     async def _search_finds_tag() -> bool:
         # Invalidate cache so stale results don't hide newly-indexed content
         await live_client.post("/api/search/invalidate-cache")
@@ -208,10 +216,9 @@ async def test_keyword_search_finds_item(live_client: httpx.AsyncClient) -> None
         )
         if resp.status_code != 200:
             return False
-        return any(tag in item.get("content", "") for item in resp.json()["items"])
+        return any(tag in item.get("content", "") for item in resp.json().get("items", []))
 
-    found = await wait_for(_search_finds_tag, timeout=30.0)
-    _ = found
+    await wait_for(_search_finds_tag, timeout=30.0)
 
 
 async def test_search_returns_empty_for_no_match(live_client: httpx.AsyncClient) -> None:
@@ -369,82 +376,51 @@ async def test_import_bundle_invalid_format(live_client: httpx.AsyncClient) -> N
 # ── MCP ───────────────────────────────────────────────────────────────────────
 
 async def _mcp_call(client: httpx.AsyncClient, tool: str, arguments: dict) -> dict:
-    """Helper: establish SSE session and call an MCP tool.
+    """Helper: establish MCP SSE session and call a tool via the MCP client library.
 
-    Returns the parsed result dict from the JSON-RPC response.
-    Raises AssertionError if the SSE handshake fails or the RPC call returns an error.
+    Returns the parsed result dict from the tool response.
+    Raises AssertionError if the tool call fails or returns empty content.
     """
-    # Step 1: Open SSE stream, read first event to get the session endpoint
-    session_endpoint: str | None = None
-    async with client.stream("GET", "/mcp/sse") as sse_resp:
-        assert sse_resp.status_code == 200, f"SSE handshake failed: {sse_resp.status_code}"
-        async for line in sse_resp.aiter_lines():
-            line = line.strip()
-            if line == "event: endpoint":
-                pass  # next data: line carries the endpoint
-            elif line.startswith("data:"):
-                # Accept data: after event: endpoint (preferred) or as bare fallback
-                session_endpoint = line[len("data:"):].strip()
-                break
-        # session_endpoint is something like /mcp/messages?session_id=<uuid>
-
-    assert session_endpoint is not None, "SSE did not return a session endpoint"
-
-    # Step 2: POST the JSON-RPC tool call
-    rpc_body = {
-        "jsonrpc": "2.0",
-        "id": 1,
-        "method": "tools/call",
-        "params": {
-            "name": tool,
-            "arguments": arguments,
-        },
-    }
-    # session_endpoint may be an absolute path; use the base client
-    rpc_resp = await client.post(session_endpoint, json=rpc_body)
-    assert rpc_resp.status_code == 200, f"MCP RPC failed: {rpc_resp.status_code} {rpc_resp.text}"
-    return rpc_resp.json()
+    base_url = str(client.base_url).rstrip("/")
+    mcp_url = f"{base_url}/mcp/sse"
+    async with sse_client(mcp_url) as (read, write):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+            result = await session.call_tool(tool, arguments)
+    assert result.content, f"MCP tool {tool!r} returned empty content"
+    raw_text = result.content[0].text
+    try:
+        return _json.loads(raw_text)
+    except (_json.JSONDecodeError, TypeError):
+        return {"text": raw_text}
 
 
-_MCP_XFAIL = pytest.mark.xfail(
-    strict=False,
-    reason="MCP SSE transport: POST to session endpoint returns 202 (async), not 200 with JSON-RPC result",
-)
-
-
-@_MCP_XFAIL
 async def test_mcp_ingest_memory_success(live_client: httpx.AsyncClient) -> None:
     """MCP ingest_memory tool with valid content returns accepted status."""
     tag = uuid4()
     content = f"E2E-{tag} MCP ingest memory recalium integration"
     result = await _mcp_call(live_client, "ingest_memory", {"content": content})
-    # Result may be wrapped in JSON-RPC result envelope
-    payload = result.get("result", result)
     # MCP ingest returns {"status": "accepted", "archive_ids": [...]}
-    assert "error" not in payload
-    assert payload.get("status") == "accepted"
-    if "archive_ids" in payload:
-        for aid in payload["archive_ids"]:
+    assert "error" not in result
+    assert result.get("status") == "accepted"
+    if "archive_ids" in result:
+        for aid in result["archive_ids"]:
             live_client.register(aid)
 
 
-@_MCP_XFAIL
 async def test_mcp_ingest_memory_missing_content(live_client: httpx.AsyncClient) -> None:
     """MCP ingest_memory tool with empty content returns descriptive error (not 500)."""
     result = await _mcp_call(live_client, "ingest_memory", {"content": ""})
-    payload = result.get("result", result)
     # Should return {"error": "content is required and must be non-empty"}
-    assert "error" in payload
-    assert "content" in payload["error"].lower()
+    assert "error" in result
+    assert "content" in result["error"].lower()
 
 
-@_MCP_XFAIL
 async def test_mcp_retrieve_returns_results(live_client: httpx.AsyncClient) -> None:
     """MCP retrieve_memory tool with a query returns a results envelope (no 500)."""
     result = await _mcp_call(live_client, "retrieve_memory", {"query": "test memory recalium"})
-    payload = result.get("result", result)
-    assert "items" in payload
-    assert isinstance(payload["items"], list)
+    assert "items" in result
+    assert isinstance(result["items"], list)
 
 
 # ── Cleanup Verification ──────────────────────────────────────────────────────
