@@ -192,10 +192,11 @@ async def test_keyword_search_finds_item(live_client: httpx.AsyncClient) -> None
     """Ingest a UUID-tagged item, then search for its tag and find it.
 
     Polls with cache invalidation to ensure freshly-indexed FTS data is visible.
-    Uses uuid4().hex (no hyphens) so PostgreSQL FTS tokenizes it as a single token,
-    allowing websearch_to_tsquery to match it reliably.
+    Uses 'x' + uuid4().hex as the tag: no hyphens (single FTS token) and the 'x'
+    prefix prevents PostgreSQL from parsing digit-e-digit sequences (e.g. '8e3...')
+    as scientific notation, which would cause websearch_to_tsquery to split the token.
     """
-    tag = uuid4().hex  # hex string: no hyphens → single FTS token, matchable by websearch_to_tsquery
+    tag = "x" + uuid4().hex  # 'x' prefix prevents PostgreSQL from parsing as scientific notation (e.g. 8e3 → split)
     content = f"E2E-{tag} keyword search recalium integration"
     ingest_resp = await live_client.post("/api/ingest", json={"content": content})
     assert ingest_resp.status_code == 202
