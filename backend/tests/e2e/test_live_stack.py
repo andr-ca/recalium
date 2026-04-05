@@ -250,13 +250,7 @@ async def test_semantic_search_graceful_degraded(live_client: httpx.AsyncClient)
 
 # ── Canonical Memory ──────────────────────────────────────────────────────────
 
-_CANONICAL_BUG = pytest.mark.xfail(
-    strict=False,
-    reason="App bug: GeneratedAlwaysError — canonical service sets GENERATED ALWAYS column search_vector",
-)
 
-
-@_CANONICAL_BUG
 async def test_create_canonical_item(live_client: httpx.AsyncClient) -> None:
     """POST /api/canonical creates a manual canonical memory item (201)."""
     tag = uuid4()
@@ -272,7 +266,6 @@ async def test_create_canonical_item(live_client: httpx.AsyncClient) -> None:
     await live_client.delete(f"/api/canonical/{canonical_id}")
 
 
-@_CANONICAL_BUG
 async def test_canonical_list_contains_created_item(live_client: httpx.AsyncClient) -> None:
     """Create a canonical item, then GET /api/canonical confirms it is present."""
     tag = uuid4()
@@ -293,7 +286,6 @@ async def test_canonical_list_contains_created_item(live_client: httpx.AsyncClie
     assert delete_resp.status_code == 204
 
 
-@_CANONICAL_BUG
 async def test_delete_canonical_item(live_client: httpx.AsyncClient) -> None:
     """Create then DELETE /api/canonical/{id} returns 204 and item is absent."""
     tag = uuid4()

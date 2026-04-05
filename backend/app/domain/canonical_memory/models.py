@@ -13,6 +13,7 @@ import uuid
 from datetime import datetime, timezone
 
 from sqlalchemy import String, Text, TIMESTAMP, ForeignKey, Enum as SAEnum
+from sqlalchemy.schema import FetchedValue
 from sqlalchemy.dialects.postgresql import UUID, TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -55,5 +56,7 @@ class CanonicalMemoryItem(Base):
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
     )
-    search_vector: Mapped[str | None] = mapped_column(TSVECTOR, nullable=True)
+    search_vector: Mapped[str | None] = mapped_column(
+        TSVECTOR, nullable=True, server_default=FetchedValue()
+    )
     # DB-generated: to_tsvector('english', content). Do not set manually.
