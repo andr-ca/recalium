@@ -261,14 +261,22 @@ async def dispatch_job(session: AsyncSession, job: Job) -> None:
     # ── Step 3: LLM summarize + extract (only if gate allows AND provider configured) ──
     if not sensitivity_decision.blocked:
         if not _has_llm_provider():
-            # No provider — mark pending_provider and skip LLM steps
+            # No provider — run FTS first (local, no LLM needed), then mark pending_provider
+            try:
+                existing_summary_fts = await get_existing_summary(session, job.raw_archive_id)
+                fts_text = existing_summary_fts.summary_text if existing_summary_fts else raw_text[:10000]
+                await write_fts_entry(
+                    session,
+                    raw_archive_id=job.raw_archive_id,
+                    text_content=fts_text,
+                )
+                logger.debug("Wrote FTS entry for job %s (no LLM provider)", job.id)
+            except Exception as e:
+                logger.warning("FTS indexing failed for job %s (non-fatal): %s", job.id, e)
             await set_pending_provider(
                 session, job,
                 reason="No LLM provider configured. Add an OpenAI, Anthropic, or Ollama key in Settings.",
             )
-            # Note: FTS still runs even when pending_provider (local, no external call)
-            # But we return here — job status is pending_provider, not completed
-            # FTS is a bonus once provider is configured and job is retried
             return
 
         # BYOK-08: Check if summary already exists — skip if present
