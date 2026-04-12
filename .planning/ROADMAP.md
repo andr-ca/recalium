@@ -220,3 +220,15 @@ Plans:
 
 Plans:
 - [ ] TBD (promote with /gsd-review-backlog when ready)
+
+---
+
+### Phase 999.4: Import/export — llmwiki format bridge (BACKLOG)
+
+**Goal:** Allow Recalium to import a directory of LLM-maintained wiki markdown files (the persistent-wiki pattern format) into the knowledge store, and export Recalium's derived knowledge (facts, summaries, canonical memory, wiki pages) back out as a portable llmwiki markdown directory. Enables interoperability with Obsidian-based workflows and migration between the flat-file and structured-DB approaches.
+**Source:** Persistent-wiki pattern (LLM-maintained markdown knowledge base); complements 999.1 wiki synthesis pages and the existing Recalium Memory Bundle export format.
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with /gsd-review-backlog when ready)
