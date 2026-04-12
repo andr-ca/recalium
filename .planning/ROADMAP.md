@@ -182,3 +182,41 @@ Plans:
 
 *Roadmap created: 2026-03-22*
 *Last updated: 2026-03-24 after completing Phase 5 (all 6 plans executed, 191 tests passing, 4 Phase 5 reqs verified)*
+
+---
+
+## Backlog
+
+### Phase 999.1: Wiki synthesis pages as derived type (BACKLOG)
+
+**Goal:** Introduce a `wiki_pages` derived table alongside `facts` and `summaries` — LLM-generated entity/concept pages that cross-reference multiple sources and hold higher-order synthesis (not just atomic facts).
+**Source:** Inspired by the persistent-wiki pattern (LLM-maintained markdown knowledge base); validated against Recalium's existing pipeline architecture April 2026.
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with /gsd-review-backlog when ready)
+
+---
+
+### Phase 999.2: Knowledge lint — periodic pipeline health job (BACKLOG)
+
+**Goal:** Add a periodic lint operation that surfaces: superseded/contradicted facts, orphaned derived items with no retrieval links, important concepts mentioned but lacking synthesis, and knowledge gaps the user could fill with new sources.
+**Source:** Inspired by the persistent-wiki pattern lint operation; maps to Recalium's existing `conflict_groups` and `review_queue_items` infrastructure.
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with /gsd-review-backlog when ready)
+
+---
+
+### Phase 999.3: Query-to-wiki — promote MCP query answers back to knowledge store (BACKLOG)
+
+**Goal:** Allow answers generated from MCP retrieval queries to be filed back into the knowledge store as `canonical_memory` or a new synthesis type, so exploratory analysis compounds over time rather than disappearing into chat history.
+**Source:** Inspired by the persistent-wiki pattern query→file-back operation; extends existing `canonical_memory` promotion flow.
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with /gsd-review-backlog when ready)
