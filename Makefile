@@ -1,4 +1,13 @@
-.PHONY: up down logs build shell-app shell-db migrate reset-dev
+.PHONY: setup-env up up-prod down logs build frontend-dev frontend-build frontend-test test-backend test-backend-e2e test-frontend lint typecheck validate smoke eval shell-app shell-db migrate reset-dev
+
+## Create .env from .env.sample if it does not already exist
+setup-env:
+	@if [ -f .env ]; then \
+		echo ".env already exists; leaving it unchanged"; \
+	else \
+		cp .env.sample .env; \
+		echo "Created .env from .env.sample; edit it before production use"; \
+	fi
 
 ## Start all services (development mode with hot-reload)
 up:
@@ -20,6 +29,50 @@ logs:
 ## Build images
 build:
 	docker compose build
+
+## Start the Vite frontend dev server
+frontend-dev:
+	cd frontend && pnpm dev
+
+## Build the frontend production assets
+frontend-build:
+	cd frontend && pnpm install && pnpm build
+
+## Run frontend unit/component tests
+frontend-test:
+	cd frontend && pnpm test
+
+## Run backend tests
+test-backend:
+	cd backend && pytest
+
+## Run live-stack backend E2E tests; requires docker compose up
+test-backend-e2e:
+	cd backend && pytest tests/e2e
+
+## Alias for frontend tests
+test-frontend: frontend-test
+
+## Type-check frontend and lint backend if configured
+lint:
+	cd frontend && pnpm lint
+	cd backend && uv run ruff check app tests
+
+## Type-check frontend build boundary
+typecheck:
+	cd frontend && pnpm build
+
+## Run evaluation suite against live stack; requires docker compose up
+eval:
+	cd backend && uv run --project . python ../evals/runner.py --base-url http://localhost:8000 --output-dir ../evals/results
+
+## Smoke-check local API; requires docker compose up
+smoke:
+	curl -fsS http://localhost:$${APP_PORT:-8000}/api/health >/dev/null
+	@echo "Recalium API health check passed"
+
+## Local validation bundle excluding UI E2E until Playwright is added
+validate: test-backend frontend-build frontend-test
 
 ## Open shell in app container
 shell-app:

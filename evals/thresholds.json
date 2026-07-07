@@ -1,0 +1,70 @@
+{
+  "schema_version": "1.0",
+  "frozen_at": "2026-07-07T00:00:00Z",
+  "rationale": "Baseline thresholds established from product claims (ingest/search ≤1s/≤2s) and evaluation best practice (recall≥0.7 hybrid, span≥0.95 for provenance)",
+  "thresholds": {
+    "ingest_latency_p95_ms": {
+      "value": 1000,
+      "operator": "<=",
+      "description": "Ingest latency P95 must be ≤1 second (product claim)"
+    },
+    "extraction_recall": {
+      "value": 0.6,
+      "operator": ">=",
+      "description": "Extraction must capture ≥60% of golden facts (baseline; >0.6 indicates truncation/hallucination issues)"
+    },
+    "extraction_precision": {
+      "value": 0.7,
+      "operator": ">=",
+      "description": "Extracted facts must be ≥70% correct (baseline; <0.7 indicates LLM hallucination)"
+    },
+    "extraction_span_fidelity": {
+      "value": 0.95,
+      "operator": ">=",
+      "description": "Source spans must be ≥95% verbatim substrings of raw source (stringent; provenance is the differentiator)"
+    },
+    "retrieval_recall_at_5_hybrid": {
+      "value": 0.5,
+      "operator": ">=",
+      "description": "Hybrid retrieval must find ≥50% of relevant facts in top-5 (baseline)"
+    },
+    "retrieval_recall_at_10_hybrid": {
+      "value": 0.7,
+      "operator": ">=",
+      "description": "Hybrid retrieval must find ≥70% of relevant facts in top-10 (main threshold; beats keyword-only ~40%)"
+    },
+    "retrieval_mrr_hybrid": {
+      "value": 0.3,
+      "operator": ">=",
+      "description": "Mean reciprocal rank for hybrid ≥0.3 (first relevant item ≤rank 3 on average)"
+    },
+    "retrieval_ndcg_at_10_hybrid": {
+      "value": 0.6,
+      "operator": ">=",
+      "description": "Normalized DCG@10 for hybrid ≥0.6 (ranking quality accounting for relevance gradation)"
+    },
+    "retrieval_latency_p95_ms": {
+      "value": 2000,
+      "operator": "<=",
+      "description": "Search latency P95 must be ≤2 seconds (product claim)"
+    },
+    "sensitivity_block_rate": {
+      "value": 1.0,
+      "operator": "==",
+      "description": "100% of personal/relationship-labeled facts must be blocked from external dispatch (zero tolerance for leaks)"
+    },
+    "mcp_error_correctness": {
+      "value": 1.0,
+      "operator": "==",
+      "description": "100% of malformed MCP requests must return structured error envelopes (not 500 errors)"
+    }
+  },
+  "notes": [
+    "Thresholds are frozen for v1.1 to enable longitudinal comparison across runs.",
+    "Do not modify thresholds during v1.1 release cycle without explicit decision.",
+    "Baseline is established on initial run against live stack.",
+    "If baseline cannot be established (stack down, no provider key), eval suite outputs 'INCOMPLETE' and exits code 0 (not a failure).",
+    "Extraction recall <0.6 likely indicates F3 (truncation on long conversations) or F4 (hallucinated spans filtering).",
+    "Sensitivity block_rate and MCP error_correctness use '==' operator (must equal threshold exactly); other metrics use >= or <="
+  ]
+}
