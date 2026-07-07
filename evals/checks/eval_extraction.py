@@ -60,63 +60,63 @@ async def run_check(client: httpx.AsyncClient, golden: Dict[str, Any], settings:
 
         golden_facts_by_conv[conv_id] = golden_facts
 
-        # Ingest conversation
-        payload = {
-            "content": raw_text,
-            "source_metadata": {
-                "source": conv.get("source", "synthetic_test"),
-                "title": conv.get("title", ""),
-            },
-            "idempotency_key": f"eval-extraction-{conv_id}",
-            "sensitivity_hint": "public",
-        }
+        # Reuse archive IDs recorded by the ingest check when available;
+        # otherwise ingest via the HTTP contract (mode/content/source_name, 202)
+        base_url = settings.get("base_url", "http://localhost:8000")
+        archive_ids = list(settings.get("ingested_archive_ids", {}).get(conv_id, []))
 
         try:
-            response = await client.post(
-                f"{settings.get('base_url', 'http://localhost:8000')}/api/ingest",
-                json=payload,
-                timeout=5.0,
-            )
+            if not archive_ids:
+                response = await client.post(
+                    f"{base_url}/api/ingest",
+                    json={
+                        "mode": "text",
+                        "content": raw_text,
+                        "source_name": f"eval-{conv_id}",
+                    },
+                    timeout=5.0,
+                )
+                if response.status_code not in (200, 202):
+                    continue
+                archive_ids = response.json().get("archive_ids", [])
+                if not archive_ids:
+                    continue
 
-            if response.status_code != 200:
-                continue
-
-            data = response.json()
-            canonical_id = data.get("canonical_id") or data.get("id")
-
-            if not canonical_id:
-                continue
-
-            # Poll for extracted facts (with timeout)
-            max_polls = 10
-            poll_interval = 1.0  # seconds
+            # Poll for extracted facts (LLM extraction is async and can be slow)
+            max_polls = 20
+            poll_interval = 3.0  # seconds
+            archive_id_set = set(archive_ids)
 
             for attempt in range(max_polls):
-                # Fetch facts for this canonical item
                 try:
                     facts_response = await client.get(
-                        f"{settings.get('base_url', 'http://localhost:8000')}/api/facts",
-                        params={"canonical_id": canonical_id},
-                        timeout=5.0,
+                        f"{base_url}/api/facts",
+                        params={"limit": 500},
+                        timeout=10.0,
                     )
-
                     if facts_response.status_code == 200:
                         facts_data = facts_response.json()
-                        facts = facts_data.get("facts", [])
-
-                        if facts:
-                            # Convert to simple dict format for comparison
-                            extracted = [{"text": f.get("text", "")} for f in facts]
-                            extracted_facts_by_conv[conv_id] = extracted
+                        facts = facts_data.get("facts", facts_data.get("items", []))
+                        ours = [
+                            f for f in facts
+                            if f.get("raw_archive_id") in archive_id_set
+                        ]
+                        if ours:
+                            extracted_facts_by_conv[conv_id] = [
+                                {
+                                    "text": f.get("fact_text", ""),
+                                    "source_span": f.get("source_span"),
+                                }
+                                for f in ours
+                            ]
                             break
-
                 except Exception:
                     pass
 
                 if attempt < max_polls - 1:
                     await asyncio.sleep(poll_interval)
 
-        except Exception as e:
+        except Exception:
             continue
 
     if not extracted_facts_by_conv or not golden_facts_by_conv:

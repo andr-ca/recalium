@@ -1,0 +1,123 @@
+{
+  "timestamp": "2026-07-07T18:36:24.654852Z",
+  "overall_passed": true,
+  "thresholds": {
+    "ingest_latency_p95_ms": {
+      "value": 1000,
+      "operator": "<=",
+      "description": "Ingest latency P95 must be \u22641 second (product claim)"
+    },
+    "extraction_recall": {
+      "value": 0.6,
+      "operator": ">=",
+      "description": "Extraction must capture \u226560% of golden facts (baseline; >0.6 indicates truncation/hallucination issues)"
+    },
+    "extraction_precision": {
+      "value": 0.7,
+      "operator": ">=",
+      "description": "Extracted facts must be \u226570% correct (baseline; <0.7 indicates LLM hallucination)"
+    },
+    "extraction_span_fidelity": {
+      "value": 0.95,
+      "operator": ">=",
+      "description": "Source spans must be \u226595% verbatim substrings of raw source (stringent; provenance is the differentiator)"
+    },
+    "retrieval_recall_at_5_hybrid": {
+      "value": 0.5,
+      "operator": ">=",
+      "description": "Hybrid retrieval must find \u226550% of relevant facts in top-5 (baseline)"
+    },
+    "retrieval_recall_at_10_hybrid": {
+      "value": 0.7,
+      "operator": ">=",
+      "description": "Hybrid retrieval must find \u226570% of relevant facts in top-10 (main threshold; beats keyword-only ~40%)"
+    },
+    "retrieval_mrr_hybrid": {
+      "value": 0.3,
+      "operator": ">=",
+      "description": "Mean reciprocal rank for hybrid \u22650.3 (first relevant item \u2264rank 3 on average)"
+    },
+    "retrieval_ndcg_at_10_hybrid": {
+      "value": 0.6,
+      "operator": ">=",
+      "description": "Normalized DCG@10 for hybrid \u22650.6 (ranking quality accounting for relevance gradation)"
+    },
+    "retrieval_latency_p95_ms": {
+      "value": 2000,
+      "operator": "<=",
+      "description": "Search latency P95 must be \u22642 seconds (product claim)"
+    },
+    "sensitivity_block_rate": {
+      "value": 1.0,
+      "operator": "==",
+      "description": "100% of personal/relationship-labeled facts must be blocked from external dispatch (zero tolerance for leaks)"
+    },
+    "mcp_error_correctness": {
+      "value": 1.0,
+      "operator": "==",
+      "description": "100% of malformed MCP requests must return structured error envelopes (not 500 errors)"
+    }
+  },
+  "checks": [
+    {
+      "name": "ingest",
+      "passed": true,
+      "skipped": false,
+      "skip_reason": "",
+      "metrics": {
+        "latency_p50_ms": 5.365252494812012,
+        "latency_p95_ms": 9.110140800476072,
+        "latency_p99_ms": 9.637198448181152,
+        "success_rate": 1.0,
+        "count_ingested": 4
+      },
+      "details": "Ingested 4/4 conversations. P95 latency: 9ms (threshold: 1000ms). Success rate: 100%."
+    },
+    {
+      "name": "extraction",
+      "passed": false,
+      "skipped": true,
+      "skip_reason": "No OPENAI_API_KEY, ANTHROPIC_API_KEY, or OLLAMA_BASE_URL in environment",
+      "metrics": {},
+      "details": "No LLM provider configured"
+    },
+    {
+      "name": "retrieval",
+      "passed": true,
+      "skipped": false,
+      "skip_reason": "",
+      "metrics": {
+        "keyword_recall_at_5": 0.875,
+        "keyword_recall_at_10": 0.875,
+        "keyword_mrr": 0.875,
+        "keyword_ndcg_at_10": 0.875,
+        "keyword_latency_p95_ms": 38.15728425979612
+      },
+      "details": "Retrieval evaluation across 10 queries:\n  KEYWORD: R@5=87.50%, R@10=87.50%, MRR=0.88, nDCG=0.88, P95=38ms (adversarial: 2 tested, 0 crashed)\nThresholds: R@10\u226570% (hybrid), P95\u22642000ms, hybrid \u2265 best single mode"
+    },
+    {
+      "name": "sensitivity",
+      "passed": false,
+      "skipped": true,
+      "skip_reason": "Sensitivity gate decision is not observable via API \u2014 needs an audit event or job field exposing gate category/blocked (see docs/recommendations.md)",
+      "metrics": {
+        "sensitive_conversations_ingested": 1,
+        "sensitive_conversations_total": 1
+      },
+      "details": "Ingested 1/1 sensitive conversations (local capture works). Gate verification NOT POSSIBLE via public API: the block decision is logged but not exposed through job status or audit events."
+    },
+    {
+      "name": "mcp",
+      "passed": true,
+      "skipped": false,
+      "skip_reason": "",
+      "metrics": {
+        "ingest_accepted": 1.0,
+        "retrieve_memory_provenance": 1.0,
+        "retrieve_budget_metadata": 1.0,
+        "structured_error_correctness": 1.0
+      },
+      "details": "MCP protocol (SSE) contract: ingest_accepted=\u2713, retrieve_provenance=\u2713, retrieve_budget_metadata=\u2713, structured_errors=\u2713."
+    }
+  ]
+}

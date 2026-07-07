@@ -88,17 +88,26 @@ Evals produce:
 
 ### Sensitivity Metrics
 
+**Currently SKIPPED (honest limitation):** the gate's block decision is only
+written to server logs — it is not exposed via job status, audit events, or any
+API, so no external eval can verify blocking without false confidence. The
+check still ingests the sensitive conversations (local capture must always
+work) and reports the skip reason. See `docs/recommendations.md` (F15) for the
+API change that unblocks this check; the intended metric once observable:
+
 **sensitivity_block_rate:** Fraction of personal/relationship-labeled facts blocked from external dispatch.
 - Formula: `|blocked_personal_facts| / |personal_facts|`
-- Range: 0.0–1.0
 - Threshold: 1.0 (100% block required; any leak is a critical failure)
 
 ### MCP Metrics
 
-**error_correctness:** Fraction of malformed MCP requests that return structured error envelopes (not 500 errors).
-- Formula: `|structured_errors| / |malformed_requests|`
-- Range: 0.0–1.0
-- Threshold: 1.0 (all errors must be well-formed)
+Exercised over the real MCP protocol (SSE transport via `mcp.client.sse`),
+mirroring `backend/tests/e2e/test_live_stack.py`:
+
+- **ingest_accepted:** well-formed `ingest_memory` request is accepted (1.0 required)
+- **retrieve_memory_provenance:** retrieved items carry `provenance`, `source_id`, `type`, `conflict_label` (1.0 required)
+- **retrieve_budget_metadata:** response carries `budget_used`, `budget_limit`, `trimming_reason`, `retrieval_mode` (1.0 required)
+- **structured_error_correctness:** malformed `ingest_memory` returns a structured error envelope with `type`/`code` (1.0 required)
 
 ## Thresholds
 
@@ -116,6 +125,18 @@ Baseline thresholds are defined in `thresholds.json`:
 | mcp_error_correctness | 1.0 (100%) | Critical: errors must be well-formed |
 
 Thresholds are **frozen for v1.1** (not changed between runs) to enable longitudinal comparison. Baseline is established on initial run against live stack.
+
+## Idempotency and Cleanup
+
+Eval items are ingested with `source_name` prefixed `eval-` (e.g.
+`eval-conv-001`, `eval-sensitivity-conv-003`, `eval-mcp-contract-<tag>`). At
+the start of each run, the ingest check **soft-deletes all prior `eval-`
+items** via `DELETE /api/archive/{id}` before ingesting fresh copies. This
+keeps runs repeatable — without it, identical already-indexed copies from
+earlier runs shadow the current run's items and recall collapses to zero — and
+prevents eval data from accumulating in your archive. Retrieval relevance is
+resolved through the current run's server-assigned `archive_ids`, matched
+against each retrieved item's `source_id`.
 
 ## No-Key Mode Behavior
 

@@ -45,16 +45,73 @@ async def run_check(client: httpx.AsyncClient, golden: Dict[str, Any], settings:
             skip_reason="Empty queries list",
         )
 
-    # Try semantic search; skip if embeddings not available
+    base_url = settings.get("base_url", "http://localhost:8000")
+
+    # Relevance ground truth: golden fact IDs -> parent conversation ->
+    # server-assigned archive_ids recorded by the ingest check. Retrieved items
+    # are matched on their source_id (works in no-key mode where items are excerpts).
+    fact_to_conv = {
+        fact["id"]: conv["id"]
+        for conv in golden.get("conversations", [])
+        for fact in conv.get("facts", [])
+    }
+    ingested_map: Dict[str, List[str]] = settings.get("ingested_archive_ids", {})
+    if not ingested_map:
+        return CheckResult(
+            name="retrieval",
+            passed=False,
+            metrics={},
+            details="Ingest check did not record archive IDs; cannot resolve relevance labels",
+            skipped=True,
+            skip_reason="No ingested_archive_ids from ingest check",
+        )
+
+    def relevant_archive_ids(fact_ids: List[str]) -> List[str]:
+        conv_ids = {fact_to_conv[fid] for fid in fact_ids if fid in fact_to_conv}
+        ids: List[str] = []
+        for cid in conv_ids:
+            ids.extend(ingested_map.get(cid, []))
+        return ids
+
+    async def search(query_text: str, mode: str) -> httpx.Response:
+        return await client.get(
+            f"{base_url}/api/search",
+            params={"q": query_text, "mode": mode},
+            timeout=10.0,
+        )
+
+    async def invalidate_cache() -> None:
+        # Retrieval service holds a 60s TTL cache; clear it so fresh pipeline
+        # output is visible to the queries below.
+        try:
+            await client.post(f"{base_url}/api/search/invalidate-cache", timeout=5.0)
+        except Exception:
+            pass
+
+    # Wait (bounded) for the async pipeline to index ingested conversations:
+    # poll the first labeled query until a relevant source_id appears.
+    probe = next((q for q in queries if q.get("relevant_fact_ids")), None)
+    if probe is not None:
+        probe_relevant = set(relevant_archive_ids(probe["relevant_fact_ids"]))
+        deadline = time.time() + 90
+        while time.time() < deadline:
+            await invalidate_cache()
+            try:
+                resp = await search(probe["text"], "keyword")
+                if resp.status_code == 200:
+                    found = {i.get("source_id") for i in resp.json().get("items", [])}
+                    if found & probe_relevant:
+                        break
+            except Exception:
+                pass
+            await asyncio.sleep(5)
+        await invalidate_cache()
+
+    # Try semantic search; skip if embeddings not available (degraded mode)
     modes = ["keyword"]
     try:
-        # Test if semantic search works
-        test_response = await client.post(
-            f"{settings.get('base_url', 'http://localhost:8000')}/api/search",
-            json={"query": "test", "mode": "semantic"},
-            timeout=5.0,
-        )
-        if test_response.status_code == 200:
+        test_response = await search("test", "semantic")
+        if test_response.status_code == 200 and not test_response.json().get("degraded_mode", False):
             modes.extend(["semantic", "hybrid"])
     except Exception:
         pass  # Fall back to keyword-only
@@ -71,38 +128,45 @@ async def run_check(client: httpx.AsyncClient, golden: Dict[str, Any], settings:
     } for mode in modes}
 
     for query in queries:
-        query_id = query["id"]
         query_text = query["text"]
-        relevant_fact_ids = query.get("relevant_fact_ids", [])
+        relevant_ids = relevant_archive_ids(query.get("relevant_fact_ids", []))
         is_adversarial = query.get("is_adversarial", False)
 
         for mode in modes:
             try:
                 start_time = time.time()
-                response = await client.post(
-                    f"{settings.get('base_url', 'http://localhost:8000')}/api/search",
-                    json={"query": query_text, "mode": mode},
-                    timeout=5.0,
-                )
+                response = await search(query_text, mode)
                 elapsed_ms = (time.time() - start_time) * 1000
 
-                if response.status_code != 200:
-                    if is_adversarial:
+                if is_adversarial:
+                    # Adversarial queries only assert "no server error" (5xx)
+                    results_by_mode[mode]["adversarial_count"] += 1
+                    if response.status_code >= 500:
                         results_by_mode[mode]["adversarial_crashes"] += 1
                     continue
 
+                if response.status_code != 200:
+                    continue
+
                 data = response.json()
-                results = data.get("results", [])
-                retrieved_ids = [r.get("id") or r.get("fact_id") for r in results]
+                # Rank order of distinct source archives (items share source_id
+                # when several excerpts/facts derive from one conversation)
+                retrieved_ids: List[str] = []
+                for item in data.get("items", []):
+                    sid = item.get("source_id")
+                    if sid and sid not in retrieved_ids:
+                        retrieved_ids.append(sid)
+
+                if not relevant_ids:
+                    continue  # No labels for this query; nothing to score
 
                 # Calculate metrics
-                r_at_5 = recall_at_k(relevant_fact_ids, retrieved_ids, 5)
-                r_at_10 = recall_at_k(relevant_fact_ids, retrieved_ids, 10)
-                m = mrr(relevant_fact_ids, retrieved_ids)
+                r_at_5 = recall_at_k(relevant_ids, retrieved_ids, 5)
+                r_at_10 = recall_at_k(relevant_ids, retrieved_ids, 10)
+                m = mrr(relevant_ids, retrieved_ids)
 
-                # nDCG: use relevance scores if available, else binary (1 if in relevant set)
                 relevance_scores = [
-                    1.0 if rid in relevant_fact_ids else 0.0
+                    1.0 if rid in relevant_ids else 0.0
                     for rid in retrieved_ids
                 ]
                 n = ndcg_at_k(relevance_scores, 10)
@@ -113,10 +177,7 @@ async def run_check(client: httpx.AsyncClient, golden: Dict[str, Any], settings:
                 results_by_mode[mode]["ndcgs"].append(n)
                 results_by_mode[mode]["latencies_ms"].append(elapsed_ms)
 
-                if is_adversarial:
-                    results_by_mode[mode]["adversarial_count"] += 1
-
-            except Exception as e:
+            except Exception:
                 if is_adversarial:
                     results_by_mode[mode]["adversarial_crashes"] += 1
 
@@ -163,10 +224,15 @@ async def run_check(client: httpx.AsyncClient, golden: Dict[str, Any], settings:
     semantic_recall = mode_metrics.get("semantic", {}).get("recall_at_10", 0.0)
     best_single_recall = max(keyword_recall, semantic_recall) if "semantic" in modes else keyword_recall
 
+    total_adversarial_crashes = sum(
+        results_by_mode[mode]["adversarial_crashes"] for mode in modes
+    )
+
     passed = (
         hybrid_recall >= recall_at_10_threshold and
         hybrid_recall >= best_single_recall * 0.95 and  # Allow 5% variance
-        hybrid_metrics.get("latency_p95_ms", float("inf")) <= latency_p95_threshold
+        hybrid_metrics.get("latency_p95_ms", float("inf")) <= latency_p95_threshold and
+        total_adversarial_crashes == 0
     )
 
     # Build details string

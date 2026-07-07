@@ -50,91 +50,49 @@ async def run_check(client: httpx.AsyncClient, golden: Dict[str, Any], settings:
             details="No personal/relationship facts in golden dataset to test",
         )
 
-    # Ingest sensitive conversations
-    blocked_count = 0
-    total_sensitive = 0
+    # Ingest sensitive conversations (local storage must always accept them —
+    # the gate blocks external dispatch, never local capture).
+    base_url = settings.get("base_url", "http://localhost:8000")
+    ingest_ok = 0
 
     for conv_info in sensitive_conversations:
-        conv_id = conv_info["conv_id"]
-        raw_text = conv_info["raw_text"]
-        sensitive_facts = conv_info["sensitive_facts"]
-
-        total_sensitive += len(sensitive_facts)
-
-        # Ingest with sensitivity hint
         payload = {
-            "content": raw_text,
-            "source_metadata": {
-                "source": "eval_sensitivity_test",
-                "title": f"Sensitivity test: {conv_id}",
-            },
-            "idempotency_key": f"eval-sensitivity-{conv_id}",
-            "sensitivity_hint": "personal",  # Hint that this may contain sensitive content
+            "mode": "text",
+            "content": conv_info["raw_text"],
+            "source_name": f"eval-sensitivity-{conv_info['conv_id']}",
         }
-
         try:
             response = await client.post(
-                f"{settings.get('base_url', 'http://localhost:8000')}/api/ingest",
-                json=payload,
-                timeout=5.0,
+                f"{base_url}/api/ingest", json=payload, timeout=5.0,
             )
+            if response.status_code in (200, 202) and response.json().get("archive_ids"):
+                ingest_ok += 1
+        except Exception:
+            pass
 
-            if response.status_code != 200:
-                # Ingest failed; assume facts were not dispatched
-                blocked_count += len(sensitive_facts)
-                continue
-
-            data = response.json()
-            canonical_id = data.get("canonical_id") or data.get("id")
-
-            if not canonical_id:
-                # No canonical ID; assume facts were blocked/not created
-                blocked_count += len(sensitive_facts)
-                continue
-
-            # Check fact statuses via audit or job log
-            # For v1, this would require accessing the audit API or job queue.
-            # Placeholder: assume facts with sensitivity hints are blocked correctly.
-            # In production, would verify:
-            # - Facts exist with sensitivity_level set
-            # - Jobs referencing these facts have status='deferred' or 'local', not 'completed'
-            # - No external API calls were made for these facts
-
-            # For now, validate that the API accepted the sensitivity hint gracefully
-            blocked_count += len(sensitive_facts)
-
-        except Exception as e:
-            # Error during ingest; assume facts were blocked
-            blocked_count += len(sensitive_facts)
-
-    if total_sensitive == 0:
-        return CheckResult(
-            name="sensitivity",
-            passed=True,
-            metrics={"block_rate": 1.0, "sensitive_facts_tested": 0},
-            details="No sensitive facts in test set",
-        )
-
-    block_rate = blocked_count / total_sensitive
-
-    # Threshold: must be 100% (zero tolerance for leaks)
-    threshold = 1.0
-    passed = block_rate >= threshold
-
-    details = (
-        f"Sensitivity gate test: {blocked_count}/{total_sensitive} personal/relationship facts "
-        f"blocked from external dispatch. Block rate: {block_rate:.0%} (threshold: {threshold:.0%}). "
-        f"Note: Verification via audit log (ideal) deferred to manual testing; "
-        f"eval validates that API accepts sensitivity hints gracefully."
-    )
-
+    # HONEST LIMITATION: the gate's block decision is only written to server
+    # logs (dispatcher logs "Sensitivity gate: ... blocked=True"); it is not
+    # exposed via job status, audit events, or any API. Without that surface —
+    # and without a per-source facts filter — no external eval can verify that
+    # sensitive content was withheld from external providers. Reporting a pass
+    # here would be false confidence on the product's worst failure mode, so
+    # this check is SKIPPED until the gate decision is observable.
+    # See docs/recommendations.md (sensitivity-gate observability).
     return CheckResult(
         name="sensitivity",
-        passed=passed,
+        passed=False,
         metrics={
-            "block_rate": block_rate,
-            "blocked_count": blocked_count,
-            "total_sensitive": total_sensitive,
+            "sensitive_conversations_ingested": ingest_ok,
+            "sensitive_conversations_total": len(sensitive_conversations),
         },
-        details=details,
+        details=(
+            f"Ingested {ingest_ok}/{len(sensitive_conversations)} sensitive conversations "
+            f"(local capture works). Gate verification NOT POSSIBLE via public API: "
+            f"the block decision is logged but not exposed through job status or audit events."
+        ),
+        skipped=True,
+        skip_reason=(
+            "Sensitivity gate decision is not observable via API — needs an audit event "
+            "or job field exposing gate category/blocked (see docs/recommendations.md)"
+        ),
     )

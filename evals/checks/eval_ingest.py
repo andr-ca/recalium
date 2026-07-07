@@ -30,20 +30,38 @@ async def run_check(client: httpx.AsyncClient, golden: Dict[str, Any], settings:
     successes = 0
     failures = 0
 
+    base_url = settings.get("base_url", "http://localhost:8000")
+
+    # Idempotency: soft-delete leftovers from previous eval runs first, so
+    # relevance labels (this run's archive IDs) aren't shadowed by identical
+    # already-indexed copies, and the user's archive doesn't accumulate dupes.
+    try:
+        resp = await client.get(
+            f"{base_url}/api/archive",
+            params={"q": "eval-", "limit": 200},
+            timeout=10.0,
+        )
+        if resp.status_code == 200:
+            for item in resp.json().get("items", []):
+                if (item.get("source_name") or "").startswith("eval-"):
+                    await client.delete(f"{base_url}/api/archive/{item['id']}", timeout=10.0)
+    except Exception:
+        pass  # Cleanup is best-effort; duplicates only degrade recall
+
+    # conv_id -> list[archive_id] mapping, shared with downstream checks
+    # (retrieval relevance is resolved against these server-assigned IDs)
+    ingested_map: Dict[str, list] = settings.setdefault("ingested_archive_ids", {})
+
     for conv in golden.get("conversations", []):
         conv_id = conv["id"]
         raw_text = conv["raw_text"]
 
-        # Prepare ingest payload
+        # HTTP ingest contract (POST /api/ingest): mode/content/source_name.
+        # source_name tags eval items so they stay identifiable in the archive.
         payload = {
+            "mode": "text",
             "content": raw_text,
-            "source_metadata": {
-                "source": conv.get("source", "synthetic_test"),
-                "title": conv.get("title", ""),
-                "import_method": conv.get("metadata", {}).get("import_method", "eval_test"),
-            },
-            "idempotency_key": f"eval-{conv_id}",
-            "sensitivity_hint": "public",
+            "source_name": f"eval-{conv_id}",
         }
 
         try:
@@ -55,17 +73,20 @@ async def run_check(client: httpx.AsyncClient, golden: Dict[str, Any], settings:
             )
             elapsed_ms = (time.time() - start_time) * 1000
 
-            if response.status_code == 200:
+            # API returns 202 Accepted with archive_ids
+            if response.status_code in (200, 202):
                 data = response.json()
-                if "canonical_id" in data or "id" in data:
+                archive_ids = data.get("archive_ids", [])
+                if archive_ids:
                     successes += 1
                     latencies_ms.append(elapsed_ms)
+                    ingested_map[conv_id] = archive_ids
                 else:
                     failures += 1
             else:
                 failures += 1
 
-        except Exception as e:
+        except Exception:
             failures += 1
 
     total = successes + failures

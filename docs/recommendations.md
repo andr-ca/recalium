@@ -399,6 +399,54 @@ Performance metrics table (STATE.md): ingest P95 ≤1s, search P95 ≤2s, restor
 
 ---
 
+## 8. Live Baseline Findings (2026-07-07 eval run)
+
+The eval suite was executed against the live local stack (no-key mode,
+`EMBED_BACKEND=none`) on 2026-07-07. First baseline, evidence in
+`evals/results/2026-07-07T18-36-24.654852/`:
+
+| Claim | Measured | Verdict |
+|-------|----------|---------|
+| Ingest P95 ≤ 1s | P95 well under threshold (single-digit ms per paste ingest) | ✓ holds at current scale |
+| Search P95 ≤ 2s | Keyword P95 ≈ 15ms (tiny dataset — re-measure at 100k items) | ✓ holds at current scale |
+| Relevant retrieval | Keyword R@5 = 87.5%, MRR = 0.88 on 8 labeled queries | ✓ baseline; semantic/hybrid unmeasured (embeddings disabled) |
+| Adversarial queries don't crash FTS | 2/2 returned non-5xx | ✓ |
+| MCP contract (ingest, provenance, budget metadata, structured errors) | 4/4 via real MCP SSE protocol | ✓ |
+| Sensitivity gate blocks external dispatch | **Unverifiable from outside** | ⚠ see F15 |
+| Extraction quality (precision/recall/span fidelity) | Skipped — no LLM provider configured | — run with a key to baseline |
+
+Running the eval surfaced three new verified findings:
+
+### F15: Sensitivity gate decision is unobservable (P0 for trust claims)
+
+The gate's block decision is only written to server logs
+(`backend/app/worker/dispatcher.py:499-503` — `logger.info("Sensitivity gate: ... blocked=%s")`).
+When blocked, the job skips LLM steps and **completes normally** — no job field,
+no audit event, no API surface records that blocking occurred. No external test,
+eval, or user can verify the product's most important privacy promise.
+**Fix:** emit an `AuditEvent` (e.g. `sensitivity_gate_blocked`) with category +
+confidence, and/or expose the gate decision on the job/archive item. Then
+un-skip `evals/checks/eval_sensitivity.py`, which documents this dependency.
+
+### F16: Facts cannot be filtered by source archive item
+
+`GET /api/facts` filters by `source_status`/`review_status`/`confidence_tier`
+(`backend/app/api/routes/facts.py:131-137`) but not by `raw_archive_id`.
+Attribution ("which facts came from this conversation?") requires paging the
+whole list and filtering client-side — the eval suite does exactly that
+(`evals/checks/eval_extraction.py`), and the provenance UI story would benefit
+from the same filter. **Fix:** add a `raw_archive_id` query param.
+
+### F17: Idempotency replay after deletion returns success for a dead item
+
+MCP `ingest_memory` replays a stored response when an `idempotency_key` is
+reused — including after the original archive item was deleted. The caller gets
+"accepted" but nothing exists or will be retrievable. Decide the intended
+semantics (recreate, or return a `deleted` status) and cover with a test.
+Found because the eval suite's cleanup + fixed key produced exactly this state.
+
+---
+
 ## Appendix: Analysis Findings Reference
 
 | Finding | File:Line | Brief | Recommendation |
@@ -417,6 +465,9 @@ Performance metrics table (STATE.md): ingest P95 ≤1s, search P95 ≤2s, restor
 | F12 | STATE.md Performance Metrics | Restore SLA ≤15 min, ingest P95 ≤1s, search P95 ≤2s all "Not yet measured" | Eval suite (this task) measures ingest P95 and search P95; defer restore to v1.2 if needed |
 | F13 | ANALYSIS.md section 2 + git status | RR-001…RR-014 work is implemented but uncommitted on `main` (release-integrity risk) | Merge in reviewable slices for v1.0.1; this task focuses on v1.1 quality evidence |
 | F14 | `backend/app/domain/...` (schema) | Embeddings record model_name+dim per row; provider-switch stale-embedding fallback exists | Status: correct (no action needed) |
+| F15 | `backend/app/worker/dispatcher.py:499-503` | Sensitivity gate block decision only in logs — unverifiable via API | Emit `sensitivity_gate_blocked` AuditEvent; then un-skip the sensitivity eval |
+| F16 | `backend/app/api/routes/facts.py:131-137` | No `raw_archive_id` filter on facts list; per-source attribution is client-side | Add `raw_archive_id` query param |
+| F17 | `backend/app/mcp_server/server.py` (ingest_memory idempotency) | Idempotent replay after source deletion returns "accepted" for a nonexistent item | Define replay-after-delete semantics + test |
 
 ---
 

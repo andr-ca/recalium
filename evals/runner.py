@@ -126,21 +126,24 @@ Examples:
         help="Base URL of Recalium API (default: http://localhost:8000)",
     )
 
+    # Defaults resolve relative to this file so the runner works from any CWD
+    evals_root = Path(__file__).resolve().parent
+
     parser.add_argument(
         "--output-dir",
-        default="evals/results",
+        default=str(evals_root / "results"),
         help="Output directory for reports (default: evals/results)",
     )
 
     parser.add_argument(
         "--golden",
-        default="evals/datasets/golden.json",
+        default=str(evals_root / "datasets" / "golden.json"),
         help="Path to golden dataset (default: evals/datasets/golden.json)",
     )
 
     parser.add_argument(
         "--thresholds",
-        default="evals/thresholds.json",
+        default=str(evals_root / "thresholds.json"),
         help="Path to thresholds config (default: evals/thresholds.json)",
     )
 
