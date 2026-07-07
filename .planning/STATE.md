@@ -132,6 +132,12 @@ Overall ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  52/52 requ
 
 _(none)_
 
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 260707-jlg | In-depth project analysis, recommendations doc (docs/recommendations.md), and eval suite (evals/) with first live baseline | 2026-07-07 | e4dd775 | [260707-jlg-in-depth-project-analysis-recommendation](./quick/260707-jlg-in-depth-project-analysis-recommendation/) |
+
 ---
 
 ## Session Continuity
@@ -180,4 +186,4 @@ _(none)_
 
 ---
 
-*Last updated: 2026-03-24 after completing Phase 5 — all 5 phases done, 191 tests passing, milestone complete*
+*Last updated: 2026-07-07 — Completed quick task 260707-jlg: analysis + recommendations doc + eval suite; first live eval baseline recorded (keyword R@5 87.5%, MRR 0.88); new findings F15–F17 in docs/recommendations.md*
