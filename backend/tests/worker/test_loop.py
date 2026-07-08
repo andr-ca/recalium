@@ -126,3 +126,65 @@ async def test_stale_claimed_jobs_reset_on_startup(db_session_phase2):
     await db_session_phase2.refresh(stale_job)
 
     assert stale_job.status == "pending"
+
+
+async def test_worker_loop_persists_status_transitions(db_session_phase2, monkeypatch):
+    """Regression (F19): status transitions made during dispatch must persist.
+
+    The loop must run claim_next_job and dispatch_job in the SAME session:
+    complete_job mutates the claimed Job instance, which is only attached to
+    the session that loaded it. With a second session the commit persists
+    nothing and the job stays 'claimed' forever (then gets stale-reset and
+    reprocessed on every restart).
+    """
+    import asyncio
+    from datetime import datetime, timezone
+
+    from sqlalchemy import select
+
+    import app.worker.dispatcher as dispatcher_module
+    from app.domain.jobs.models import Job
+    from app.domain.jobs.service import complete_job
+
+    archive_item = await _make_archive_item(db_session_phase2)
+    job = Job(
+        id=uuid.uuid4(),
+        job_type="process_archive_item",
+        raw_archive_id=archive_item.id,
+        status="pending",
+    )
+    db_session_phase2.add(job)
+    await db_session_phase2.commit()
+    job_id = job.id
+
+    async def fake_dispatch(session, claimed_job):
+        # Mimic real dispatch: terminal transition via jobs.service helpers
+        await complete_job(session, claimed_job)
+
+    monkeypatch.setattr(dispatcher_module, "dispatch_job", fake_dispatch)
+
+    loop_task = asyncio.create_task(worker_loop())
+    try:
+        deadline = asyncio.get_event_loop().time() + 15
+        status = None
+        while asyncio.get_event_loop().time() < deadline:
+            # Read through an independent session — what the DB actually holds
+            result = await db_session_phase2.execute(
+                select(Job.status).where(Job.id == job_id)
+            )
+            db_session_phase2.expire_all()
+            status = result.scalar_one_or_none()
+            if status == "completed":
+                break
+            await asyncio.sleep(0.5)
+    finally:
+        loop_task.cancel()
+        try:
+            await loop_task
+        except asyncio.CancelledError:
+            pass
+
+    assert status == "completed", (
+        f"Job status in DB is {status!r} after dispatch — status transition "
+        "was not persisted (claim and dispatch must share one session)"
+    )

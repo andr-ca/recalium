@@ -44,19 +44,24 @@ async def worker_loop() -> None:
     while True:
         try:
             async with sem:
+                # One session spans claim AND dispatch: complete_job/fail_job/
+                # set_pending_provider mutate the claimed Job instance, which is
+                # only attached to the session that loaded it. With a second
+                # session those status commits persist nothing and every job
+                # stays 'claimed' forever (then gets stale-reset and reprocessed).
                 async with session_factory() as session:
                     job = await claim_next_job(session)
+
+                    if job is not None:
+                        logger.info("Processing job %s (type=%s)", job.id, job.job_type)
+
+                        # Dispatch job through pipeline — import here to avoid circular imports
+                        from app.worker.dispatcher import dispatch_job  # noqa: PLC0415
+                        await dispatch_job(session, job)
 
                 if job is None:
                     await asyncio.sleep(_POLL_INTERVAL_SECONDS)
                     continue
-
-                logger.info("Processing job %s (type=%s)", job.id, job.job_type)
-
-                # Dispatch job through pipeline — import here to avoid circular imports
-                from app.worker.dispatcher import dispatch_job  # noqa: PLC0415
-                async with session_factory() as session:
-                    await dispatch_job(session, job)
 
         except asyncio.CancelledError:
             logger.info("Pipeline worker loop cancelled — shutting down cleanly")

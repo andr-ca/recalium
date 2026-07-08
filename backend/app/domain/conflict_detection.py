@@ -51,7 +51,9 @@ async def find_duplicate_candidates(
             LIMIT :max_candidates
         """),
         {
-            "vec": str(embedding),
+            # Rows read back through pgvector are numpy arrays, whose str() is
+            # space-separated and NOT valid pgvector input — coerce to list first
+            "vec": str(embedding.tolist() if hasattr(embedding, "tolist") else list(embedding)),
             "exclude_id": str(exclude_id),
             "threshold": DUPLICATE_DISTANCE_THRESHOLD,
             "max_candidates": _MAX_CANDIDATES,

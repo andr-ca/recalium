@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import logging
+import uuid
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -47,13 +48,17 @@ For each fact:
 1. Write the fact as a single declarative sentence (fact_text)
 2. Copy the EXACT quote from the source that supports this fact (source_span)
 3. Assign confidence: "high" (explicit statement), "medium" (implied), "low" (uncertain)
+4. List named entities mentioned in the fact (people, places, organizations, products) as "entities"
+5. List 1-3 short topic tags that categorise the fact (lower-case, e.g. "python", "performance", "security") as "tags"
 
 Return JSON object with "facts" array:
 {"facts": [
   {
     "fact_text": "User's name is Alice.",
     "source_span": "My name is Alice",
-    "confidence_tier": "high"
+    "confidence_tier": "high",
+    "entities": ["Alice"],
+    "tags": ["identity"]
   }
 ]}
 
@@ -178,6 +183,249 @@ async def _run_extract_job(text: str) -> list[dict[str, Any]]:
     return []  # No provider configured
 
 
+async def _run_link_detection_job(session: AsyncSession, raw_archive_id: "uuid.UUID") -> None:
+    """Build memory links for all facts derived from raw_archive_id.
+
+    Three passes — each non-fatal:
+      Pass A (semantic) — for each new fact, find up to 5 semantically similar
+                          facts from other archive items (cosine via pgvector),
+                          create link_type='related'.
+      Pass B (LLM typed) — ask LLM to classify the top-5 pairs as
+                          supports|elaborates|contradicts|unrelated.
+                          Only runs if an LLM provider is configured.
+      Pass C (entity)   — for each entity in the extracted tags, find other
+                          active facts that contain the same entity string,
+                          create link_type='entity'.
+
+    All DB writes go via write_links() which deduplicates triplets.
+    """
+    import uuid  # noqa: PLC0415
+
+    from sqlalchemy import select, text as sa_text  # noqa: PLC0415
+    from app.domain.derived_memory.models import Fact, Embedding  # noqa: PLC0415
+    from app.domain.derived_memory.service import write_links  # noqa: PLC0415
+
+    # Load facts that belong to this archive item
+    fact_rows = (await session.execute(
+        select(Fact)
+        .where(Fact.raw_archive_id == raw_archive_id)
+        .where(Fact.source_status == "active")
+    )).scalars().all()
+
+    if not fact_rows:
+        return
+
+    # ── Pass A: semantic links via embedding similarity ──────────────────────
+    embedding_row = (await session.execute(
+        select(Embedding)
+        .where(Embedding.raw_archive_id == raw_archive_id)
+        .where(Embedding.source_status == "active")
+        .limit(1)
+    )).scalar_one_or_none()
+
+    semantic_fact_ids: list[uuid.UUID] = []
+    if embedding_row is not None:
+        # Find up to 5 active facts from other archives with similar embeddings
+        rows = (await session.execute(
+            sa_text(
+                """
+                SELECT f.id
+                FROM facts f
+                JOIN embeddings e ON e.raw_archive_id = f.raw_archive_id
+                WHERE f.source_status = 'active'
+                  AND e.source_status = 'active'
+                  AND f.raw_archive_id != :this_id
+                ORDER BY e.embedding <=> CAST(:vec AS vector)
+                LIMIT 5
+                """
+            ),
+            {
+                "this_id": str(raw_archive_id),
+                # numpy str() is space-separated — not valid pgvector input
+                "vec": str(
+                    embedding_row.embedding.tolist()
+                    if hasattr(embedding_row.embedding, "tolist")
+                    else list(embedding_row.embedding)
+                ),
+            },
+        )).fetchall()
+        semantic_fact_ids = [row[0] for row in rows]
+
+    links_to_write: list[dict] = []
+    for src_fact in fact_rows:
+        for tgt_fact_id in semantic_fact_ids:
+            links_to_write.append({
+                "source_fact_id": src_fact.id,
+                "target_fact_id": tgt_fact_id,
+                "link_type": "related",
+                "confidence": 0.7,
+                "created_by": "pipeline_semantic",
+                "entity_name": None,
+            })
+
+    if links_to_write:
+        await write_links(session, links_to_write)
+        links_to_write = []
+
+    # ── Pass B: LLM typed classification of top-5 semantic pairs ─────────────
+    if semantic_fact_ids and _has_llm_provider():
+        # Load target fact texts for the LLM prompt
+        tgt_facts = (await session.execute(
+            select(Fact)
+            .where(Fact.id.in_(semantic_fact_ids))
+            .where(Fact.source_status == "active")
+        )).scalars().all()
+        tgt_by_id = {f.id: f for f in tgt_facts}
+
+        for src_fact in fact_rows[:3]:  # limit to 3 source facts per archive
+            for tgt_id in semantic_fact_ids[:5]:
+                tgt_fact = tgt_by_id.get(tgt_id)
+                if tgt_fact is None:
+                    continue
+                try:
+                    link_type = await _classify_link_pair(src_fact.fact_text, tgt_fact.fact_text)
+                    if link_type and link_type != "unrelated":
+                        links_to_write.append({
+                            "source_fact_id": src_fact.id,
+                            "target_fact_id": tgt_fact.id,
+                            "link_type": link_type,
+                            "confidence": 0.8,
+                            "created_by": "pipeline_llm",
+                            "entity_name": None,
+                        })
+                except Exception as exc:
+                    logger.debug("LLM link classification failed (non-fatal): %s", exc)
+
+        if links_to_write:
+            await write_links(session, links_to_write)
+            links_to_write = []
+
+    # ── Pass C: entity co-mention links ──────────────────────────────────────
+    # Load entity names from fact_tags for this archive's facts
+    from app.domain.derived_memory.models import MemoryLink as _ML  # noqa: PLC0415, F401
+
+    entity_rows = (await session.execute(
+        sa_text(
+            """
+            SELECT DISTINCT ml.entity_name
+            FROM memory_links ml
+            WHERE ml.link_type = 'entity'
+              AND ml.entity_name IS NOT NULL
+              AND ml.source_fact_id = ANY(:fact_ids)
+            LIMIT 20
+            """
+        ),
+        {"fact_ids": [str(f.id) for f in fact_rows]},
+    )).fetchall()
+    # entity_rows from pass C won't exist yet on first run — skip if empty
+    # Instead, rebuild entity links from the tags stored during extraction
+    # (entities are stored as tag rows with prefix 'entity:')
+    entity_tags_rows = (await session.execute(
+        sa_text(
+            """
+            SELECT DISTINCT t.name
+            FROM tags t
+            JOIN fact_tags ft ON ft.tag_id = t.id
+            JOIN facts f ON f.id = ft.fact_id
+            WHERE f.raw_archive_id = :this_id
+              AND f.source_status = 'active'
+              AND t.name LIKE 'entity:%'
+            """
+        ),
+        {"this_id": str(raw_archive_id)},
+    )).fetchall()
+
+    for (entity_tag_name,) in entity_tags_rows:
+        entity_name = entity_tag_name[len("entity:"):]
+        if not entity_name:
+            continue
+        # Find other facts that also have this entity tag
+        other_fact_rows = (await session.execute(
+            sa_text(
+                """
+                SELECT DISTINCT f.id
+                FROM facts f
+                JOIN fact_tags ft ON ft.fact_id = f.id
+                JOIN tags t ON t.id = ft.tag_id
+                WHERE t.name = :entity_tag
+                  AND f.source_status = 'active'
+                  AND f.raw_archive_id != :this_id
+                LIMIT 10
+                """
+            ),
+            {"entity_tag": entity_tag_name, "this_id": str(raw_archive_id)},
+        )).fetchall()
+
+        for src_fact in fact_rows:
+            for (tgt_fact_id,) in other_fact_rows:
+                links_to_write.append({
+                    "source_fact_id": src_fact.id,
+                    "target_fact_id": tgt_fact_id,
+                    "link_type": "entity",
+                    "confidence": 1.0,
+                    "created_by": "pipeline_entity",
+                    "entity_name": entity_name,
+                })
+
+    if links_to_write:
+        await write_links(session, links_to_write)
+
+
+async def _classify_link_pair(source_text: str, target_text: str) -> str | None:
+    """Ask LLM to classify the typed relationship between two fact texts.
+
+    Returns one of: 'supports', 'elaborates', 'contradicts', 'unrelated', or None on error.
+    Prompt is minimal to reduce token usage.
+    """
+    prompt = (
+        f"Fact A: {source_text}\n"
+        f"Fact B: {target_text}\n\n"
+        "How does Fact B relate to Fact A? "
+        "Reply with exactly one word: supports, elaborates, contradicts, or unrelated."
+    )
+    settings = get_settings()
+
+    try:
+        if settings.openai_api_key:
+            from openai import AsyncOpenAI  # noqa: PLC0415
+            client = AsyncOpenAI(api_key=settings.openai_api_key)
+            resp = await client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0,
+                max_tokens=5,
+            )
+            return resp.choices[0].message.content.strip().lower() or None
+
+        if settings.anthropic_api_key:
+            from anthropic import AsyncAnthropic  # noqa: PLC0415
+            client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+            resp = await client.messages.create(
+                model="claude-3-haiku-20240307",
+                max_tokens=5,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            return resp.content[0].text.strip().lower() or None
+
+        if settings.ollama_base_url:
+            from openai import AsyncOpenAI  # noqa: PLC0415
+            client = AsyncOpenAI(
+                api_key=settings.ollama_api_key or "ollama",
+                base_url=f"{settings.ollama_base_url.rstrip('/')}/v1",
+            )
+            resp = await client.chat.completions.create(
+                model=settings.ollama_model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0,
+                max_tokens=5,
+            )
+            return resp.choices[0].message.content.strip().lower() or None
+    except Exception as exc:
+        logger.debug("_classify_link_pair failed: %s", exc)
+
+    return None
+
+
 def _provider_name() -> str:
     """Return name of configured LLM provider (for derivation_model field)."""
     settings = get_settings()
@@ -218,6 +466,7 @@ async def dispatch_job(session: AsyncSession, job: Job) -> None:
         write_summary,
         write_facts,
         write_fts_entry,
+        write_tags,
         get_existing_summary,
     )
 
@@ -296,6 +545,8 @@ async def dispatch_job(session: AsyncSession, job: Job) -> None:
                     logger.debug("Wrote summary for job %s", job.id)
             except Exception as e:
                 error_type = type(e).__name__
+                await session.rollback()  # clear any aborted tx so the status write succeeds
+                await session.refresh(job)  # rollback expired the instance
                 await fail_job(
                     session, job,
                     error=f"{error_type}: {str(e)[:500]}",
@@ -311,14 +562,32 @@ async def dispatch_job(session: AsyncSession, job: Job) -> None:
                 for f in facts_data
             ]
             if enriched_facts:
-                await write_facts(
+                created_facts = await write_facts(
                     session,
                     raw_archive_id=job.raw_archive_id,
                     facts_data=enriched_facts,
                 )
                 logger.debug("Wrote %d facts for job %s", len(enriched_facts), job.id)
+
+                # Persist tags and entity tags extracted alongside each fact
+                for fact_obj, fact_raw in zip(created_facts, enriched_facts):
+                    tags: list[str] = fact_raw.get("tags") or []
+                    entities: list[str] = fact_raw.get("entities") or []
+                    # Store entities as special 'entity:<name>' tags for pass-C link detection
+                    entity_tags = [f"entity:{e.strip().lower()}" for e in entities if e.strip()]
+                    all_tags = tags + entity_tags
+                    if all_tags:
+                        try:
+                            await write_tags(session, fact_obj.id, all_tags)
+                        except Exception as tag_exc:
+                            logger.warning(
+                                "Tag persistence failed for fact %s (non-fatal): %s",
+                                fact_obj.id, tag_exc,
+                            )
         except Exception as e:
             error_type = type(e).__name__
+            await session.rollback()  # clear any aborted tx so the status write succeeds
+            await session.refresh(job)  # rollback expired the instance
             await fail_job(
                 session, job,
                 error=f"{error_type}: {str(e)[:500]}",
@@ -339,6 +608,8 @@ async def dispatch_job(session: AsyncSession, job: Job) -> None:
         logger.debug("Wrote FTS entry for job %s", job.id)
     except Exception as e:
         logger.warning("FTS indexing failed for job %s (non-fatal): %s", job.id, e)
+        await session.rollback()  # aborted tx would wedge every later step
+        await session.refresh(job)  # rollback expired the instance
         # FTS failure is non-fatal — job still completes
 
     # ── Step 5: Embeddings (local sentence-transformers — no API key needed) ──
@@ -370,6 +641,8 @@ async def dispatch_job(session: AsyncSession, job: Job) -> None:
     except Exception as e:
         # Embedding failure is non-fatal (local model) — log and continue to completion
         logger.warning("Embedding step failed for job %s (non-fatal): %s", job.id, e)
+        await session.rollback()  # aborted tx would wedge every later step
+        await session.refresh(job)  # rollback expired the instance
 
     # ── Step 6: Conflict detection (CANM-06) ─────────────────────────────────
     try:
@@ -393,7 +666,17 @@ async def dispatch_job(session: AsyncSession, job: Job) -> None:
                 )
     except Exception as e:
         logger.warning("Conflict detection failed for job %s (non-fatal): %s", job.id, e)
+        await session.rollback()  # aborted tx would wedge every later step
+        await session.refresh(job)  # rollback expired the instance
 
-    # ── Complete ──────────────────────────────────────────────────────────────
+    # ── Step 7: Link detection (passes A/B/C) ────────────────────────────────
+    try:
+        await _run_link_detection_job(session, job.raw_archive_id)
+        logger.debug("Link detection complete for job %s", job.id)
+    except Exception as e:
+        logger.warning("Link detection failed for job %s (non-fatal): %s", job.id, e)
+        await session.rollback()  # aborted tx would wedge every later step
+        await session.refresh(job)  # rollback expired the instance
+
     await complete_job(session, job)
     logger.info("Completed job %s", job.id)
