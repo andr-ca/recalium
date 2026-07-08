@@ -67,6 +67,74 @@ Return {"facts": []} if no facts can be extracted with a source span."""
 
 # ── Provider routing ──────────────────────────────────────────────────────────
 
+# F3: extraction quality drops sharply past the first turn — models (measured
+# with qwen3.5:4b, eval run 3) extract mainly from the beginning of multi-turn
+# conversations, and very long conversations exceed attention/token budgets.
+# Split on turn boundaries and extract per chunk.
+_EXTRACT_CHUNK_CHARS = 1200
+
+def _split_conversation(text: str, max_chunk_chars: int = _EXTRACT_CHUNK_CHARS) -> list[str]:
+    """Split a conversation into contiguous verbatim slices ≤ max_chunk_chars.
+
+    Splits preferentially at turn boundaries (lines starting with User:/
+    Assistant:/Human:/AI:), packing consecutive turns greedily. A single turn
+    longer than max is hard-split. Every chunk is a contiguous slice of the
+    original text, so extracted source_spans stay verbatim in the full source.
+    """
+    import re  # noqa: PLC0415
+
+    if len(text) <= max_chunk_chars:
+        return [text]
+
+    boundaries = [0] + [
+        m.start() for m in re.finditer(r"^(?:User|Assistant|Human|AI):", text, re.MULTILINE)
+        if m.start() != 0
+    ] + [len(text)]
+
+    chunks: list[str] = []
+    chunk_start = 0
+    chunk_end = 0
+    for i in range(len(boundaries) - 1):
+        seg_start, seg_end = boundaries[i], boundaries[i + 1]
+        seg_len = seg_end - seg_start
+
+        if seg_len > max_chunk_chars:
+            # Oversized single turn: flush accumulator, then hard-split it
+            if chunk_end > chunk_start:
+                chunks.append(text[chunk_start:chunk_end])
+            pos = seg_start
+            while seg_end - pos > max_chunk_chars:
+                chunks.append(text[pos:pos + max_chunk_chars])
+                pos += max_chunk_chars
+            if pos < seg_end:
+                chunks.append(text[pos:seg_end])
+            chunk_start = chunk_end = seg_end
+        elif (chunk_end - chunk_start) + seg_len > max_chunk_chars:
+            # Adding this turn would overflow: flush, start new chunk with it
+            if chunk_end > chunk_start:
+                chunks.append(text[chunk_start:chunk_end])
+            chunk_start, chunk_end = seg_start, seg_end
+        else:
+            chunk_end = seg_end
+
+    if chunk_end > chunk_start:
+        chunks.append(text[chunk_start:chunk_end])
+
+    return [c for c in chunks if c.strip()]
+
+
+def _dedupe_facts(facts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Drop facts whose normalized fact_text was already produced (chunk overlap)."""
+    seen: set[str] = set()
+    result: list[dict[str, Any]] = []
+    for fact in facts:
+        key = " ".join((fact.get("fact_text") or "").lower().split()).rstrip(".")
+        if key and key not in seen:
+            seen.add(key)
+            result.append(fact)
+    return result
+
+
 def _parse_json_object(raw: str) -> dict:
     """Parse the first JSON object out of model output.
 
@@ -162,11 +230,27 @@ async def _run_summarize_job(text: str) -> str | None:
 
 
 async def _run_extract_job(text: str) -> list[dict[str, Any]]:
-    """Run LLM fact extraction. Returns list of fact dicts or [] if no provider configured.
+    """Run LLM fact extraction over turn-boundary chunks (F3).
+
+    Models extract predominantly from the beginning of multi-turn
+    conversations; chunking recovers facts from later turns and bounds input
+    size for very long conversations. Facts are merged and deduped.
 
     Returns [] (not None) when no provider is configured — FTS still runs.
     Raises exception on API error (caller converts to retryable_failed).
     """
+    settings = get_settings()
+    if not (settings.openai_api_key or settings.anthropic_api_key or settings.ollama_base_url):
+        return []  # No provider configured
+
+    facts: list[dict[str, Any]] = []
+    for chunk in _split_conversation(text):
+        facts.extend(await _extract_chunk(chunk))
+    return _dedupe_facts(facts)
+
+
+async def _extract_chunk(text: str) -> list[dict[str, Any]]:
+    """Single-call fact extraction for one chunk."""
     settings = get_settings()
 
     if settings.openai_api_key:

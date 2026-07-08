@@ -114,7 +114,7 @@ This converts "unmeasured" into "measured and transparent."
 
 - **F1 (Hardcoded models)**: Move model names to `.env` (SUMMARIZE_MODEL, EXTRACT_MODEL)
 - **F2 (Per-function providers)**: Add SUMMARIZE_PROVIDER, EXTRACT_PROVIDER, EMBED_PROVIDER settings; enable local-only extraction mode
-- **F3 (Truncation on long conversations)**: Implement map-reduce conversation chunking for dialogues >4k tokens; validates no facts are silently dropped
+- **F3 (DONE 2026-07-08)**: turn-boundary chunked extraction implemented (`_split_conversation`, verbatim-slice chunks + fact dedupe); lifted extraction from 57.7%/65.6% to 62.5% recall / 76.7% precision with qwen3.5:4b — first fully green eval run (5/5, zero skips; evidence: docs/operational/tests/artifacts/eval-green-2026-07-08/)
 - **F4 (Hallucinated spans)**: Add verbatim substring validation at write time; reject facts with unverifiable spans
 - **F7 (Budget unit clarity)**: Rename `DEFAULT_BUDGET` to `CHAR_BUDGET` or define TOKEN_BUDGET with explicit tokenizer
 - **F8 (Cache invalidation)**: Replace manual TTLCache invalidation with event-driven pubsub (pgvector LISTEN/NOTIFY or similar)

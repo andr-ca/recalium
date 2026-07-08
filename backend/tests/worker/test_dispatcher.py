@@ -125,3 +125,51 @@ async def test_completed_subjob_not_rerun(db_session_phase2):
             disp._run_summarize_job = original
 
     assert call_count["n"] == 0, "Summarize ran again even though summary exists"
+
+
+# ── Chunked extraction (F3) ───────────────────────────────────────────────────
+
+from app.worker.dispatcher import _split_conversation, _dedupe_facts  # noqa: E402
+
+
+def test_split_short_text_single_chunk():
+    text = "User: Hi\n\nAssistant: Hello!"
+    assert _split_conversation(text, max_chunk_chars=1500) == [text]
+
+
+def test_split_on_turn_boundaries_chunks_are_verbatim_slices():
+    """Chunks must be contiguous verbatim substrings of the source so
+    extracted source_spans remain verbatim in the FULL document."""
+    turns = []
+    for i in range(6):
+        turns.append(f"User: question number {i} " + "x" * 300)
+        turns.append(f"Assistant: answer number {i} " + "y" * 300)
+    text = "\n\n".join(turns)
+
+    chunks = _split_conversation(text, max_chunk_chars=1500)
+
+    assert len(chunks) > 1
+    for chunk in chunks:
+        assert chunk in text  # verbatim slice
+        assert len(chunk) <= 1500 or "\n" not in chunk.strip()
+    # No content lost
+    assert sum(len(c) for c in chunks) >= len(text) - 2 * len(chunks)
+
+
+def test_split_oversized_single_turn_hard_splits():
+    text = "Assistant: " + "z" * 5000
+    chunks = _split_conversation(text, max_chunk_chars=1500)
+    assert len(chunks) >= 3
+    assert all(c in text for c in chunks)
+    assert "".join(chunks) == text
+
+
+def test_dedupe_facts_removes_near_identical_statements():
+    facts = [
+        {"fact_text": "The capital of France is Paris.", "source_span": "a"},
+        {"fact_text": "the capital of france is paris", "source_span": "b"},
+        {"fact_text": "Rust has one owner per value.", "source_span": "c"},
+    ]
+    result = _dedupe_facts(facts)
+    assert len(result) == 2
+    assert result[0]["fact_text"] == "The capital of France is Paris."
