@@ -1,0 +1,13 @@
+# Recalium MCP server for Codex CLI.
+#
+# Codex speaks MCP over stdio, so we bridge to Recalium's local SSE endpoint with
+# `mcp-remote` (requires Node.js / npx). Append this block to ~/.codex/config.toml
+# (or run: codex mcp add recalium -- npx -y mcp-remote http://localhost:8000/mcp/sse).
+
+[mcp_servers.recalium]
+command = "npx"
+args = ["-y", "mcp-remote", "http://localhost:8000/mcp/sse"]
+
+# Exposed mode (non-localhost): pass a bearer token via an env var — never hardcode it.
+# Set APP_AUTH_BEARER in your shell/.env, then use:
+# args = ["-y", "mcp-remote", "http://localhost:8000/mcp/sse", "--header", "Authorization: Bearer ${APP_AUTH_BEARER}"]

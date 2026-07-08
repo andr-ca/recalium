@@ -5,7 +5,16 @@
         "hooks": [
           {
             "type": "command",
-            "command": "uv run --directory memory python memory/hooks/session-start.py",
+            "command": "uv run --directory memory python hooks/session-start.py",
+            "timeout": 15
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/integrations/recalium/hooks/recalium_session_start.sh\"",
             "timeout": 15
           }
         ]
@@ -16,7 +25,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "uv run --directory memory python memory/hooks/pre-compact.py",
+            "command": "uv run --directory memory python hooks/pre-compact.py",
             "timeout": 15
           }
         ]
@@ -27,8 +36,17 @@
         "hooks": [
           {
             "type": "command",
-            "command": "uv run --directory memory python memory/hooks/session-end.py",
+            "command": "uv run --directory memory python hooks/session-end.py",
             "timeout": 30
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/integrations/recalium/hooks/recalium_stop.sh\"",
+            "timeout": 15
           }
         ]
       }

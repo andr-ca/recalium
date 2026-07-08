@@ -1,0 +1,56 @@
+---
+description: Use Recalium as durable long-term memory — retrieve relevant context before a task and ingest source-backed memory after.
+globs:
+alwaysApply: true
+---
+
+# Recalium Memory
+
+Use Recalium as durable, local-first long-term memory in any project. It captures
+conversations and facts once and lets any MCP-compatible client retrieve
+source-backed context later — without re-explaining. The Recalium MCP server is
+registered as `recalium` (SSE: `http://localhost:8000/mcp/sse`).
+
+## When to use
+
+- Before a task: recall relevant prior decisions, facts, and context.
+- After a task: store durable, source-backed memory for future sessions.
+- When you need linked facts (`get_fact_links`) or the tag vocabulary (`list_tags`).
+- Any time the user says "remember this", "what did we decide", or "recall".
+
+## Prerequisites
+
+- Confirm reachable: `GET http://localhost:8000/api/health` returns `200`.
+- If health fails, ask the user to start Recalium; do not fabricate a repo path.
+- Auth: localhost needs no token. Exposed mode sends
+  `Authorization: Bearer <APP_AUTH_BEARER>` from the user's `.env` — never hardcode it.
+
+## Core loop: retrieve before, ingest after
+
+1. **Retrieve first**: call `retrieve_memory` with a focused query before acting.
+2. **Check provenance**: inspect `provenance`, `source_id`, `source_system`,
+   `captured_at`, and `conflict_label` before trusting an item. Prefer
+   `canonical_only=true` for vetted memory over raw archive.
+3. **Do the task** using the recalled context.
+4. **Ingest after**: call `ingest_memory` to persist durable, source-backed context.
+5. **Never** treat an item as fact without its source; surface conflicts
+   (`conflict_label`) to the user instead of silently choosing a side.
+
+## Tools
+
+- `retrieve_memory(query, mode="hybrid", budget=2000, category, source_system, time_range_start, time_range_end, canonical_only, tags, actor)` — returns `items[]` with provenance + `degraded_mode`.
+- `ingest_memory(content, source_metadata, client_identity, import_method, idempotency_key, sensitivity_hint, project_hint, processing_mode)` — `content` >= 10 chars, `source_metadata` required. Returns `{"status":"accepted","archive_ids":[...]}`.
+- `get_fact_links(fact_id, direction)` — expand related facts.
+- `list_tags(prefix, min_count)` — discover valid tag names.
+
+## Error envelope
+
+`{"status":"error","error":{"code","message","details","retryable"}}`. Fix
+`validation_error` input; reuse prior result on `idempotency_conflict`; retry
+`internal_error` once then report. Surface `error.message` verbatim.
+
+## Safety
+
+- Never hardcode keys, tokens, or secrets. Redact before `ingest_memory`.
+- Respect `conflict_label` — present conflicts, do not resolve them silently.
+- Keep the local-first, BYOK posture.
