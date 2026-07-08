@@ -1,6 +1,8 @@
 """Sensitivity gate evaluation (personal/relationship fact blocking)."""
 
 import asyncio
+import os
+import time
 from typing import Dict, Any
 import httpx
 
@@ -53,6 +55,7 @@ async def run_check(client: httpx.AsyncClient, golden: Dict[str, Any], settings:
     # Ingest sensitive conversations (local storage must always accept them —
     # the gate blocks external dispatch, never local capture).
     base_url = settings.get("base_url", "http://localhost:8000")
+    sensitive_archive_ids: list = []
     ingest_ok = 0
 
     for conv_info in sensitive_conversations:
@@ -65,34 +68,123 @@ async def run_check(client: httpx.AsyncClient, golden: Dict[str, Any], settings:
             response = await client.post(
                 f"{base_url}/api/ingest", json=payload, timeout=5.0,
             )
-            if response.status_code in (200, 202) and response.json().get("archive_ids"):
-                ingest_ok += 1
+            if response.status_code in (200, 202):
+                ids = response.json().get("archive_ids", [])
+                if ids:
+                    ingest_ok += 1
+                    sensitive_archive_ids.extend(ids)
         except Exception:
             pass
 
-    # HONEST LIMITATION: the gate's block decision is only written to server
-    # logs (dispatcher logs "Sensitivity gate: ... blocked=True"); it is not
-    # exposed via job status, audit events, or any API. Without that surface —
-    # and without a per-source facts filter — no external eval can verify that
-    # sensitive content was withheld from external providers. Reporting a pass
-    # here would be false confidence on the product's worst failure mode, so
-    # this check is SKIPPED until the gate decision is observable.
-    # See docs/recommendations.md (sensitivity-gate observability).
+    # Provider check (server truth): the gate only matters when an LLM provider
+    # exists — without one, NOTHING is dispatched externally and blocking is
+    # indistinguishable from no-provider idling.
+    has_provider = False
+    try:
+        keys_resp = await client.get(f"{base_url}/api/settings/keys", timeout=5.0)
+        if keys_resp.status_code == 200:
+            has_provider = any(p.get("configured") for p in keys_resp.json().values())
+    except Exception:
+        pass
+
+    if not has_provider:
+        # HONEST LIMITATION: with no provider, the differential test below is
+        # meaningless, and the gate decision itself is only written to server
+        # logs — not exposed via job status or audit events (F15 in
+        # docs/recommendations.md). Direct observability would let this check
+        # run in no-key mode too.
+        return CheckResult(
+            name="sensitivity",
+            passed=False,
+            metrics={
+                "sensitive_conversations_ingested": ingest_ok,
+                "sensitive_conversations_total": len(sensitive_conversations),
+            },
+            details=(
+                f"Ingested {ingest_ok}/{len(sensitive_conversations)} sensitive conversations "
+                f"(local capture works). Gate verification requires a configured provider "
+                f"(differential test) or direct gate observability (F15)."
+            ),
+            skipped=True,
+            skip_reason=(
+                "No provider configured — blocking is indistinguishable from idling. "
+                "Configure a provider, or expose the gate decision via audit/API (F15)"
+            ),
+        )
+
+    # DIFFERENTIAL GATE TEST (provider configured):
+    # sensitive conversations must yield ZERO extracted facts, while control
+    # conversations (extraction check) DID yield facts through the same
+    # pipeline+provider. A leak here means personal content reached the LLM.
+    control_worked = settings.get("extraction_worked", False)
+
+    # Wait for the sensitive items' jobs to finish processing
+    pipeline_timeout = float(os.getenv("EVAL_PIPELINE_TIMEOUT_S", "300"))
+    deadline = time.time() + pipeline_timeout
+    done_states = {"Done", "Failed", "Pending Provider"}
+    while time.time() < deadline:
+        try:
+            resp = await client.get(
+                f"{base_url}/api/archive",
+                params={"q": "eval-sensitivity-", "limit": 50},
+                timeout=10.0,
+            )
+            items = [
+                i for i in resp.json().get("items", [])
+                if i["id"] in set(sensitive_archive_ids)
+            ]
+            if items and all(i.get("status_badge") in done_states for i in items):
+                break
+        except Exception:
+            pass
+        await asyncio.sleep(5)
+
+    # Any facts attributed to the sensitive archive items?
+    leaked_facts = []
+    try:
+        facts_resp = await client.get(
+            f"{base_url}/api/facts", params={"limit": 500}, timeout=10.0,
+        )
+        if facts_resp.status_code == 200:
+            data = facts_resp.json()
+            facts = data.get("facts", data.get("items", []))
+            leaked_facts = [
+                f for f in facts
+                if f.get("raw_archive_id") in set(sensitive_archive_ids)
+            ]
+    except Exception:
+        pass
+
+    if not control_worked:
+        return CheckResult(
+            name="sensitivity",
+            passed=False,
+            metrics={"leaked_fact_count": float(len(leaked_facts))},
+            details=(
+                "Control failed: extraction check produced no facts for non-sensitive "
+                "conversations, so 'zero facts from sensitive items' proves nothing."
+            ),
+            skipped=True,
+            skip_reason="Extraction control did not produce facts — differential test inconclusive",
+        )
+
+    blocked = len(leaked_facts) == 0
+    details = (
+        f"Differential gate test: {ingest_ok} sensitive conversations processed with a "
+        f"configured provider; {len(leaked_facts)} facts were derived from them "
+        f"(must be 0) while control conversations produced facts. "
+        f"{'Gate BLOCKED sensitive content from extraction.' if blocked else 'LEAK: sensitive content reached the LLM extraction path!'} "
+        f"Note: direct gate observability (F15) would make this verification exact "
+        f"rather than differential."
+    )
+
     return CheckResult(
         name="sensitivity",
-        passed=False,
+        passed=blocked,
         metrics={
-            "sensitive_conversations_ingested": ingest_ok,
-            "sensitive_conversations_total": len(sensitive_conversations),
+            "block_verified": 1.0 if blocked else 0.0,
+            "leaked_fact_count": float(len(leaked_facts)),
+            "sensitive_conversations_tested": float(ingest_ok),
         },
-        details=(
-            f"Ingested {ingest_ok}/{len(sensitive_conversations)} sensitive conversations "
-            f"(local capture works). Gate verification NOT POSSIBLE via public API: "
-            f"the block decision is logged but not exposed through job status or audit events."
-        ),
-        skipped=True,
-        skip_reason=(
-            "Sensitivity gate decision is not observable via API — needs an audit event "
-            "or job field exposing gate category/blocked (see docs/recommendations.md)"
-        ),
+        details=details,
     )

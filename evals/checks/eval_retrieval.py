@@ -1,6 +1,7 @@
 """Retrieval quality evaluation (recall, precision, MRR, nDCG, latency)."""
 
 import asyncio
+import os
 import time
 from typing import Dict, Any, List
 import httpx
@@ -74,11 +75,18 @@ async def run_check(client: httpx.AsyncClient, golden: Dict[str, Any], settings:
         return ids
 
     async def search(query_text: str, mode: str) -> httpx.Response:
+        # 30s: semantic queries embed in-process and compete with the worker's
+        # CPU-bound pipeline (local LLM + embedding writes) — 10s flaked under load
         return await client.get(
             f"{base_url}/api/search",
             params={"q": query_text, "mode": mode},
-            timeout=10.0,
+            timeout=30.0,
         )
+
+    search_errors: Dict[str, list] = {}
+
+    def record_error(mode: str, exc: Exception) -> None:
+        search_errors.setdefault(mode, []).append(f"{type(exc).__name__}: {exc}")
 
     async def invalidate_cache() -> None:
         # Retrieval service holds a 60s TTL cache; clear it so fresh pipeline
@@ -89,11 +97,18 @@ async def run_check(client: httpx.AsyncClient, golden: Dict[str, Any], settings:
             pass
 
     # Wait (bounded) for the async pipeline to index ingested conversations:
-    # poll the first labeled query until a relevant source_id appears.
-    probe = next((q for q in queries if q.get("relevant_fact_ids")), None)
+    # poll the first labeled query until a relevant source_id appears. With an
+    # LLM provider configured, FTS/embeddings are written AFTER the summarize/
+    # extract steps, so allow generous time (override via EVAL_PIPELINE_TIMEOUT_S).
+    pipeline_timeout = float(os.getenv("EVAL_PIPELINE_TIMEOUT_S", "300"))
+    probe = next(
+        (q for q in queries
+         if q.get("relevant_fact_ids") and not q.get("semantic_only")),
+        None,
+    )
     if probe is not None:
         probe_relevant = set(relevant_archive_ids(probe["relevant_fact_ids"]))
-        deadline = time.time() + 90
+        deadline = time.time() + pipeline_timeout
         while time.time() < deadline:
             await invalidate_cache()
             try:
@@ -107,14 +122,29 @@ async def run_check(client: httpx.AsyncClient, golden: Dict[str, Any], settings:
             await asyncio.sleep(5)
         await invalidate_cache()
 
-    # Try semantic search; skip if embeddings not available (degraded mode)
+    # Try semantic search; skip if embeddings not available (degraded mode).
+    # degraded_mode=False only means SOME embeddings exist (possibly other
+    # items') — so additionally wait until a probe-relevant source_id is
+    # semantically retrievable, i.e. THIS run's items have embeddings.
+    # Embeddings are written last in the pipeline (after LLM steps + FTS).
     modes = ["keyword"]
-    try:
-        test_response = await search("test", "semantic")
-        if test_response.status_code == 200 and not test_response.json().get("degraded_mode", False):
-            modes.extend(["semantic", "hybrid"])
-    except Exception:
-        pass  # Fall back to keyword-only
+    semantic_deadline = time.time() + pipeline_timeout
+    semantic_available = False
+    while time.time() < semantic_deadline:
+        try:
+            await invalidate_cache()
+            test_response = await search(probe["text"] if probe else "test", "semantic")
+            if test_response.status_code == 200 and not test_response.json().get("degraded_mode", False):
+                semantic_available = True
+                found = {i.get("source_id") for i in test_response.json().get("items", [])}
+                if probe is None or (found & set(relevant_archive_ids(probe["relevant_fact_ids"]))):
+                    break
+        except Exception as exc:
+            record_error("semantic-probe", exc)
+        await asyncio.sleep(5)
+    if semantic_available:
+        modes.extend(["semantic", "hybrid"])
+    await invalidate_cache()
 
     # Run search for each query and mode
     results_by_mode: Dict[str, Dict] = {mode: {
@@ -125,12 +155,16 @@ async def run_check(client: httpx.AsyncClient, golden: Dict[str, Any], settings:
         "latencies_ms": [],
         "adversarial_count": 0,
         "adversarial_crashes": 0,
+        # semantic_only paraphrase queries scored separately — keyword/FTS is
+        # EXPECTED to miss them; they measure the recall embeddings add
+        "para_recalls_at_10": [],
     } for mode in modes}
 
     for query in queries:
         query_text = query["text"]
         relevant_ids = relevant_archive_ids(query.get("relevant_fact_ids", []))
         is_adversarial = query.get("is_adversarial", False)
+        is_paraphrase = query.get("semantic_only", False)
 
         for mode in modes:
             try:
@@ -160,6 +194,12 @@ async def run_check(client: httpx.AsyncClient, golden: Dict[str, Any], settings:
                 if not relevant_ids:
                     continue  # No labels for this query; nothing to score
 
+                if is_paraphrase:
+                    results_by_mode[mode]["para_recalls_at_10"].append(
+                        recall_at_k(relevant_ids, retrieved_ids, 10)
+                    )
+                    continue  # Excluded from standard averages by design
+
                 # Calculate metrics
                 r_at_5 = recall_at_k(relevant_ids, retrieved_ids, 5)
                 r_at_10 = recall_at_k(relevant_ids, retrieved_ids, 10)
@@ -177,7 +217,8 @@ async def run_check(client: httpx.AsyncClient, golden: Dict[str, Any], settings:
                 results_by_mode[mode]["ndcgs"].append(n)
                 results_by_mode[mode]["latencies_ms"].append(elapsed_ms)
 
-            except Exception:
+            except Exception as exc:
+                record_error(mode, exc)
                 if is_adversarial:
                     results_by_mode[mode]["adversarial_crashes"] += 1
 
@@ -228,11 +269,32 @@ async def run_check(client: httpx.AsyncClient, golden: Dict[str, Any], settings:
         results_by_mode[mode]["adversarial_crashes"] for mode in modes
     )
 
+    # Paraphrase (semantic_only) metrics: measure what embeddings add.
+    # semantic_lift = paraphrase recall gained by semantic over keyword.
+    def para_recall(mode: str) -> float:
+        vals = results_by_mode.get(mode, {}).get("para_recalls_at_10", [])
+        return sum(vals) / len(vals) if vals else 0.0
+
+    para_keyword = para_recall("keyword")
+    para_semantic = para_recall("semantic")
+    para_hybrid = para_recall("hybrid")
+    semantic_lift = para_semantic - para_keyword
+
+    para_recall_threshold = 0.66  # at least 2 of 3 paraphrase queries found
+
+    embeddings_ok = True
+    if "semantic" in modes:
+        embeddings_ok = (
+            max(para_semantic, para_hybrid) >= para_recall_threshold
+            and semantic_lift > 0
+        )
+
     passed = (
         hybrid_recall >= recall_at_10_threshold and
         hybrid_recall >= best_single_recall * 0.95 and  # Allow 5% variance
         hybrid_metrics.get("latency_p95_ms", float("inf")) <= latency_p95_threshold and
-        total_adversarial_crashes == 0
+        total_adversarial_crashes == 0 and
+        embeddings_ok
     )
 
     # Build details string
@@ -250,6 +312,24 @@ async def run_check(client: httpx.AsyncClient, golden: Dict[str, Any], settings:
                 f" (adversarial: {m['adversarial_count']} tested, {m['adversarial_crashes']} crashed)"
             )
 
+    if "semantic" in modes:
+        details_parts.append(
+            f"\n  PARAPHRASE (semantic_only): keyword R@10={para_keyword:.0%} (expected ~0), "
+            f"semantic R@10={para_semantic:.0%}, hybrid R@10={para_hybrid:.0%}, "
+            f"semantic_lift={semantic_lift:+.0%} (need ≥{para_recall_threshold:.0%} and lift>0)"
+        )
+    else:
+        details_parts.append(
+            "\n  PARAPHRASE: not scored — semantic mode unavailable (degraded/no embeddings)"
+        )
+
+    if search_errors:
+        error_summary = "; ".join(
+            f"{mode}: {len(errs)} errors (last: {errs[-1][:120]})"
+            for mode, errs in search_errors.items()
+        )
+        details_parts.append(f"\n  SEARCH ERRORS: {error_summary}")
+
     details_parts.append(
         f"\nThresholds: R@10≥{recall_at_10_threshold:.0%} (hybrid), "
         f"P95≤{latency_p95_threshold}ms, hybrid ≥ best single mode"
@@ -266,6 +346,9 @@ async def run_check(client: httpx.AsyncClient, golden: Dict[str, Any], settings:
             **{f"{mode}_mrr": mode_metrics[mode]["mrr"] for mode in modes},
             **{f"{mode}_ndcg_at_10": mode_metrics[mode]["ndcg_at_10"] for mode in modes},
             **{f"{mode}_latency_p95_ms": mode_metrics[mode]["latency_p95_ms"] for mode in modes},
+            **{f"{mode}_paraphrase_recall_at_10": para_recall(mode) for mode in modes},
+            "semantic_lift": semantic_lift,
+            "semantic_mode_available": 1.0 if "semantic" in modes else 0.0,
         },
         details=details,
     )

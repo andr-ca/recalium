@@ -29,26 +29,33 @@ async def run_check(client: httpx.AsyncClient, golden: Dict[str, Any], settings:
     Returns:
         CheckResult with recall, precision, span_fidelity metrics
     """
-    # Check if LLM provider is available
-    has_provider = bool(
-        os.getenv("OPENAI_API_KEY") or
-        os.getenv("ANTHROPIC_API_KEY") or
-        os.getenv("OLLAMA_BASE_URL")
-    )
+    # Check provider availability on the SERVER (its .env is the truth — the
+    # eval process env says nothing about what the app container can reach)
+    base_url = settings.get("base_url", "http://localhost:8000")
+    has_provider = False
+    try:
+        keys_resp = await client.get(f"{base_url}/api/settings/keys", timeout=5.0)
+        if keys_resp.status_code == 200:
+            has_provider = any(
+                p.get("configured") for p in keys_resp.json().values()
+            )
+    except Exception:
+        pass
 
     if not has_provider:
         return CheckResult(
             name="extraction",
             passed=False,
             metrics={},
-            details="No LLM provider configured",
+            details="No LLM provider configured on the server",
             skipped=True,
-            skip_reason="No OPENAI_API_KEY, ANTHROPIC_API_KEY, or OLLAMA_BASE_URL in environment",
+            skip_reason="Server reports no configured provider (GET /api/settings/keys) — set OPENAI_API_KEY, ANTHROPIC_API_KEY, or OLLAMA_BASE_URL in the app's .env",
         )
 
     # Ingest conversations and collect extracted facts
     extracted_facts_by_conv: Dict[str, List[Dict]] = {}
     golden_facts_by_conv: Dict[str, List[Dict]] = {}
+    pipeline_timeout = float(os.getenv("EVAL_PIPELINE_TIMEOUT_S", "300"))
 
     for conv in golden.get("conversations", []):
         conv_id = conv["id"]
@@ -56,6 +63,16 @@ async def run_check(client: httpx.AsyncClient, golden: Dict[str, Any], settings:
         golden_facts = conv.get("facts", [])
 
         if not golden_facts:
+            continue
+
+        # Conversations with personal/relationship facts are the sensitivity
+        # gate's responsibility: the gate SHOULD prevent extraction for them.
+        # Scoring them here would punish correct blocking; the sensitivity
+        # check asserts zero facts for these instead.
+        if any(
+            f.get("sensitivity_level") in ("personal", "relationship")
+            for f in golden_facts
+        ):
             continue
 
         golden_facts_by_conv[conv_id] = golden_facts
@@ -82,12 +99,13 @@ async def run_check(client: httpx.AsyncClient, golden: Dict[str, Any], settings:
                 if not archive_ids:
                     continue
 
-            # Poll for extracted facts (LLM extraction is async and can be slow)
-            max_polls = 20
-            poll_interval = 3.0  # seconds
+            # Poll for extracted facts (LLM extraction is async and can be slow,
+            # especially with local Ollama models processing a backlog)
+            poll_interval = 5.0  # seconds
+            deadline = time.time() + pipeline_timeout
             archive_id_set = set(archive_ids)
 
-            for attempt in range(max_polls):
+            while time.time() < deadline:
                 try:
                     facts_response = await client.get(
                         f"{base_url}/api/facts",
@@ -106,6 +124,9 @@ async def run_check(client: httpx.AsyncClient, golden: Dict[str, Any], settings:
                                 {
                                     "text": f.get("fact_text", ""),
                                     "source_span": f.get("source_span"),
+                                    "confidence_tier": f.get("confidence_tier"),
+                                    "derivation_method": f.get("derivation_method"),
+                                    "derivation_model": f.get("derivation_model"),
                                 }
                                 for f in ours
                             ]
@@ -113,8 +134,7 @@ async def run_check(client: httpx.AsyncClient, golden: Dict[str, Any], settings:
                 except Exception:
                     pass
 
-                if attempt < max_polls - 1:
-                    await asyncio.sleep(poll_interval)
+                await asyncio.sleep(poll_interval)
 
         except Exception:
             continue
@@ -124,16 +144,36 @@ async def run_check(client: httpx.AsyncClient, golden: Dict[str, Any], settings:
             name="extraction",
             passed=False,
             metrics={},
-            details="Could not extract facts from any conversation",
+            details=(
+                "No facts appeared for any control conversation despite a configured "
+                "provider and completed jobs. Most likely the sensitivity gate blocked "
+                "them (it blocks unclassified content by default and its decision is "
+                "not observable via API — F15/F22 in docs/recommendations.md). "
+                "Check server logs for 'Sensitivity gate: ... blocked=True'."
+            ),
             skipped=True,
-            skip_reason="Extraction failed for all conversations",
+            skip_reason="No facts extracted for any conversation — likely gate-blocked (see details)",
         )
+
+    settings["extraction_worked"] = bool(extracted_facts_by_conv)
 
     # Calculate metrics across all conversations
     total_recall = 0.0
     total_precision = 0.0
     total_span_fidelity = 0.0
     conv_count = 0
+
+    # PIPE-02: every fact must carry source span, confidence tier, derivation
+    # method, and model version
+    all_extracted = [f for facts in extracted_facts_by_conv.values() for f in facts]
+    provenance_complete = sum(
+        1 for f in all_extracted
+        if f.get("source_span") and f.get("confidence_tier")
+        and f.get("derivation_method") and f.get("derivation_model")
+    )
+    provenance_completeness = (
+        provenance_complete / len(all_extracted) if all_extracted else 0.0
+    )
 
     for conv_id in golden_facts_by_conv:
         if conv_id not in extracted_facts_by_conv:
@@ -185,18 +225,23 @@ async def run_check(client: httpx.AsyncClient, golden: Dict[str, Any], settings:
     recall_threshold = 0.6
     precision_threshold = 0.7
     span_fidelity_threshold = 0.95
+    provenance_threshold = 1.0  # PIPE-02 is absolute: every fact carries provenance
 
     passed = (
         avg_recall >= recall_threshold and
         avg_precision >= precision_threshold and
-        avg_span_fidelity >= span_fidelity_threshold
+        avg_span_fidelity >= span_fidelity_threshold and
+        provenance_completeness >= provenance_threshold
     )
 
     details = (
-        f"Extraction metrics (avg across {conv_count} conversations): "
+        f"Extraction metrics (avg across {conv_count} conversations, "
+        f"{len(all_extracted)} facts): "
         f"Recall {avg_recall:.2%} (threshold: {recall_threshold:.0%}), "
         f"Precision {avg_precision:.2%} (threshold: {precision_threshold:.0%}), "
-        f"Span fidelity {avg_span_fidelity:.2%} (threshold: {span_fidelity_threshold:.0%})."
+        f"Span fidelity {avg_span_fidelity:.2%} (threshold: {span_fidelity_threshold:.0%}), "
+        f"Provenance completeness {provenance_completeness:.2%} "
+        f"(threshold: {provenance_threshold:.0%}; PIPE-02: span+confidence+method+model)."
     )
 
     return CheckResult(
@@ -206,6 +251,8 @@ async def run_check(client: httpx.AsyncClient, golden: Dict[str, Any], settings:
             "recall": avg_recall,
             "precision": avg_precision,
             "span_fidelity": avg_span_fidelity,
+            "provenance_completeness": provenance_completeness,
+            "count_facts": len(all_extracted),
             "count_conversations": conv_count,
         },
         details=details,

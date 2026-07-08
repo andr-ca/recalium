@@ -51,12 +51,27 @@
     "sensitivity_block_rate": {
       "value": 1.0,
       "operator": "==",
-      "description": "100% of personal/relationship-labeled facts must be blocked from external dispatch (zero tolerance for leaks)"
+      "description": "Differential test (requires configured provider): zero facts derived from personal/relationship conversations while control conversations produce facts (zero tolerance for leaks)"
     },
     "mcp_error_correctness": {
       "value": 1.0,
       "operator": "==",
       "description": "100% of malformed MCP requests must return structured error envelopes (not 500 errors)"
+    },
+    "extraction_provenance_completeness": {
+      "value": 1.0,
+      "operator": "==",
+      "description": "Every extracted fact must carry source_span + confidence_tier + derivation_method + derivation_model (PIPE-02, absolute)"
+    },
+    "retrieval_paraphrase_recall_at_10": {
+      "value": 0.66,
+      "operator": ">=",
+      "description": "Semantic or hybrid mode must find >=2/3 of semantic_only paraphrase queries in top-10 (embeddings must add recall beyond FTS); only enforced when embeddings enabled"
+    },
+    "retrieval_semantic_lift": {
+      "value": 0.0,
+      "operator": ">",
+      "description": "Semantic paraphrase recall must exceed keyword paraphrase recall (embeddings demonstrably add value); only enforced when embeddings enabled"
     }
   },
   "notes": [
@@ -65,6 +80,7 @@
     "Baseline is established on initial run against live stack.",
     "If baseline cannot be established (stack down, no provider key), eval suite outputs 'INCOMPLETE' and exits code 0 (not a failure).",
     "Extraction recall <0.6 likely indicates F3 (truncation on long conversations) or F4 (hallucinated spans filtering).",
-    "Sensitivity block_rate and MCP error_correctness use '==' operator (must equal threshold exactly); other metrics use >= or <="
+    "Sensitivity block_rate and MCP error_correctness use '==' operator (must equal threshold exactly); other metrics use >= or <=",
+    "Paraphrase/semantic-lift thresholds only apply when the stack runs with embeddings (EMBED_BACKEND=cpu/gpu); keyword-only runs skip them."
   ]
 }

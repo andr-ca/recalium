@@ -401,19 +401,24 @@ Performance metrics table (STATE.md): ingest P95 ≤1s, search P95 ≤2s, restor
 
 ## 8. Live Baseline Findings (2026-07-07 eval run)
 
-The eval suite was executed against the live local stack (no-key mode,
-`EMBED_BACKEND=none`) on 2026-07-07. First baseline, evidence in
-`evals/results/2026-07-07T18-36-24.654852/`:
+Two baselines were recorded. **Run 1** (2026-07-07, no-key mode,
+`EMBED_BACKEND=none`): evidence in
+`docs/operational/tests/artifacts/eval-baseline-2026-07-07/`. **Run 2**
+(2026-07-08, local Ollama `qwen3.5:4b` + `EMBED_BACKEND=cpu`): evidence in
+`docs/operational/tests/artifacts/eval-baseline-2026-07-08-ollama/` — this run
+is what surfaced and then confirmed fixes for F19–F21, and exposed F22.
 
-| Claim | Measured | Verdict |
+| Claim | Measured (run 2, embeddings + Ollama) | Verdict |
 |-------|----------|---------|
-| Ingest P95 ≤ 1s | P95 well under threshold (single-digit ms per paste ingest) | ✓ holds at current scale |
-| Search P95 ≤ 2s | Keyword P95 ≈ 15ms (tiny dataset — re-measure at 100k items) | ✓ holds at current scale |
-| Relevant retrieval | Keyword R@5 = 87.5%, MRR = 0.88 on 8 labeled queries | ✓ baseline; semantic/hybrid unmeasured (embeddings disabled) |
-| Adversarial queries don't crash FTS | 2/2 returned non-5xx | ✓ |
+| Ingest P95 ≤ 1s | Milliseconds per paste ingest | ✓ holds at current scale |
+| Search P95 ≤ 2s | Keyword 26ms; semantic 116ms; hybrid 122ms (small dataset — re-measure at 100k) | ✓ holds at current scale |
+| Relevant retrieval (keyword) | R@5 87.5%, MRR 0.88 | ✓ |
+| Relevant retrieval (semantic/hybrid) | R@10 100%, MRR 1.00; hybrid ≥ best single mode | ✓ embeddings genuinely work (after F20 fix) |
+| Embeddings add recall beyond FTS | Paraphrase queries: semantic/hybrid 100% vs keyword 0% (`semantic_lift` +100%) | ✓ validated |
+| Adversarial queries don't crash FTS | 2/2 non-5xx | ✓ |
 | MCP contract (ingest, provenance, budget metadata, structured errors) | 4/4 via real MCP SSE protocol | ✓ |
-| Sensitivity gate blocks external dispatch | **Unverifiable from outside** | ⚠ see F15 |
-| Extraction quality (precision/recall/span fidelity) | Skipped — no LLM provider configured | — run with a key to baseline |
+| Async pipeline produces summaries/facts (PIPE-01/02) | **Zero summaries, zero facts — gate blocks all control content** | ✗ see F22 (P0) |
+| Sensitivity gate blocks external dispatch | Differential test inconclusive (control blocked too); direct observability missing | ⚠ F15 + F22 |
 
 Running the eval surfaced three new verified findings:
 
@@ -436,6 +441,63 @@ Attribution ("which facts came from this conversation?") requires paging the
 whole list and filtering client-side — the eval suite does exactly that
 (`evals/checks/eval_extraction.py`), and the provenance UI story would benefit
 from the same filter. **Fix:** add a `raw_archive_id` query param.
+
+### F18–F21: Pipeline defects found by running the eval with Ollama (2026-07-07)
+
+Configuring a real provider (local Ollama) + embeddings (`EMBED_BACKEND=cpu`)
+for the first time exposed four defects; three were fixed in-session:
+
+- **F19 (FIXED): job status transitions were silently lost.** The worker loop
+  claimed a job in one session and dispatched it in another; `complete_job`/
+  `fail_job`/`set_pending_provider` mutated the now-detached ORM instance, so
+  their commits persisted nothing. Every job stayed `claimed` forever, went
+  stale, and was **reprocessed from scratch on each restart** (with LLM cost
+  per cycle once a provider exists). Fixed in `backend/app/worker/loop.py`
+  (one session spans claim+dispatch) with regression test
+  `tests/worker/test_loop.py::test_worker_loop_persists_status_transitions`.
+  The 191 green tests missed it because they share a single session; E2E polls
+  artifacts, not job state.
+- **F20 (FIXED): semantic-adjacent pipeline steps never worked against real
+  pgvector.** Conflict detection and link-detection pass A bind vectors as
+  `str(embedding)` where `embedding` is read back from the DB as a numpy
+  array — numpy's `str()` is space-separated, invalid pgvector input
+  (`InvalidTextRepresentationError`). Unit tests fed plain lists and passed;
+  CI runs with `EMBED_BACKEND=none` and skips. Fixed in
+  `backend/app/domain/conflict_detection.py` and `backend/app/worker/dispatcher.py`.
+- **F21 (FIXED): one failed "non-fatal" step wedged the whole job.** A DB error
+  inside a non-fatal step aborted the transaction; every subsequent step and
+  the final status commit then failed with `InFailedSQLTransactionError`,
+  leaving the job `claimed`. Fixed: each step's exception handler now rolls
+  back and refreshes the job instance.
+- **F18 (OPEN): stale-claim recovery only runs at worker startup.** A job stuck
+  in `claimed` (crash mid-dispatch) freezes invisible until the next restart,
+  and a restart within 10 minutes of the claim recovers nothing. Recommend a
+  periodic `reset_stale_jobs` sweep inside the worker loop, plus a bulk requeue
+  API (systemic failures burn `attempts` across the whole queue; only a
+  per-job reprocess endpoint exists today).
+
+### F22 (OPEN, P0): the sensitivity gate blocks essentially all real content — BYOK processing is effectively dead
+
+With a provider configured and `EMBED_BACKEND=cpu` (NLI classifier active), the
+gate classified the eval's plainly *technical* conversations (Python async,
+PostgreSQL indexing, Rust ownership) as `personal_profile` at 0.95–0.99
+confidence or `unclassified` (0.45) — all blocked. Server logs show
+`category=personal_profile confidence=0.99 blocked=True` for programming Q&A.
+Consequence: jobs "complete" but no summaries and no facts are ever produced;
+the product's headline transformation pipeline does not run on realistic
+content. Mechanism: `backend/app/domain/policy/gate.py` does zero-shot
+classification with a tiny NLI cross-encoder (`cross-encoder/nli-MiniLM2-L6-H768`,
+threshold 0.6, labels "personal profile information" / "relationship
+information" / "general topic") — a known-degenerate setup for long/technical
+premises. The ROADMAP research flag from 2026-03 ("sensitivity heuristics need
+domain validation against real export content") predicted exactly this and was
+never closed. **Recommendation:** calibrate the gate against the eval's labeled
+dataset (it now provides both sensitive and control conversations); consider
+keyword-heuristics-first with NLI only as an escalator, a larger zero-shot
+model, or chunk-level classification. Do NOT simply lower the threshold —
+tune with measured false-block AND false-allow rates (F15's audit event makes
+both observable). Blocking-by-default is the right failure direction; blocking
+*everything* makes the privacy promise vacuous and the product non-functional.
 
 ### F17: Idempotency replay after deletion returns success for a dead item
 
@@ -468,6 +530,11 @@ Found because the eval suite's cleanup + fixed key produced exactly this state.
 | F15 | `backend/app/worker/dispatcher.py:499-503` | Sensitivity gate block decision only in logs — unverifiable via API | Emit `sensitivity_gate_blocked` AuditEvent; then un-skip the sensitivity eval |
 | F16 | `backend/app/api/routes/facts.py:131-137` | No `raw_archive_id` filter on facts list; per-source attribution is client-side | Add `raw_archive_id` query param |
 | F17 | `backend/app/mcp_server/server.py` (ingest_memory idempotency) | Idempotent replay after source deletion returns "accepted" for a nonexistent item | Define replay-after-delete semantics + test |
+| F18 | `backend/app/worker/loop.py` / `jobs/service.py` | Stale-claim recovery only at startup; stuck claims freeze queue until restart | Periodic reset_stale_jobs sweep + bulk requeue API |
+| F19 | `backend/app/worker/loop.py` | Detached-session bug: all job status transitions silently lost; jobs reprocessed every restart | **FIXED** (one session for claim+dispatch; regression test added) |
+| F20 | `backend/app/domain/conflict_detection.py:54`, `dispatcher.py:244` | numpy `str()` bound as pgvector literal → conflict/link detection never worked with real embeddings | **FIXED** (coerce to list before binding) |
+| F21 | `backend/app/worker/dispatcher.py` (steps 4–7) | Aborted transaction from a "non-fatal" step failure wedged status writes | **FIXED** (rollback + refresh per step failure) |
+| F22 | `backend/app/domain/policy/gate.py` | Gate's NLI classifier blocks essentially all real content (tech Q&A → `personal_profile` @0.99) → no summaries/facts ever produced | **P0**: calibrate against eval dataset; keyword-first + NLI escalator; requires F15 observability |
 
 ---
 

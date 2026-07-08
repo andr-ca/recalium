@@ -1,5 +1,6 @@
 """Evaluation metrics for Recalium assessment suite."""
 
+import math
 from typing import List, Dict, Optional, Tuple
 from dataclasses import dataclass
 from statistics import mean, median
@@ -122,10 +123,7 @@ def dcg_at_k(relevance_scores: List[float], k: int = 10) -> float:
     """
     dcg = 0.0
     for i, score in enumerate(relevance_scores[:k], start=1):
-        if i == 1:
-            dcg += score
-        else:
-            dcg += score / (2.0 ** (i - 1)).bit_length()  # log2(i+1) approximation
+        dcg += score / math.log2(i + 1)
     return dcg
 
 

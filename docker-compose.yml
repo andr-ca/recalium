@@ -52,6 +52,7 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-}
       OLLAMA_API_KEY: ${OLLAMA_API_KEY:-}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2}
     ports:
       # Bind to localhost only — prevents accidental LAN exposure
       - "127.0.0.1:${APP_PORT:-8000}:8000"

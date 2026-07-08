@@ -13,28 +13,42 @@
           "text": "Python async functions are defined with `async def` keyword",
           "source_span": "Define async functions with `async def`",
           "confidence": 0.95,
-          "tags": ["python", "async"]
+          "tags": [
+            "python",
+            "async"
+          ]
         },
         {
           "id": "fact-002",
           "text": "Use `await` to pause and wait for Futures in Python async code",
           "source_span": "Use `await` to pause and wait for Futures",
           "confidence": 0.95,
-          "tags": ["python", "async"]
+          "tags": [
+            "python",
+            "async"
+          ]
         },
         {
           "id": "fact-003",
           "text": "Python asyncio event loop manages all coroutines concurrently",
           "source_span": "The event loop manages all coroutines concurrently",
           "confidence": 0.9,
-          "tags": ["python", "async", "concurrency"]
+          "tags": [
+            "python",
+            "async",
+            "concurrency"
+          ]
         },
         {
           "id": "fact-004",
           "text": "asyncio.gather() or TaskGroups (Python 3.11+) run multiple concurrent tasks",
           "source_span": "use asyncio.gather() or TaskGroups (Python 3.11+)",
           "confidence": 0.85,
-          "tags": ["python", "async", "concurrency"]
+          "tags": [
+            "python",
+            "async",
+            "concurrency"
+          ]
         }
       ],
       "metadata": {
@@ -54,35 +68,50 @@
           "text": "PostgreSQL B-tree indexes are for equality and range queries (default type)",
           "source_span": "B-tree indexes** for equality and range queries (default)",
           "confidence": 0.95,
-          "tags": ["postgresql", "indexing"]
+          "tags": [
+            "postgresql",
+            "indexing"
+          ]
         },
         {
           "id": "fact-102",
           "text": "GIN indexes are for array/JSON queries in PostgreSQL",
           "source_span": "GIN** for array/JSON queries (inverted indexes)",
           "confidence": 0.95,
-          "tags": ["postgresql", "indexing"]
+          "tags": [
+            "postgresql",
+            "indexing"
+          ]
         },
         {
           "id": "fact-103",
           "text": "BRIN indexes are block range indexes used for very large PostgreSQL tables",
           "source_span": "BRIN** for very large tables (block range indexes)",
           "confidence": 0.9,
-          "tags": ["postgresql", "indexing"]
+          "tags": [
+            "postgresql",
+            "indexing"
+          ]
         },
         {
           "id": "fact-104",
           "text": "Use tsvector column type for indexed tokens in PostgreSQL full-text search",
           "source_span": "Use `tsvector` column type for indexed tokens",
           "confidence": 0.95,
-          "tags": ["postgresql", "fts"]
+          "tags": [
+            "postgresql",
+            "fts"
+          ]
         },
         {
           "id": "fact-105",
           "text": "Full-text search in PostgreSQL uses GIN index with @@ operator",
           "source_span": "Create a GIN index on the tsvector column\n3. Query with `@@` operator",
           "confidence": 0.9,
-          "tags": ["postgresql", "fts"]
+          "tags": [
+            "postgresql",
+            "fts"
+          ]
         }
       ],
       "metadata": {
@@ -102,7 +131,9 @@
           "text": "User is seeing a therapist named Dr. Smith",
           "source_span": "I'm seeing a therapist named Dr. Smith",
           "confidence": 0.95,
-          "tags": ["personal"],
+          "tags": [
+            "personal"
+          ],
           "sensitivity_level": "personal"
         },
         {
@@ -110,7 +141,10 @@
           "text": "User's therapist recommended cognitive behavioral therapy (CBT) techniques",
           "source_span": "Dr. Smith recommended cognitive behavioral therapy techniques",
           "confidence": 0.9,
-          "tags": ["personal", "therapy"],
+          "tags": [
+            "personal",
+            "therapy"
+          ],
           "sensitivity_level": "personal"
         },
         {
@@ -118,7 +152,9 @@
           "text": "User's wife is supportive of their therapy journey",
           "source_span": "My wife has been very supportive",
           "confidence": 0.9,
-          "tags": ["relationship"],
+          "tags": [
+            "relationship"
+          ],
           "sensitivity_level": "relationship"
         },
         {
@@ -126,7 +162,10 @@
           "text": "Deep breathing and grounding techniques are coping strategies for anxiety",
           "source_span": "Deep breathing exercises\n2. Grounding techniques (5-4-3-2-1 method)",
           "confidence": 0.85,
-          "tags": ["anxiety", "coping"],
+          "tags": [
+            "anxiety",
+            "coping"
+          ],
           "sensitivity_level": "public"
         }
       ],
@@ -147,28 +186,40 @@
           "text": "In Rust, each value has one owner",
           "source_span": "Each value has one owner",
           "confidence": 0.95,
-          "tags": ["rust", "ownership"]
+          "tags": [
+            "rust",
+            "ownership"
+          ]
         },
         {
           "id": "fact-302",
           "text": "You can borrow a Rust value immutably or mutably",
           "source_span": "You can borrow a value (immutable or mutable)",
           "confidence": 0.95,
-          "tags": ["rust", "borrowing"]
+          "tags": [
+            "rust",
+            "borrowing"
+          ]
         },
         {
           "id": "fact-303",
           "text": "Rust prevents use-after-free bugs, data races, and double-free errors through ownership",
           "source_span": "This prevents:\n- Use-after-free bugs\n- Data races\n- Double-free errors",
           "confidence": 0.95,
-          "tags": ["rust", "memory-safety"]
+          "tags": [
+            "rust",
+            "memory-safety"
+          ]
         },
         {
           "id": "fact-304",
           "text": "Rust lifetimes ensure borrowed references don't outlive the data they reference",
           "source_span": "Lifetimes ensure borrowed references don't outlive the data they point to",
           "confidence": 0.9,
-          "tags": ["rust", "lifetimes"]
+          "tags": [
+            "rust",
+            "lifetimes"
+          ]
         }
       ],
       "metadata": {
@@ -182,44 +233,61 @@
     {
       "id": "q-001",
       "text": "How do you define async functions in Python?",
-      "relevant_fact_ids": ["fact-001"],
+      "relevant_fact_ids": [
+        "fact-001"
+      ],
       "sensitivity_level": "public"
     },
     {
       "id": "q-002",
       "text": "What is an event loop in Python async?",
-      "relevant_fact_ids": ["fact-003"],
+      "relevant_fact_ids": [
+        "fact-003"
+      ],
       "sensitivity_level": "public"
     },
     {
       "id": "q-003",
       "text": "What are PostgreSQL indexing strategies for large tables?",
-      "relevant_fact_ids": ["fact-101", "fact-102", "fact-103"],
+      "relevant_fact_ids": [
+        "fact-101",
+        "fact-102",
+        "fact-103"
+      ],
       "sensitivity_level": "public"
     },
     {
       "id": "q-004",
       "text": "How do you perform full-text search in PostgreSQL?",
-      "relevant_fact_ids": ["fact-104", "fact-105"],
+      "relevant_fact_ids": [
+        "fact-104",
+        "fact-105"
+      ],
       "sensitivity_level": "public"
     },
     {
       "id": "q-005",
       "text": "anxiety coping strategies",
-      "relevant_fact_ids": ["fact-204"],
+      "relevant_fact_ids": [
+        "fact-204"
+      ],
       "sensitivity_level": "public",
       "note": "Query is public, but conversation contains personal facts (fact-201, fact-202, fact-203) that should be blocked from external dispatch"
     },
     {
       "id": "q-006",
       "text": "What is Rust ownership?",
-      "relevant_fact_ids": ["fact-301"],
+      "relevant_fact_ids": [
+        "fact-301"
+      ],
       "sensitivity_level": "public"
     },
     {
       "id": "q-007",
       "text": "Rust lifetimes",
-      "relevant_fact_ids": ["fact-304"],
+      "relevant_fact_ids": [
+        "fact-304"
+      ],
       "sensitivity_level": "public"
     },
     {
@@ -228,7 +296,7 @@
       "relevant_fact_ids": [],
       "sensitivity_level": "public",
       "is_adversarial": true,
-      "adversarial_reason": "scientific notation — tests FTS parser robustness (from commit 132696d bug)"
+      "adversarial_reason": "scientific notation \u2014 tests FTS parser robustness (from commit 132696d bug)"
     },
     {
       "id": "q-009",
@@ -236,14 +304,44 @@
       "relevant_fact_ids": [],
       "sensitivity_level": "public",
       "is_adversarial": true,
-      "adversarial_reason": "punctuation only — tests FTS robustness"
+      "adversarial_reason": "punctuation only \u2014 tests FTS robustness"
     },
     {
       "id": "q-010",
       "text": "concurrency asyncio TaskGroup",
-      "relevant_fact_ids": ["fact-003", "fact-004"],
+      "relevant_fact_ids": [
+        "fact-003",
+        "fact-004"
+      ],
       "sensitivity_level": "public",
       "note": "Multi-fact query"
+    },
+    {
+      "id": "q-101",
+      "text": "cooperative juggling of many pending operations in a scripting runtime",
+      "relevant_fact_ids": [
+        "fact-001"
+      ],
+      "sensitivity_level": "public",
+      "semantic_only": true
+    },
+    {
+      "id": "q-102",
+      "text": "accelerating record retrieval in enormous relational stores",
+      "relevant_fact_ids": [
+        "fact-101"
+      ],
+      "sensitivity_level": "public",
+      "semantic_only": true
+    },
+    {
+      "id": "q-103",
+      "text": "which coding ecosystem enforces strict resource custody",
+      "relevant_fact_ids": [
+        "fact-301"
+      ],
+      "sensitivity_level": "public",
+      "semantic_only": true
     }
   ],
   "notes": [
@@ -253,6 +351,7 @@
     "Queries q-008 and q-009 are adversarial (test FTS robustness without crashing).",
     "Query q-005 is public but references a sensitive conversation (test cross-conversation sensitivity checks).",
     "Schema can be extended with custom fields in facts and queries; eval runner only consumes standard fields.",
-    "All raw_text is synthetic (no real personal data or proprietary information)."
+    "All raw_text is synthetic (no real personal data or proprietary information).",
+    "Queries flagged semantic_only are paraphrases sharing no content-word stems with their source conversation (verified programmatically at authoring time). Keyword/FTS is expected to miss them; they measure the recall embeddings add (semantic_lift)."
   ]
 }

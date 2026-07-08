@@ -35,6 +35,23 @@ Evals produce:
 
 ### Retrieval Metrics
 
+**Paraphrase / embedding validation (semantic_only queries):** golden queries
+flagged `semantic_only` are paraphrases sharing no content-word stems with
+their source conversation, verified programmatically at authoring time.
+Keyword/FTS is expected to miss them. When the stack runs with embeddings
+(`EMBED_BACKEND=cpu`), the check scores them per mode and requires:
+
+- `semantic`/`hybrid` paraphrase recall@10 ≥ 0.66 (embeddings find what FTS can't)
+- `semantic_lift` > 0 (semantic paraphrase recall exceeds keyword's)
+
+These queries are excluded from the standard per-mode averages. When embeddings
+are unavailable (degraded mode), paraphrase scoring is skipped and reported.
+
+**Extraction also reports `provenance_completeness`** (PIPE-02): the fraction
+of extracted facts carrying all of source_span, confidence_tier,
+derivation_method, and derivation_model — threshold 1.0 (absolute).
+
+
 **recall@k:** Fraction of the top-k retrieved results that are in the golden set of relevant items.
 - Formula: `|retrieved[:k] ∩ relevant| / |relevant|`
 - Range: 0.0–1.0
@@ -88,16 +105,21 @@ Evals produce:
 
 ### Sensitivity Metrics
 
-**Currently SKIPPED (honest limitation):** the gate's block decision is only
-written to server logs — it is not exposed via job status, audit events, or any
-API, so no external eval can verify blocking without false confidence. The
-check still ingests the sensitive conversations (local capture must always
-work) and reports the skip reason. See `docs/recommendations.md` (F15) for the
-API change that unblocks this check; the intended metric once observable:
+**Differential gate test (requires a configured provider):** sensitive
+(personal/relationship) conversations are ingested through the same pipeline as
+the control conversations. The gate must prevent LLM extraction for them:
 
-**sensitivity_block_rate:** Fraction of personal/relationship-labeled facts blocked from external dispatch.
-- Formula: `|blocked_personal_facts| / |personal_facts|`
-- Threshold: 1.0 (100% block required; any leak is a critical failure)
+- **block_verified:** 1.0 when zero facts are attributed to sensitive archive
+  items *while* control conversations produced facts through the same provider
+  (the control comes from the extraction check). 0.0 = LEAK — sensitive content
+  reached the LLM extraction path.
+- **leaked_fact_count:** number of facts derived from sensitive conversations
+  (must be 0).
+
+**Skipped in no-key mode:** without a provider, blocking is indistinguishable
+from idling. Direct gate observability (an audit event / job field — F15 in
+`docs/recommendations.md`) would make this check exact instead of differential
+and runnable without a provider.
 
 ### MCP Metrics
 
@@ -125,6 +147,21 @@ Baseline thresholds are defined in `thresholds.json`:
 | mcp_error_correctness | 1.0 (100%) | Critical: errors must be well-formed |
 
 Thresholds are **frozen for v1.1** (not changed between runs) to enable longitudinal comparison. Baseline is established on initial run against live stack.
+
+## Running with Ollama (fully local provider)
+
+1. In `.env`: set `OLLAMA_BASE_URL` to an address reachable **from the app
+   container** (e.g. the compose network gateway, `http://172.23.0.1:11434` —
+   Ollama must listen beyond localhost, `OLLAMA_HOST=0.0.0.0`), and set
+   `OLLAMA_MODEL` to a pulled model (e.g. `qwen3.5:4b`; the default `llama3.2`
+   must be pulled first). Set `EMBED_BACKEND=cpu` for semantic search.
+2. Rebuild + restart: `docker compose build recalium-app && docker compose up -d`
+   (the `cpu` build installs sentence-transformers).
+3. `make eval`. Local models are slow — raise `EVAL_PIPELINE_TIMEOUT_S` if
+   extraction/retrieval checks time out waiting for the pipeline.
+
+Note: configuring a provider re-activates any `pending_provider` backlog — the
+worker will process previously ingested items through the new provider.
 
 ## Idempotency and Cleanup
 
