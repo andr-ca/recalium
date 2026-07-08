@@ -50,6 +50,16 @@ def load_env(var_name: str, default: Optional[str] = None) -> Optional[str]:
     return default
 
 
+def source_label(item: dict) -> str:
+    """Human-readable provenance label for a retrieved item.
+
+    The /api/retrieve response items expose `source_system` and `type`
+    (there is no `source_name` field), so build the label from those.
+    """
+    parts = [p for p in (item.get("source_system"), item.get("type")) if p]
+    return " · ".join(str(p) for p in parts) if parts else "memory"
+
+
 class RecaliumClient:
     """HTTP client for Recalium API with fail-soft error handling."""
 

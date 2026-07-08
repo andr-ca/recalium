@@ -12,7 +12,7 @@ from pathlib import Path
 # Add parent dir to path to import recalium_client
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from recalium_client import RecaliumClient
+from recalium_client import RecaliumClient, source_label
 
 
 def format_items(items, max_chars=1500):
@@ -24,7 +24,7 @@ def format_items(items, max_chars=1500):
     total_chars = 0
 
     for item in items:
-        source = item.get("source_name", "unknown")
+        source = source_label(item)
         content = item.get("content", "")[:200]  # Truncate per item
 
         entry = f"• [{source}] {content}"

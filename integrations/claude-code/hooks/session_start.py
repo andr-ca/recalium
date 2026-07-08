@@ -12,7 +12,7 @@ from pathlib import Path
 # Add parent dir to path to import recalium_client
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from recalium_client import RecaliumClient
+from recalium_client import RecaliumClient, source_label
 
 
 def format_items(items, max_chars=2000):
@@ -24,7 +24,7 @@ def format_items(items, max_chars=2000):
     total_chars = 0
 
     for item in items:
-        source = item.get("source_name", "unknown")
+        source = source_label(item)
         captured = item.get("captured_at", "")
         content = item.get("content", "")
 
@@ -56,8 +56,9 @@ def main():
     # Set recursion guard
     os.environ["RECALIUM_HOOK_ACTIVE"] = "1"
 
-    # Extract workspace path for query
-    workspace_path = hook_input.get("workspacePath", "")
+    # Extract project dir for query. Claude Code hook JSON provides `cwd`
+    # (there is no `workspacePath`); fall back to the process cwd.
+    workspace_path = hook_input.get("cwd") or os.getcwd()
     query = "recent context"
     if workspace_path:
         query = Path(workspace_path).name or "recent context"

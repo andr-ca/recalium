@@ -16,12 +16,12 @@ from pathlib import Path
 # Add current dir to path to import recalium_client
 sys.path.insert(0, str(Path(__file__).parent))
 
-from recalium_client import RecaliumClient
+from recalium_client import RecaliumClient, source_label
 
 
 def format_result(item, index):
     """Format a single result for display."""
-    source = item.get("source_name", "unknown")
+    source = source_label(item)
     content = item.get("content", "")[:300]  # Truncate for readability
     score = item.get("score", "")
 
