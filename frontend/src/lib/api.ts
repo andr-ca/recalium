@@ -209,14 +209,46 @@ export interface FactItem {
   derivation_model: string;
   conflict_group_id: string | null;
   source_status: string;
+  review_status: "active" | "disputed" | "stale" | "archived" | "deleted";
   created_at: string;
 }
 
-export async function listFacts(params?: { limit?: number; offset?: number }): Promise<{ facts: FactItem[]; count: number }> {
+export async function listFacts(params?: { limit?: number; offset?: number; reviewStatus?: string }): Promise<{ facts: FactItem[]; count: number }> {
   const p = new URLSearchParams();
   if (params?.limit) p.set("limit", String(params.limit));
   if (params?.offset) p.set("offset", String(params.offset));
+  if (params?.reviewStatus) p.set("review_status", params.reviewStatus);
   return request<{ facts: FactItem[]; count: number }>(`/facts/?${p}`);
+}
+
+export async function updateFact(
+  factId: string,
+  data: { fact_text?: string; source_span?: string; confidence_tier?: string; review_status?: string },
+): Promise<FactItem> {
+  return request<FactItem>(`/facts/${factId}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function markFactDisputed(factId: string): Promise<FactItem> {
+  return request<FactItem>(`/facts/${factId}/dispute`, { method: "POST", body: JSON.stringify({}) });
+}
+
+export async function markFactStale(factId: string): Promise<FactItem> {
+  return request<FactItem>(`/facts/${factId}/mark-stale`, { method: "POST", body: JSON.stringify({}) });
+}
+
+export async function archiveFact(factId: string): Promise<FactItem> {
+  return request<FactItem>(`/facts/${factId}/archive`, { method: "POST", body: JSON.stringify({}) });
+}
+
+export async function deleteFact(factId: string): Promise<void> {
+  const response = await fetch(`${BASE_URL}/facts/${factId}`, { method: "DELETE" });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({ detail: response.statusText }));
+    throw new ApiError(response.status, body.detail ?? response.statusText);
+  }
 }
 
 export async function promoteFactToCanonical(
@@ -283,6 +315,23 @@ export async function deleteCanonical(id: string): Promise<void> {
 export interface ReviewQueueItem {
   id: string;
   conflict_group_id: string;
+  group_type: string | null;
+  group_source_status: string | null;
+  fact_count: number;
+  facts: Array<{
+    id: string;
+    raw_archive_id: string;
+    fact_text: string;
+    source_span: string;
+    confidence_tier: string;
+    derivation_method: string;
+    derivation_model: string;
+    source_status: string;
+    review_status: string;
+    source_name: string | null;
+    source_type: string | null;
+    created_at: string | null;
+  }>;
   item_type: string;
   status: string;
   source_status: string;

@@ -1,7 +1,18 @@
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { getSettings, validateKey, getTelemetrySummary, ApiError, type SettingsKeyStatus, type TelemetrySummary } from "@/lib/api";
+import {
+  getSettings,
+  validateKey,
+  getTelemetrySummary,
+  listBackups,
+  triggerBackup,
+  restoreBackup,
+  ApiError,
+  type BackupItem,
+  type SettingsKeyStatus,
+  type TelemetrySummary,
+} from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 type Provider = "openai" | "anthropic" | "ollama";
@@ -142,6 +153,146 @@ function TelemetrySection({
           <span className="text-muted-foreground">(logs additional metadata per event — client-side preference only in v1)</span>
         </label>
       </div>
+    </section>
+  );
+}
+
+function formatBackupSize(sizeBytes: number) {
+  if (sizeBytes < 1024) return `${sizeBytes} B`;
+  const kib = sizeBytes / 1024;
+  if (kib < 1024) return `${kib.toFixed(1)} KiB`;
+  return `${(kib / 1024).toFixed(1)} MiB`;
+}
+
+function BackupRestoreSection() {
+  const [backups, setBackups] = React.useState<BackupItem[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [acting, setActing] = React.useState<string | null>(null);
+  const [message, setMessage] = React.useState<string | null>(null);
+  const [error, setError] = React.useState<string | null>(null);
+
+  const loadBackups = React.useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await listBackups();
+      setBackups(result.backups);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.detail : "Failed to load backups");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    loadBackups();
+  }, [loadBackups]);
+
+  async function handleCreateBackup() {
+    setActing("backup");
+    setMessage(null);
+    setError(null);
+    try {
+      const result = await triggerBackup();
+      setMessage(`Created backup ${result.filename}.`);
+      await loadBackups();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.detail : "Backup failed");
+    } finally {
+      setActing(null);
+    }
+  }
+
+  async function handleRestore(backup: BackupItem) {
+    const warning = backup.has_post_deletion_events
+      ? " This backup predates one or more deletion events and may restore data that was later removed."
+      : "";
+    if (!globalThis.confirm(`Restore backup ${backup.filename}?${warning} The app may need to be restarted after restore.`)) return;
+
+    setActing(backup.filename);
+    setMessage(null);
+    setError(null);
+    try {
+      await restoreBackup(backup.filename);
+      setMessage(`Restore requested for ${backup.filename}. Restart the app if the UI still shows old data.`);
+      await loadBackups();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.detail : "Restore failed");
+    } finally {
+      setActing(null);
+    }
+  }
+
+  return (
+    <section className="mt-10" aria-labelledby="backup-restore-heading">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 id="backup-restore-heading" className="text-lg font-semibold mb-1">Backup and Restore</h2>
+          <p className="text-sm text-muted-foreground">
+            Create a local backup on demand, review the retained backup inventory, and restore a known-good copy.
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={loadBackups} disabled={loading || acting !== null}>
+            Refresh
+          </Button>
+          <Button type="button" size="sm" onClick={handleCreateBackup} disabled={acting !== null}>
+            {acting === "backup" ? "Creating…" : "Create backup now"}
+          </Button>
+        </div>
+      </div>
+
+      {message && (
+        <output className="mt-4 block rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
+          {message}
+        </output>
+      )}
+      {error && (
+        <p role="alert" className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          {error}
+        </p>
+      )}
+      {loading && <p className="mt-4 text-sm text-muted-foreground">Loading backups…</p>}
+
+      {!loading && backups.length === 0 && (
+        <p className="mt-4 text-sm text-muted-foreground">No backups found yet. Create one before testing restore.</p>
+      )}
+
+      {!loading && backups.length > 0 && (
+        <ul className="mt-4 overflow-hidden rounded-lg border" aria-label="Available backups">
+          {backups.map((backup) => {
+            const createdLabel = backup.created_at ? new Date(backup.created_at).toLocaleString() : "Unknown time";
+            return (
+              <li key={backup.filename} className="flex flex-col gap-3 border-b p-4 last:border-b-0 sm:flex-row sm:items-center sm:justify-between">
+                <div className="space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="break-all text-sm font-medium">{backup.filename}</span>
+                    {backup.has_post_deletion_events && <Badge variant="warning">May include deleted data</Badge>}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {createdLabel} · {formatBackupSize(backup.size_bytes)}
+                  </p>
+                  {backup.has_post_deletion_events && (
+                    <p className="text-xs text-yellow-700">
+                      This backup predates deletion events. Review privacy impact before restoring it.
+                    </p>
+                  )}
+                </div>
+                <Button
+                  type="button"
+                  variant={backup.has_post_deletion_events ? "outline" : "default"}
+                  size="sm"
+                  onClick={() => handleRestore(backup)}
+                  disabled={acting !== null}
+                  aria-label={`Restore backup ${backup.filename}`}
+                >
+                  {acting === backup.filename ? "Restoring…" : "Restore"}
+                </Button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </section>
   );
 }
@@ -378,6 +529,8 @@ export function SettingsPage() {
 
       {/* Telemetry Section */}
       <TelemetrySection telemetry7={telemetry7} telemetryAll={telemetryAll} telemetryLoading={telemetryLoading} verboseAudit={verboseAudit} onVerboseAuditChange={handleVerboseAuditChange} />
+
+      <BackupRestoreSection />
 
       <div className="mt-8 rounded-lg border border-muted bg-muted/30 px-4 py-3">
         <p className="text-xs text-muted-foreground">

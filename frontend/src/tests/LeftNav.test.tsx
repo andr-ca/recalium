@@ -4,9 +4,7 @@
  * Requirements:
  * - Left-nav renders all 8 items in correct order: Ingest, Archive, Facts,
  *   Canonical, Search, Review Queue, Audit, Settings
- * - Items Facts, Canonical, Search, Review Queue, Audit are DISABLED (grayed out)
- * - Disabled items show tooltip "Available in a future update"
- * - Ingest, Archive, Settings are ENABLED (not disabled)
+ * - All v1 route entries are enabled links once the release pages exist.
  */
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
@@ -15,14 +13,14 @@ import { NavSidebar } from "../components/NavSidebar";
 
 // Expected nav items and their enabled/disabled state (D-19)
 const NAV_ITEMS = [
-  { label: "Ingest", disabled: false },
-  { label: "Archive", disabled: false },
-  { label: "Facts", disabled: true },
-  { label: "Canonical", disabled: true },
-  { label: "Search", disabled: true },
-  { label: "Review Queue", disabled: true },
-  { label: "Audit", disabled: true },
-  { label: "Settings", disabled: false },
+  { label: "Ingest", path: "/ingest" },
+  { label: "Archive", path: "/archive" },
+  { label: "Facts", path: "/facts" },
+  { label: "Canonical", path: "/canonical" },
+  { label: "Search", path: "/search" },
+  { label: "Review Queue", path: "/review-queue" },
+  { label: "Audit", path: "/audit" },
+  { label: "Settings", path: "/settings" },
 ];
 
 function renderNav() {
@@ -55,34 +53,13 @@ describe("NavSidebar", () => {
     expect(actualLabels).toEqual(expectedOrder);
   });
 
-  it("disabled items have aria-disabled or data-disabled attribute", () => {
+  it("renders all navigation items as enabled links", () => {
     renderNav();
-    const disabledItems = NAV_ITEMS.filter((n) => n.disabled);
-    for (const item of disabledItems) {
-      const el = screen.getByText(item.label).closest("[aria-disabled], [data-disabled]");
-      expect(el, `"${item.label}" must be wrapped in a disabled element`).not.toBeNull();
-    }
-  });
-
-  it("enabled items are not disabled", () => {
-    renderNav();
-    const enabledItems = NAV_ITEMS.filter((n) => !n.disabled);
-    for (const item of enabledItems) {
+    for (const item of NAV_ITEMS) {
       const el = screen.getByText(item.label).closest("a, button");
       expect(el, `"${item.label}" nav link/button not found`).not.toBeNull();
       expect(el?.getAttribute("aria-disabled"), `"${item.label}" must not be aria-disabled`).not.toBe("true");
+      expect(el?.getAttribute("href"), `"${item.label}" must link to its v1 route`).toBe(item.path);
     }
-  });
-
-  it("disabled items have tooltip text 'Available in a future update'", () => {
-    renderNav();
-
-    // The NavSidebar uses a `title` attribute on the <span aria-disabled="true"> wrapper.
-    // Check that the first disabled item ("Facts") has the expected title.
-    const factsEl = screen.getByText("Facts");
-    // The title is on the <span> itself which is also the aria-disabled element
-    const wrapper = factsEl.closest("[title]");
-    expect(wrapper, "Facts element must have a title attribute").not.toBeNull();
-    expect(wrapper?.getAttribute("title")).toContain("Available in a future update");
   });
 });
