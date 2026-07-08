@@ -138,6 +138,7 @@ _(none)_
 |---|-------------|------|--------|-----------|
 | 260707-jlg | In-depth project analysis, recommendations doc (docs/recommendations.md), and eval suite (evals/) with first live baseline | 2026-07-07 | e4dd775 | [260707-jlg-in-depth-project-analysis-recommendation](./quick/260707-jlg-in-depth-project-analysis-recommendation/) |
 | 260707-krr | Eval embeddings/provider validation + Ollama run; fixed F19-F21 pipeline bugs; found F22 gate over-blocking (P0) | 2026-07-08 | ee80112, 835d0df | [260707-krr-extend-eval-suite-to-validate-embeddings](./quick/260707-krr-extend-eval-suite-to-validate-embeddings/) |
+| 260707-tt8 | Gate observability (F15) + calibration (F22): audit events + embedding-prototype classifier; all 5 eval checks live, sensitivity audit-verified PASS | 2026-07-08 | 13d188a, 0a8c89f | [260707-tt8-gate-observability-f15-sensitivity-gate-](./quick/260707-tt8-gate-observability-f15-sensitivity-gate-/) |
 
 ---
 
@@ -187,4 +188,4 @@ _(none)_
 
 ---
 
-*Last updated: 2026-07-08 — Completed quick task 260707-krr: embeddings validated (semantic R@10 100%, lift +100% vs FTS), pipeline bugs F19–F21 fixed, P0 finding F22 (gate blocks all content) documented*
+*Last updated: 2026-07-08 — Completed quick task 260707-tt8: F15+F22 fixed; sensitivity gate audit-verified by eval; extraction measured at 57.7%/65.6% with qwen3.5:4b (model-capability finding)*
