@@ -28,6 +28,7 @@ async def list_events(
             {
                 "id": str(e.id),
                 "event_type": e.event_type,
+                "raw_archive_id": str(e.raw_archive_id) if e.raw_archive_id else None,
                 "actor": e.actor,
                 "operation_metadata": e.operation_metadata,
                 "occurred_at": e.occurred_at.isoformat() if e.occurred_at else None,

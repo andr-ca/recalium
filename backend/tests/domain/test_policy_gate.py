@@ -88,3 +88,86 @@ def test_decision_has_required_audit_fields():
     assert isinstance(decision.confidence, float)
     assert isinstance(decision.blocked, bool)
     assert decision.category in ("personal_profile", "relationship", "unclassified", "general")
+
+
+# ── Embedding-prototype pass (F22 recalibration) ──────────────────────────────
+# Decision rule is a pure function over per-category similarities so it can be
+# tested without loading the model.
+
+from app.domain.policy.gate import _decide_from_similarities  # noqa: E402
+
+
+def test_general_high_similarity_allowed():
+    """Technical content with strong general similarity and margin is allowed."""
+    d = _decide_from_similarities(
+        {"personal_profile": 0.12, "relationship": 0.10, "general": 0.71}
+    )
+    assert d.category == "general"
+    assert d.blocked is False
+    assert d.method == "embedding"
+
+
+def test_general_weak_similarity_stays_blocked():
+    """PRIV-05: weak general similarity is NOT enough to allow — unclassified."""
+    d = _decide_from_similarities(
+        {"personal_profile": 0.13, "relationship": 0.03, "general": 0.16}
+    )
+    assert d.category == "unclassified"
+    assert d.blocked is True
+
+
+def test_general_small_margin_stays_blocked():
+    """PRIV-05: general must clearly beat sensitive categories to allow."""
+    d = _decide_from_similarities(
+        {"personal_profile": 0.40, "relationship": 0.10, "general": 0.45}
+    )
+    assert d.category == "unclassified"
+    assert d.blocked is True
+
+
+def test_sensitive_category_blocks_at_low_bar():
+    """Privacy-first: moderate personal similarity blocks even without margin."""
+    d = _decide_from_similarities(
+        {"personal_profile": 0.47, "relationship": 0.19, "general": 0.06}
+    )
+    assert d.category == "personal_profile"
+    assert d.blocked is True
+
+
+def test_relationship_similarity_blocks():
+    d = _decide_from_similarities(
+        {"personal_profile": 0.20, "relationship": 0.45, "general": 0.30}
+    )
+    assert d.category == "relationship"
+    assert d.blocked is True
+
+
+async def test_classify_async_allows_technical_conversation():
+    """F22 end-to-end: realistic technical content passes the async gate.
+
+    Requires sentence-transformers (EMBED_BACKEND=cpu); skipped otherwise.
+    """
+    pytest.importorskip("sentence_transformers")
+    gate = SensitivityGate()
+    text = (
+        "User: How should I index a PostgreSQL table with millions of rows?\n\n"
+        "Assistant: PostgreSQL indexing strategies depend on your query patterns. "
+        "B-tree indexes are the default for equality and range queries. For full-text "
+        "search use GIN indexes with tsvector columns."
+    )
+    decision = await gate.classify_async(text)
+    assert decision.category == "general", f"got {decision}"
+    assert decision.blocked is False
+
+
+async def test_classify_async_blocks_subtle_personal_content():
+    """Personal/health content without any blocklist keyword must still block."""
+    pytest.importorskip("sentence_transformers")
+    gate = SensitivityGate()
+    text = (
+        "I have not been sleeping well since the diagnosis. The doctor said I need "
+        "to reduce stress, but work keeps piling up and I feel overwhelmed every morning."
+    )
+    decision = await gate.classify_async(text)
+    assert decision.blocked is True
+    assert decision.category in ("personal_profile", "unclassified")

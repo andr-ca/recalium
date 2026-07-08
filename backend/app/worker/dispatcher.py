@@ -67,6 +67,61 @@ Return {"facts": []} if no facts can be extracted with a source span."""
 
 # ── Provider routing ──────────────────────────────────────────────────────────
 
+def _parse_json_object(raw: str) -> dict:
+    """Parse the first JSON object out of model output.
+
+    Local models decorate JSON with markdown fences or trailing junk (observed:
+    valid JSON followed by a bare closing fence). Decode from the first '{'
+    and ignore anything after the object.
+    """
+    start = raw.find("{")
+    if start == -1:
+        raise json.JSONDecodeError("no JSON object in output", raw, 0)
+    obj, _ = json.JSONDecoder().raw_decode(raw[start:])
+    if not isinstance(obj, dict):
+        raise json.JSONDecodeError("top-level JSON value is not an object", raw, 0)
+    return obj
+
+
+async def _ollama_chat(system: str, user: str, *, format_json: bool = False) -> str:
+    """Call Ollama's native /api/chat with thinking disabled.
+
+    The OpenAI-compat endpoint cannot disable thinking; reasoning models
+    (qwen3.x etc.) then spend the whole token budget on the thinking trace and
+    return EMPTY content with finish_reason=length. The native API supports
+    `think: false` and `format: "json"` (structured output for extraction).
+    Falls back to a request without `think` for models/servers that reject it.
+    """
+    import httpx  # noqa: PLC0415
+
+    settings = get_settings()
+    payload: dict[str, Any] = {
+        "model": settings.ollama_model,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        "stream": False,
+        "think": False,
+        "options": {"temperature": 0},
+    }
+    if format_json:
+        payload["format"] = "json"
+    headers = (
+        {"Authorization": f"Bearer {settings.ollama_api_key}"}
+        if settings.ollama_api_key
+        else None
+    )
+    url = f"{settings.ollama_base_url.rstrip('/')}/api/chat"
+    async with httpx.AsyncClient(timeout=httpx.Timeout(300.0, connect=10.0)) as client:
+        resp = await client.post(url, json=payload, headers=headers)
+        if resp.status_code == 400 and "think" in payload:
+            # Model/server that rejects the think parameter
+            payload.pop("think")
+            resp = await client.post(url, json=payload, headers=headers)
+        resp.raise_for_status()
+        return resp.json().get("message", {}).get("content") or ""
+
 async def _run_summarize_job(text: str) -> str | None:
     """Run LLM summarization. Returns summary text or None if no provider configured.
 
@@ -101,20 +156,7 @@ async def _run_summarize_job(text: str) -> str | None:
         return response.content[0].text
 
     if settings.ollama_base_url:
-        from openai import AsyncOpenAI  # noqa: PLC0415
-        client = AsyncOpenAI(
-            api_key=settings.ollama_api_key or "ollama",
-            base_url=f"{settings.ollama_base_url.rstrip('/')}/v1",
-        )
-        response = await client.chat.completions.create(
-            model=settings.ollama_model,
-            messages=[
-                {"role": "system", "content": SUMMARIZATION_SYSTEM_PROMPT},
-                {"role": "user", "content": text},
-            ],
-            temperature=0,
-        )
-        return response.choices[0].message.content
+        return await _ollama_chat(SUMMARIZATION_SYSTEM_PROMPT, text)
 
     return None  # No provider configured — caller marks as pending_provider
 
@@ -153,31 +195,17 @@ async def _run_extract_job(text: str) -> list[dict[str, Any]]:
         )
         raw = response.content[0].text
         try:
-            data = json.loads(raw)
-            return data.get("facts", [])
+            return _parse_json_object(raw).get("facts", [])
         except json.JSONDecodeError:
             logger.warning("Anthropic returned non-JSON facts response: %s", raw[:200])
             return []
 
     if settings.ollama_base_url:
-        from openai import AsyncOpenAI  # noqa: PLC0415
-        client = AsyncOpenAI(
-            api_key=settings.ollama_api_key or "ollama",
-            base_url=f"{settings.ollama_base_url.rstrip('/')}/v1",
-        )
-        response = await client.chat.completions.create(
-            model=settings.ollama_model,
-            messages=[
-                {"role": "system", "content": FACT_EXTRACTION_SYSTEM_PROMPT},
-                {"role": "user", "content": text},
-            ],
-            temperature=0,
-        )
-        raw = response.choices[0].message.content or "{}"
+        raw = await _ollama_chat(FACT_EXTRACTION_SYSTEM_PROMPT, text, format_json=True)
         try:
-            data = json.loads(raw)
-            return data.get("facts", [])
+            return _parse_json_object(raw).get("facts", [])
         except json.JSONDecodeError:
+            logger.warning("Ollama returned non-JSON facts response (%d chars): %s", len(raw), raw[:200])
             return []
 
     return []  # No provider configured
@@ -408,18 +436,12 @@ async def _classify_link_pair(source_text: str, target_text: str) -> str | None:
             return resp.content[0].text.strip().lower() or None
 
         if settings.ollama_base_url:
-            from openai import AsyncOpenAI  # noqa: PLC0415
-            client = AsyncOpenAI(
-                api_key=settings.ollama_api_key or "ollama",
-                base_url=f"{settings.ollama_base_url.rstrip('/')}/v1",
+            raw = await _ollama_chat(
+                "You classify relationships between facts. Reply with exactly one word.",
+                prompt,
             )
-            resp = await client.chat.completions.create(
-                model=settings.ollama_model,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0,
-                max_tokens=5,
-            )
-            return resp.choices[0].message.content.strip().lower() or None
+            word = raw.strip().lower().split()[0] if raw.strip() else ""
+            return word if word in ("supports", "elaborates", "contradicts", "unrelated") else None
     except Exception as exc:
         logger.debug("_classify_link_pair failed: %s", exc)
 
@@ -506,6 +528,27 @@ async def dispatch_job(session: AsyncSession, job: Job) -> None:
         job.id, sensitivity_decision.category, sensitivity_decision.confidence,
         sensitivity_decision.blocked,
     )
+
+    # F15: the gate decision must be externally observable (audit trail), not
+    # just logged — evals and users verify the privacy promise through this.
+    try:
+        from app.domain.audit.models import AuditEvent  # noqa: PLC0415
+        session.add(AuditEvent(
+            event_type="sensitivity_gate",
+            raw_archive_id=job.raw_archive_id,
+            actor="pipeline_worker",
+            operation_metadata={
+                "category": sensitivity_decision.category,
+                "confidence": round(sensitivity_decision.confidence, 4),
+                "blocked": sensitivity_decision.blocked,
+                "method": sensitivity_decision.method,
+            },
+        ))
+        await session.commit()
+    except Exception as e:
+        logger.warning("Failed to write sensitivity_gate audit event (non-fatal): %s", e)
+        await session.rollback()
+        await session.refresh(job)
 
     # ── Step 3: LLM summarize + extract (only if gate allows AND provider configured) ──
     if not sensitivity_decision.blocked:

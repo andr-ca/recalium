@@ -2,7 +2,7 @@
 
 TWO-PASS ARCHITECTURE:
   Pass 1: Keyword heuristics (sync, <1ms) — fast path for obvious personal/relationship content
-  Pass 2: CrossEncoder NLI (CPU-bound, ~50-200ms) — handles novel patterns
+  Pass 2: Embedding-prototype classification (CPU-bound, ~20-100ms) — handles novel patterns
 
 SECURITY CONTRACT (PIPE-03, PRIV-04, PRIV-05):
   - Gate MUST run before any external API call
@@ -16,7 +16,7 @@ USAGE:
   gate = SensitivityGate()
   decision = gate.classify(text)  # sync, uses heuristics; safe for quick check
   # or
-  decision = await gate.classify_async(text)  # wraps NLI in asyncio.to_thread()
+  decision = await gate.classify_async(text)  # wraps embedding pass in asyncio.to_thread()
 """
 from __future__ import annotations
 
@@ -42,32 +42,73 @@ _RELATIONSHIP_KEYWORDS = frozenset([
     "my best friend", "my friend", "my family",
 ])
 
-# ── CrossEncoder NLI config ───────────────────────────────────────────────────
+# ── Embedding-prototype classifier config (Pass 2) ───────────────────────────
+#
+# WHY NOT NLI: the previous CrossEncoder zero-shot setup
+# (cross-encoder/nli-MiniLM2-L6-H768 with raw entailment logits) classified
+# plainly technical conversations as "personal profile information" at 0.93+
+# even after per-pair softmax and hypothesis rewording — it blocked ALL real
+# content (finding F22, docs/recommendations.md). Cosine similarity against
+# per-category prototype sentences with the same MiniLM model used for
+# embeddings separates cleanly (measured 2026-07-08 against the eval dataset).
 
-_NLI_MODEL_NAME = "cross-encoder/nli-MiniLM2-L6-H768"
-_NLI_LABELS = [
-    "personal profile information",  # index 0 → personal_profile
-    "relationship information",       # index 1 → relationship
-    "general topic",                  # index 2 → general
-]
-_NLI_CONFIDENCE_THRESHOLD = 0.6
-_NLI_ENTAILMENT_COLUMN = 2  # NLI score matrix column: 0=contradiction, 1=neutral, 2=entailment
+_GATE_EMBED_MODEL_NAME = "all-MiniLM-L6-v2"  # same model as derived_memory embeddings
 
-_gate_model = None  # CrossEncoder, loaded lazily
+_CATEGORY_PROTOTYPES: dict[str, list[str]] = {
+    "personal_profile": [
+        "My name is John Smith and I was born on March 3rd, 1985.",
+        "I have been struggling with anxiety and I am seeing a therapist.",
+        "Here is my home address and my phone number.",
+        "I feel depressed lately and my health has been getting worse.",
+        "I am sharing details about my identity, age, and where I live.",
+    ],
+    "relationship": [
+        "My wife and I had an argument about money yesterday.",
+        "My daughter is starting school next week and I am nervous.",
+        "I am having trouble trusting my best friend after what happened.",
+        "My relationship with my parents has always been complicated.",
+    ],
+    "general": [
+        "How do I implement async functions in Python?",
+        "Database indexing strategies for large PostgreSQL tables.",
+        "Explain how the borrow checker works in this programming language.",
+        "What are best practices for designing a REST API?",
+        "Explain the theory of relativity in simple terms.",
+        "How should I structure a marketing plan for a startup?",
+    ],
+}
+
+# Decision-rule thresholds (privacy-first asymmetry):
+# a sensitive category blocks at a LOW similarity bar; 'general' allows only at
+# a HIGH bar with a clear margin over the best sensitive category.
+_SENSITIVE_BLOCK_SIM = 0.25
+_GENERAL_ALLOW_SIM = 0.35
+_GENERAL_ALLOW_MARGIN = 0.15
+
+# How much of the document to classify (MiniLM truncates ~256 tokens anyway;
+# personal disclosures overwhelmingly appear early in conversations)
+_CLASSIFY_WINDOW_CHARS = 2000
+
+_gate_model = None  # SentenceTransformer, loaded lazily
+_prototype_embeddings: dict[str, "object"] | None = None  # category → ndarray
 
 
 def _get_gate_model():
-    """Load CrossEncoder model on first use.
+    """Load the embedding model + prototype embeddings on first use.
 
     NOT thread-safe for concurrent first-loads (acceptable: personal-scale worker
     processes one job at a time via Semaphore(1)).
     """
-    global _gate_model
+    global _gate_model, _prototype_embeddings
     if _gate_model is None:
         try:
-            from sentence_transformers import CrossEncoder  # noqa: PLC0415
-            _gate_model = CrossEncoder(_NLI_MODEL_NAME)
-            logger.info("Loaded sensitivity gate model: %s", _NLI_MODEL_NAME)
+            from sentence_transformers import SentenceTransformer  # noqa: PLC0415
+            _gate_model = SentenceTransformer(_GATE_EMBED_MODEL_NAME)
+            _prototype_embeddings = {
+                category: _gate_model.encode(sentences, normalize_embeddings=True)
+                for category, sentences in _CATEGORY_PROTOTYPES.items()
+            }
+            logger.info("Loaded sensitivity gate model: %s", _GATE_EMBED_MODEL_NAME)
         except Exception as e:
             logger.error("Failed to load sensitivity gate model: %s", e)
             raise
@@ -83,7 +124,7 @@ class SensitivityDecision:
     category: "personal_profile" | "relationship" | "unclassified" | "general"
     confidence: float in [0, 1] — how confident the classifier is
     blocked: True if content must NOT be sent to external provider
-    method: "heuristic" | "nli" — which pass made the decision
+    method: "heuristic" | "embedding" — which pass made the decision
     """
     category: str
     confidence: float
@@ -96,13 +137,52 @@ class SensitivityDecision:
         return not self.blocked
 
 
+def _decide_from_similarities(similarities: dict[str, float]) -> SensitivityDecision:
+    """Turn per-category max-prototype similarities into a gate decision.
+
+    Pure function (no model) so the privacy-critical decision rule is unit-
+    testable. Asymmetric by design: blocking needs little evidence, allowing
+    needs strong evidence AND a clear margin — unknown stays blocked (PRIV-05).
+    """
+    ranked = sorted(similarities.items(), key=lambda kv: -kv[1])
+    top_category, top_sim = ranked[0]
+    margin = top_sim - ranked[1][1]
+
+    if top_category in ("personal_profile", "relationship") and top_sim >= _SENSITIVE_BLOCK_SIM:
+        return SensitivityDecision(
+            category=top_category,
+            confidence=max(0.0, min(1.0, top_sim)),
+            blocked=True,
+            method="embedding",
+        )
+
+    if (
+        top_category == "general"
+        and top_sim >= _GENERAL_ALLOW_SIM
+        and margin >= _GENERAL_ALLOW_MARGIN
+    ):
+        return SensitivityDecision(
+            category="general",
+            confidence=max(0.0, min(1.0, top_sim)),
+            blocked=False,
+            method="embedding",
+        )
+
+    return SensitivityDecision(
+        category="unclassified",
+        confidence=max(0.0, min(1.0, top_sim)),
+        blocked=True,
+        method="embedding",
+    )
+
+
 # ── Gate implementation ───────────────────────────────────────────────────────
 
 class SensitivityGate:
     """Content sensitivity classifier.
 
     classify() is synchronous and uses keyword heuristics only (fast path).
-    For full two-pass classification including NLI, use classify_async().
+    For full two-pass classification including the embedding pass, use classify_async().
     """
 
     def _keyword_check(self, text: str) -> SensitivityDecision | None:
@@ -127,43 +207,25 @@ class SensitivityGate:
                     method="heuristic",
                 )
 
-        return None  # inconclusive — proceed to NLI
+        return None  # inconclusive — proceed to embedding pass
 
-    def _nli_classify(self, text: str) -> SensitivityDecision:
-        """Pass 2: CrossEncoder NLI classification. Runs synchronously (call from to_thread)."""
+    def _embedding_classify(self, text: str) -> SensitivityDecision:
+        """Pass 2: embedding-prototype classification. Runs synchronously (call from to_thread)."""
         model = _get_gate_model()
-        pairs = [(text, label) for label in _NLI_LABELS]
-        # scores shape: (num_pairs, 3) — columns: contradiction, neutral, entailment
-        scores = model.predict(pairs)
-        entailment_scores = scores[:, _NLI_ENTAILMENT_COLUMN]
-        best_idx = int(entailment_scores.argmax())
-        confidence = float(entailment_scores[best_idx])
-
-        label_to_category = {
-            0: "personal_profile",
-            1: "relationship",
-            2: "general",
+        doc_embedding = model.encode(
+            [text[:_CLASSIFY_WINDOW_CHARS]], normalize_embeddings=True
+        )[0]
+        similarities = {
+            category: float((proto_emb @ doc_embedding).max())
+            for category, proto_emb in _prototype_embeddings.items()
         }
-
-        if confidence < _NLI_CONFIDENCE_THRESHOLD:
-            category = "unclassified"
-        else:
-            category = label_to_category[best_idx]
-
-        blocked = category in ("personal_profile", "relationship", "unclassified")
-
-        return SensitivityDecision(
-            category=category,
-            confidence=confidence,
-            blocked=blocked,
-            method="nli",
-        )
+        return _decide_from_similarities(similarities)
 
     def classify(self, text: str) -> SensitivityDecision:
         """Classify text sensitivity synchronously.
 
-        Uses keyword heuristics only (fast path). For full NLI pass, use classify_async().
-        This method is safe to call from sync context; does NOT load the NLI model.
+        Uses keyword heuristics only (fast path). For the embedding pass, use classify_async().
+        This method is safe to call from sync context; does NOT load the embedding model.
 
         Returns SensitivityDecision with category, confidence, blocked, method.
         If heuristics are inconclusive, returns unclassified (blocked=True) by default.
@@ -174,7 +236,7 @@ class SensitivityGate:
             return heuristic_result
 
         # If heuristics are inconclusive, return unclassified (blocked by default).
-        # Full NLI classification requires classify_async().
+        # Full embedding classification requires classify_async().
         return SensitivityDecision(
             category="unclassified",
             confidence=0.0,
@@ -183,22 +245,22 @@ class SensitivityGate:
         )
 
     async def classify_async(self, text: str) -> SensitivityDecision:
-        """Classify text sensitivity with full NLI pass via asyncio.to_thread().
+        """Classify text sensitivity with the full embedding pass via asyncio.to_thread().
 
         Use from worker loop — avoids blocking the event loop during model inference.
-        Keyword heuristics still run first; NLI only runs if heuristics are inconclusive.
+        Keyword heuristics still run first; the embedding pass only runs if heuristics are inconclusive.
         """
         # Pass 1: keyword heuristics (sync, instant)
         heuristic_result = self._keyword_check(text)
         if heuristic_result is not None:
             return heuristic_result
 
-        # Pass 2: NLI model inference in thread pool (CPU-bound — must not block event loop)
+        # Pass 2: embedding inference in thread pool (CPU-bound — must not block event loop)
         try:
-            return await asyncio.to_thread(self._nli_classify, text)
+            return await asyncio.to_thread(self._embedding_classify, text)
         except Exception as e:
             logger.error(
-                "NLI classification failed: %s — defaulting to unclassified (blocked)", e
+                "Embedding classification failed: %s — defaulting to unclassified (blocked)", e
             )
             return SensitivityDecision(
                 category="unclassified",
