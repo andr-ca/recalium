@@ -1,64 +1,55 @@
 # Recalium Project Context
 
-Recalium is a local-first, MCP-enabled personal memory platform that captures user interactions across LLMs, agents, and tools, transforming them into durable, searchable context for future interactions.
+Recalium is a local-first, MCP-native personal memory platform. It captures AI conversations and related artifacts, transforms them into durable searchable memory, and makes that memory retrievable by MCP-compatible clients.
 
-## Project Overview
+## Current state
 
-- **Purpose:** Provide a portable memory layer that persists across models, sessions, and applications while remaining inspectable and user-controlled.
-- **Architecture:** Modular monolith deployed as two Docker containers (`recalium-app`, `recalium-postgres`). Worker, backup scheduler, and import-watcher run as in-process tasks inside `recalium-app`.
-- **Core Stack:**
-  - **Backend:** Python 3.12 + FastAPI + SQLAlchemy.
-  - **Database:** PostgreSQL with `pgvector` (semantic search) and Full-Text Search (keyword search).
-  - **Frontend:** Localhost Web UI (accessible, keyboard-operable, left-nav layout).
-  - **Integration:** MCP (Model Context Protocol) for agent/tool compatibility.
-- **Current Phase:** Implementation starting (WS1: Durable ingest spine).
+- The backend and frontend application code is present.
+- The current work is v1 release-readiness implementation and validation.
+- Track open release gaps in [docs/operational/validations/recalium-v1-release-readiness-gap-register.md](docs/operational/validations/recalium-v1-release-readiness-gap-register.md).
+- Use [docs/guides/local-use-and-test.md](docs/guides/local-use-and-test.md) for startup, usage, MCP, and testing workflows.
 
-## Key Folders
+## Architecture baseline
 
-- `src/`: Application source code (implementation starting).
-- `docs/`: Comprehensive documentation (architecture, requirements, plans, operational).
-- `agents/`: Agent instructions, prompts, and operational artifacts.
-- `.github/agents/`: Canonical agent definitions for project-level sync.
+- Backend: Python 3.12, FastAPI, SQLAlchemy async, asyncpg, Alembic.
+- Database: PostgreSQL 16 with pgvector and full-text search.
+- Frontend: React 19, TypeScript, Vite 8, Tailwind CSS 4.
+- MCP: Python MCP SDK `>=1.26,<2`.
+- Deployment: two containers only: `recalium-app` and `recalium-postgres`.
+- Package managers: `uv` for Python, `pnpm` for Node.
 
-## Key Files
+## Key folders
 
-- `README.md`: High-level project overview.
-- `agents/core.instructions.md`: **Crucial** mandatory workflows (Branch safety, TDD, Documentation).
-- `agents/python.instructions.md`: Detailed Python 3.12 modular development and DI guidelines.
-- `agents/tdd.instructions.md`: Mandatory Red-Green-Refactor workflow.
-- `agents/sync-agents.py`: Script to sync agent instructions between user profile and project.
-- `docs/plans/implementation-plan.md`: Roadmap and batch-level delivery details.
+- [backend/app](backend/app): FastAPI app, API routes, domain services, infrastructure, MCP server, worker loop.
+- [backend/tests](backend/tests): backend unit, domain, API, integration, MCP, worker, and live-stack E2E tests.
+- [frontend/src](frontend/src): React app, pages, components, API client, and frontend tests.
+- [docs/requirements](docs/requirements): canonical product scope and v1 acceptance criteria.
+- [docs/architecture](docs/architecture): approved architecture baseline.
+- [docs/operational](docs/operational): reviews, validations, test reports, and evidence artifacts.
+- [agents](agents): shared agent instructions and sync tooling.
 
-## Building and Running
+## Build, run, and test
 
-*Note: Initial implementation batch is underway. Commands below are based on planned stack.*
+- Start local stack: `docker compose up`.
+- Start production/base compose: `docker compose -f docker-compose.yml up -d`.
+- Build app image: `docker compose build`.
+- Backend tests: `cd backend && pytest`.
+- Live-stack E2E: `cd backend && pytest tests/e2e` after Docker Compose is running.
+- Frontend build: `cd frontend && pnpm install && pnpm build`.
+- Frontend tests: `cd frontend && pnpm test`.
 
-- **Environment Setup:** Copy `.env.sample` to `.env` and configure.
-- **Agent Sync:** `python agents/sync-agents.py [push|pull]`
-- **Testing (TODO):** `pytest` (Mandatory TDD workflow).
-- **Linting (TODO):** `ruff check .`
-- **Docker (TODO):** `docker-compose up`
+## Agent skills
 
-## Development Conventions
+Use the Recalium use/test skill when starting the app, testing, validating MCP, exercising UI UAT, or collecting release evidence:
 
-### 🔴 Branch Safety (Mandatory First Step)
-Before any change, run `git status -sb` and confirm the branch strategy with the user. Never commit directly to trunk branches (`main`, `master`, `develop`, etc.).
+- Copilot: [.github/skills/recalium-use-and-test/SKILL.md](.github/skills/recalium-use-and-test/SKILL.md)
+- Claude: [.claude/skills/recalium-use-and-test/SKILL.md](.claude/skills/recalium-use-and-test/SKILL.md)
+- Codex: [.codex/skills/recalium-use-and-test/SKILL.md](.codex/skills/recalium-use-and-test/SKILL.md)
 
-### 🚨 TDD is Mandatory (Non-Negotiable)
-Follow the **Red-Green-Refactor** cycle for every change:
-1. **RED:** Write a failing test first.
-2. **GREEN:** Write minimal code to pass.
-3. **REFACTOR:** Improve code while keeping tests green.
+## Constraints
 
-### 📊 Test Coverage
-- **Business Logic:** 100% (services, validators, utils, rules).
-- **Overall Project:** 80% minimum.
-
-### 🏗️ Modular Python Design
-- Depend on abstractions (Interfaces/Protocols), not concrete implementations.
-- Use Constructor Injection for dependencies.
-- Follow SOLID principles (SRP, DIP, ISP specifically highlighted in project docs).
-
-### 📚 Documentation
-- All code changes must be accompanied by updates to relevant files in `docs/`.
-- Update `CHANGES.md` (or equivalent as established) for every feature/fix.
+- Never hardcode secrets or provider keys; use `.env` and keep `.env.sample` sanitized.
+- Do not add extra v1 containers.
+- Do not introduce Redis/Celery or a separate vector database for v1.
+- Preserve local-first and BYOK-by-default behavior.
+- Do not claim release readiness without evidence mapped to acceptance criteria.

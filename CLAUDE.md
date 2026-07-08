@@ -162,3 +162,15 @@ Do not make direct repo edits outside a GSD workflow unless the user explicitly 
 > Profile not yet configured. Run `/gsd:profile-user` to generate your developer profile.
 > This section is managed by `generate-claude-profile` -- do not edit manually.
 <!-- GSD:profile-end -->
+
+## Agent Resources
+
+Use the Recalium use/test skill when starting the app, testing, validating MCP, exercising UI UAT, or collecting release evidence:
+
+- Copilot: `.github/skills/recalium-use-and-test/SKILL.md`
+- Claude: `.claude/skills/recalium-use-and-test/SKILL.md`
+- Codex: `.codex/skills/recalium-use-and-test/SKILL.md`
+
+Current local usage and testing guide: `docs/guides/local-use-and-test.md`.
+
+Current release-readiness tracker: `docs/operational/validations/recalium-v1-release-readiness-gap-register.md`.

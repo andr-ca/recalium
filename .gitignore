@@ -100,3 +100,17 @@ temp/
 # Tool artifacts
 .superpowers/
 website/.astro/
+
+# Memory subsystem — runtime state files (not source)
+memory/.venv/
+memory/daily/
+memory/knowledge/
+memory/reports/
+memory/scripts/state.json
+memory/scripts/last-flush.json
+memory/scripts/session-flush-*.md
+~/.config/recalium-memory/
+
+# Local copy of built SPA (Docker copies frontend/dist at build time)
+backend/app/static/
+.claude/settings.local.json

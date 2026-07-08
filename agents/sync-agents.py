@@ -5,11 +5,12 @@ sync-agents.py — Sync agents and skills between VS Code user profile and proje
 Canonical names are read once from .github/agents/*.agent.md (files without the prj- prefix).
 
 Directions:
-  push   Copy user-profile agents/skills → .github/{agents,skills}/, adding 'prj-' prefix.
-           Internal cross-references (agents:, handoffs agent:, backtick names in body) are
-           rewritten to use the prefixed names.
-  pull   Copy .github/agents/prj-* and .github/skills/prj-* → user profile, removing prefix.
-           Internal cross-references are rewritten to remove the prefix.
+    push   Copy user-profile agents/skills → .github/{agents,skills}/, adding 'prj-' prefix.
+                     Internal cross-references (agents:, handoffs agent:, backtick names in body) are
+                     rewritten to use the prefixed names.
+    pull   Copy .github/agents/prj-* and .github/skills/prj-* → user profile, removing prefix.
+                     If no prefixed project copy exists, pull falls back to the non-prefixed canonical
+                     project file/directory. Internal cross-references are rewritten to remove the prefix.
 
 Usage:
   python sync-agents.py push [options]
@@ -276,11 +277,13 @@ def pull_agents(
     print(f"\n[AGENTS pull]  {project_agents_dir}  →  {user_agents_dir}")
 
     for name in sorted(canonical):
-        src = project_agents_dir / f"{PREFIX}{name}.agent.md"
+        prefixed_src = project_agents_dir / f"{PREFIX}{name}.agent.md"
+        canonical_src = project_agents_dir / f"{name}.agent.md"
+        src = prefixed_src if prefixed_src.exists() else canonical_src
         dst = user_agents_dir / f"{name}.agent.md"
 
         if not src.exists():
-            print(f"  SKIP   {PREFIX}{name}: not found in project agents dir")
+            print(f"  SKIP   {name}: neither {prefixed_src.name} nor {canonical_src.name} found in project agents dir")
             continue
 
         content = src.read_text(encoding="utf-8")
@@ -390,11 +393,13 @@ def pull_skills(
         return
 
     for name in sorted(canonical):
-        src = project_skills_dir / f"{PREFIX}{name}"
+        prefixed_src = project_skills_dir / f"{PREFIX}{name}"
+        canonical_src = project_skills_dir / name
+        src = prefixed_src if prefixed_src.exists() else canonical_src
         dst = user_skills_dir / name
 
         if not src.exists():
-            print(f"  SKIP   {PREFIX}{name}: not found in project skills dir")
+            print(f"  SKIP   {name}: neither {prefixed_src.name}/ nor {canonical_src.name}/ found in project skills dir")
             continue
 
         _copy_skill_dir(src, dst, name, add_prefix=False, dry_run=dry_run)
