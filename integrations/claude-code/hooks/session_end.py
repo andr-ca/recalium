@@ -143,10 +143,11 @@ def main():
     except (json.JSONDecodeError, EOFError):
         return {}
 
-    # Extract fields
-    session_id = hook_input.get("sessionId", "")
-    transcript_path = hook_input.get("transcriptPath", "")
-    workspace_path = hook_input.get("workspacePath", "")
+    # Extract fields. Claude Code hook JSON is snake_case:
+    # session_id, transcript_path, cwd (there is no sessionId/transcriptPath/workspacePath).
+    session_id = hook_input.get("session_id", "")
+    transcript_path = hook_input.get("transcript_path", "")
+    workspace_path = hook_input.get("cwd", "")
 
     if not session_id or not transcript_path:
         return {}
