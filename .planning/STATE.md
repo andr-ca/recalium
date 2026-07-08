@@ -137,6 +137,7 @@ _(none)_
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
 | 260707-jlg | In-depth project analysis, recommendations doc (docs/recommendations.md), and eval suite (evals/) with first live baseline | 2026-07-07 | e4dd775 | [260707-jlg-in-depth-project-analysis-recommendation](./quick/260707-jlg-in-depth-project-analysis-recommendation/) |
+| 260707-krr | Eval embeddings/provider validation + Ollama run; fixed F19-F21 pipeline bugs; found F22 gate over-blocking (P0) | 2026-07-08 | ee80112, 835d0df | [260707-krr-extend-eval-suite-to-validate-embeddings](./quick/260707-krr-extend-eval-suite-to-validate-embeddings/) |
 
 ---
 
@@ -186,4 +187,4 @@ _(none)_
 
 ---
 
-*Last updated: 2026-07-07 — Completed quick task 260707-jlg: analysis + recommendations doc + eval suite; first live eval baseline recorded (keyword R@5 87.5%, MRR 0.88); new findings F15–F17 in docs/recommendations.md*
+*Last updated: 2026-07-08 — Completed quick task 260707-krr: embeddings validated (semantic R@10 100%, lift +100% vs FTS), pipeline bugs F19–F21 fixed, P0 finding F22 (gate blocks all content) documented*
