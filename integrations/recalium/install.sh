@@ -38,6 +38,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 SSE_OBJ="$(printf '{"type":"sse","url":"%s"}' "$URL")"
 URL_OBJ="$(printf '{"url":"%s"}' "$URL")"
+OPENCODE_OBJ="$(printf '{"type":"remote","url":"%s","enabled":true}' "$URL")"
 
 # Claude Code hook commands. Single-quoted so $CLAUDE_PROJECT_DIR is expanded by
 # Claude Code at runtime, not by this script.
@@ -153,6 +154,35 @@ install_vscode_user() {
   merge_mcp_json "$file" "servers" "$SSE_OBJ"
 }
 
+install_hermes_user() {
+  local file="${HERMES_HOME:-$HOME/.hermes}/config.yaml"
+  if [[ $DRY_RUN -eq 1 ]]; then log "  DRY: ensure mcp_servers.recalium -> $(tilde "$file")"; return 0; fi
+  if ! python3 -c "import yaml" >/dev/null 2>&1; then
+    log "  ! PyYAML not available — skipping Hermes (see integrations/recalium/hermes/SETUP.md)"; return 0
+  fi
+  mkdir -p "$(dirname "$file")"
+  RC_FILE="$file" RC_URL="$URL" python3 - <<'PY'
+import os, shutil, yaml
+file = os.environ["RC_FILE"]; url = os.environ["RC_URL"]
+data = {}
+if os.path.exists(file):
+    with open(file, encoding="utf-8") as f:
+        data = yaml.safe_load(f) or {}
+if not isinstance(data, dict):
+    print(f"  ! {file} is not a mapping; skipping"); raise SystemExit
+servers = data.setdefault("mcp_servers", {})
+obj = {"command": "npx", "args": ["-y", "mcp-remote", url]}
+if servers.get("recalium") == obj:
+    print(f"  = {file} already current (mcp_servers.recalium)"); raise SystemExit
+if os.path.exists(file):
+    shutil.copyfile(file, file + ".bak")
+servers["recalium"] = obj
+with open(file, "w", encoding="utf-8") as f:
+    yaml.safe_dump(data, f, sort_keys=False, default_flow_style=False)
+print(f"  + mcp_servers.recalium -> {file}")
+PY
+}
+
 log "Recalium connector installer"
 log "  endpoint: $URL"
 log "  repo:     $REPO_ROOT"
@@ -163,6 +193,7 @@ log "Repo-level MCP configs:"
 merge_mcp_json "$REPO_ROOT/.mcp.json" "mcpServers" "$SSE_OBJ"
 merge_mcp_json "$REPO_ROOT/.vscode/mcp.json" "servers" "$SSE_OBJ"
 merge_mcp_json "$REPO_ROOT/.cursor/mcp.json" "mcpServers" "$URL_OBJ"
+merge_mcp_json "$REPO_ROOT/opencode.json" "mcp" "$OPENCODE_OBJ"
 
 log ""
 log "Skills & rules:"
@@ -170,6 +201,7 @@ install_file "$KIT/claude-code/skill/SKILL.md"        "$REPO_ROOT/.claude/skills
 install_file "$KIT/codex/skill/SKILL.md"              "$REPO_ROOT/.codex/skills/recalium-memory/SKILL.md"
 install_file "$KIT/github-copilot/skill/SKILL.md"     "$REPO_ROOT/.github/skills/recalium-memory/SKILL.md"
 install_file "$KIT/cursor/rules/recalium-memory.mdc"  "$REPO_ROOT/.cursor/rules/recalium-memory.mdc"
+install_file "$KIT/pi/skill/SKILL.md"                 "$REPO_ROOT/.pi/skills/recalium-memory/SKILL.md"
 
 log ""
 log "Claude Code hooks:"
@@ -180,6 +212,9 @@ if [[ $DO_USER -eq 1 ]]; then
   log "User-level configs (--all):"
   install_codex_user
   install_vscode_user
+  merge_mcp_json "$HOME/.config/opencode/opencode.json" "mcp" "$OPENCODE_OBJ"
+  install_file "$KIT/pi/skill/SKILL.md" "$HOME/.pi/agent/skills/recalium-memory/SKILL.md"
+  install_hermes_user
 fi
 
 log ""

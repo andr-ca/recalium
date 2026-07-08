@@ -1,0 +1,13 @@
+# Recalium MCP server for Hermes Agent.
+#
+# Hermes speaks MCP and reads server config from ~/.hermes/config.yaml under the
+# mcp_servers: key. We bridge to Recalium's local SSE endpoint with mcp-remote
+# (requires Node.js / npx). Merge this block into ~/.hermes/config.yaml.
+
+mcp_servers:
+  recalium:
+    command: "npx"
+    args: ["-y", "mcp-remote", "http://localhost:8000/mcp/sse"]
+    # Exposed mode (non-localhost): add a bearer header. Hermes resolves ${VAR} at
+    # connect time; keep the secret in ~/.hermes/.env — never hardcode it.
+    # args: ["-y", "mcp-remote", "http://localhost:8000/mcp/sse", "--header", "Authorization: Bearer ${APP_AUTH_BEARER}"]

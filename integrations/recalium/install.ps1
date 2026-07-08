@@ -36,6 +36,7 @@ $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 
 $SseObj = [ordered]@{ type = "sse"; url = $Url }
 $UrlObj = [ordered]@{ url = $Url }
+$OpenCodeObj = [ordered]@{ type = "remote"; url = $Url; enabled = $true }
 
 # Claude Code hook commands. $CLAUDE_PROJECT_DIR is expanded by Claude Code at runtime.
 $SsCmd   = 'powershell -NoProfile -ExecutionPolicy Bypass -File "$CLAUDE_PROJECT_DIR\integrations\recalium\hooks\recalium_session_start.ps1"'
@@ -138,6 +139,28 @@ function Install-VscodeUser {
     Merge-Mcp -File $File -Key "servers" -Obj $SseObj
 }
 
+function Add-HermesUser {
+    $hermesHome = if ($env:HERMES_HOME) { $env:HERMES_HOME } else { Join-Path $env:USERPROFILE ".hermes" }
+    $File = Join-Path $hermesHome "config.yaml"
+    if ($DryRun) { Write-Host "  DRY: ensure mcp_servers.recalium -> $File"; return }
+    if ((Test-Path $File) -and (Select-String -Path $File -Pattern '^\s*recalium:' -Quiet)) {
+        Write-Host "  = $File already has mcp_servers.recalium"; return
+    }
+    if (-not (Test-Path $hermesHome)) { New-Item -ItemType Directory -Force -Path $hermesHome | Out-Null }
+    if (Test-Path $File) {
+        # File exists without a recalium entry. Appending a second top-level
+        # mcp_servers: would duplicate the key, so leave a note instead of risky edits.
+        if (Select-String -Path $File -Pattern '^\s*mcp_servers:' -Quiet) {
+            Write-Host "  ! $File has mcp_servers: but no recalium - add manually from integrations/recalium/hermes/config.snippet.yaml"
+            return
+        }
+        Copy-Item $File "$File.bak" -Force
+    }
+    $block = "mcp_servers:`n  recalium:`n    command: `"npx`"`n    args: [`"-y`", `"mcp-remote`", `"$Url`"]`n"
+    Add-Content -Path $File -Value $block
+    Write-Host "  + mcp_servers.recalium -> $File"
+}
+
 Write-Host "Recalium connector installer"
 Write-Host "  endpoint: $Url"
 Write-Host "  repo:     $RepoRoot"
@@ -148,6 +171,7 @@ Write-Host "Repo-level MCP configs:"
 Merge-Mcp -File (Join-Path $RepoRoot ".mcp.json")       -Key "mcpServers" -Obj $SseObj
 Merge-Mcp -File (Join-Path $RepoRoot ".vscode\mcp.json") -Key "servers"    -Obj $SseObj
 Merge-Mcp -File (Join-Path $RepoRoot ".cursor\mcp.json") -Key "mcpServers" -Obj $UrlObj
+Merge-Mcp -File (Join-Path $RepoRoot "opencode.json")   -Key "mcp"        -Obj $OpenCodeObj
 
 Write-Host ""
 Write-Host "Skills and rules:"
@@ -155,6 +179,7 @@ Install-File (Join-Path $Kit "claude-code\skill\SKILL.md")       (Join-Path $Rep
 Install-File (Join-Path $Kit "codex\skill\SKILL.md")            (Join-Path $RepoRoot ".codex\skills\recalium-memory\SKILL.md")
 Install-File (Join-Path $Kit "github-copilot\skill\SKILL.md")   (Join-Path $RepoRoot ".github\skills\recalium-memory\SKILL.md")
 Install-File (Join-Path $Kit "cursor\rules\recalium-memory.mdc") (Join-Path $RepoRoot ".cursor\rules\recalium-memory.mdc")
+Install-File (Join-Path $Kit "pi\skill\SKILL.md")               (Join-Path $RepoRoot ".pi\skills\recalium-memory\SKILL.md")
 
 Write-Host ""
 Write-Host "Claude Code hooks:"
@@ -165,6 +190,9 @@ if ($All) {
     Write-Host "User-level configs (-All):"
     Install-CodexUser
     Install-VscodeUser
+    Merge-Mcp -File (Join-Path $env:USERPROFILE ".config\opencode\opencode.json") -Key "mcp" -Obj $OpenCodeObj
+    Install-File (Join-Path $Kit "pi\skill\SKILL.md") (Join-Path $env:USERPROFILE ".pi\agent\skills\recalium-memory\SKILL.md")
+    Add-HermesUser
 }
 
 Write-Host ""

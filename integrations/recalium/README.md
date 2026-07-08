@@ -1,8 +1,11 @@
 # Recalium multi-agent connector kit
 
-Connect **Claude Code**, **GitHub Copilot**, **Codex CLI**, and **Cursor** to your
-local Recalium memory over MCP — with a memory **skill**, **hooks**, **MCP config**,
-and **CLI setup** for each tool.
+Connect **Claude Code**, **GitHub Copilot**, **Codex CLI**, **Cursor**,
+**OpenCode**, **Hermes Agent**, and **pi** to your local Recalium memory — with a
+memory **skill**, **hooks**, **MCP config**, and **CLI setup** for each tool.
+
+Most tools connect over MCP. **pi has no MCP by design**, so it uses Recalium's
+local **REST API** instead (still retrieve-before / ingest-after).
 
 Recalium exposes MCP over SSE at:
 
@@ -23,6 +26,9 @@ integrations/recalium/
 ├── github-copilot/                 # mcp.json · skill · instructions snippet · SETUP.md
 ├── codex/                          # config.snippet.toml · skill · SETUP.md
 ├── cursor/                         # mcp.json · rules/*.mdc · SETUP.md
+├── opencode/                       # opencode.json (mcp) · AGENTS snippet · skill · SETUP.md
+├── hermes/                         # config.snippet.yaml (mcp_servers) · skill · SETUP.md
+├── pi/                             # skill (REST/curl) · AGENTS snippet · SETUP.md
 └── hooks/                          # recalium_session_start / _stop (.sh + .ps1)
 ```
 
@@ -62,8 +68,13 @@ Override the endpoint with `--url <sse-url>` / `-Url <sse-url>`.
 | `.claude/skills/recalium-memory/SKILL.md` | Claude Code skill |
 | `.codex/skills/recalium-memory/SKILL.md` | Codex skill |
 | `.github/skills/recalium-memory/SKILL.md` | Copilot skill |
+| `opencode.json` | OpenCode MCP (`mcp.recalium`, remote) |
+| `.pi/skills/recalium-memory/SKILL.md` | pi memory skill (REST-based; pi has no MCP) |
 | `~/.codex/config.toml` (`--all`) | Codex user MCP via `mcp-remote` bridge |
 | VS Code user `mcp.json` (`--all`) | Copilot user-level MCP |
+| `~/.config/opencode/opencode.json` (`--all`) | OpenCode user MCP |
+| `~/.pi/agent/skills/recalium-memory/SKILL.md` (`--all`) | pi user skill |
+| `~/.hermes/config.yaml` (`--all`) | Hermes MCP (`mcp_servers.recalium` via `mcp-remote`) |
 
 The installer never writes secrets. Re-running is safe — it detects existing
 entries and leaves them unchanged.
@@ -71,9 +82,9 @@ entries and leaves them unchanged.
 ## Requirements
 
 - Recalium running locally (`GET http://localhost:8000/api/health` → `200`).
-- `python3` (Linux/macOS installer) — for safe JSON merges.
+- `python3` (Linux/macOS installer) — for safe JSON merges; PyYAML for the Hermes `config.yaml` merge (`--all`).
 - PowerShell 7+ (`pwsh`) for the Windows installer.
-- Node.js / `npx` for the Codex `mcp-remote` bridge.
+- Node.js / `npx` for the Codex and Hermes `mcp-remote` bridges.
 
 ## Exposed mode (non-localhost)
 
