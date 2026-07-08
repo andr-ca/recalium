@@ -144,6 +144,26 @@ Restore testing still needs saved timing evidence before the 15-minute restore S
 
 Recalium mounts MCP SSE at `http://localhost:8000/mcp/sse`.
 
+### Connect Claude Code
+
+Register Recalium as a user-scoped MCP server so every Claude Code session
+(in any project) can ingest and retrieve memory:
+
+```bash
+claude mcp add --scope user --transport sse recalium http://localhost:8000/mcp/sse
+claude mcp list   # expect: recalium ... ✔ Connected
+```
+
+Requirements and notes:
+
+- The docker compose stack must be running (`docker compose up -d`); if it is
+  down, Claude Code shows the server as failed and reconnects when it is back.
+- New sessions pick up the server automatically; sessions already open when
+  you register it must be restarted to see the tools.
+- Verified end-to-end 2026-07-08: `ingest_memory` → async pipeline (gate →
+  FTS → embeddings) → `retrieve_memory` returns the item via hybrid search
+  with provenance metadata.
+
 Minimum agent workflow:
 
 1. Connect to the SSE endpoint.
