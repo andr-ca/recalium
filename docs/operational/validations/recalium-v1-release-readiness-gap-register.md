@@ -79,6 +79,19 @@ Validation performed:
 - Frontend page/component validation passed: `pnpm test`.
 - Frontend production build passed: `pnpm build`.
 
+### 2026-07-08
+
+- F13 closed: all pending release-readiness work committed in three reviewable
+  slices — backend contract (2adf843), frontend UI + tests (986eb01), agent
+  enablement/docs/memory skeleton (5616cdf). Working tree clean.
+- Eval suite fully green (5/5 checks, zero skips) against local Ollama +
+  embeddings: extraction 62.5%/76.7% (span fidelity + provenance 100%),
+  semantic/hybrid R@10 100%, sensitivity gate audit-verified. Evidence:
+  [../tests/artifacts/eval-green-2026-07-08/](../tests/artifacts/eval-green-2026-07-08/).
+- Known follow-up: tests/api/test_facts_api.py::test_list_facts_returns_active_facts
+  asserts an absolute count and flakes when combined with tests/domain
+  (cross-suite fact leakage); scope its query or filter by its own archive id.
+
 ## Completion phases
 
 ### Phase A — Operator and agent enablement
