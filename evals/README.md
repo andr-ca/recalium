@@ -105,21 +105,20 @@ derivation_method, and derivation_model — threshold 1.0 (absolute).
 
 ### Sensitivity Metrics
 
-**Differential gate test (requires a configured provider):** sensitive
-(personal/relationship) conversations are ingested through the same pipeline as
-the control conversations. The gate must prevent LLM extraction for them:
+**Audit-based exact verification (F15, primary):** the pipeline emits a
+`sensitivity_gate` audit event per item (category, confidence, blocked,
+method). The check requires: every sensitive item's event has `blocked=true`,
+at least one control item's event has `blocked=false` (guards against a gate
+that blocks everything — F22), and zero facts are attributed to sensitive
+items.
 
-- **block_verified:** 1.0 when zero facts are attributed to sensitive archive
-  items *while* control conversations produced facts through the same provider
-  (the control comes from the extraction check). 0.0 = LEAK — sensitive content
-  reached the LLM extraction path.
-- **leaked_fact_count:** number of facts derived from sensitive conversations
-  (must be 0).
+- **block_verified:** 1.0 when all sensitive items blocked AND no leaked facts
+- **control_allowed:** 1.0 when at least one control item was allowed
+- **leaked_fact_count:** facts derived from sensitive conversations (must be 0)
 
-**Skipped in no-key mode:** without a provider, blocking is indistinguishable
-from idling. Direct gate observability (an audit event / job field — F15 in
-`docs/recommendations.md`) would make this check exact instead of differential
-and runnable without a provider.
+**Fallback (differential):** on servers without gate audit events, passes only
+when sensitive items yield zero facts while controls produce facts. Skipped in
+no-key mode (blocking indistinguishable from idling).
 
 ### MCP Metrics
 

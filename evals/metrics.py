@@ -230,35 +230,57 @@ def latency_percentiles(latencies_ms: List[float]) -> Dict[str, float]:
     }
 
 
-def fuzzy_match_text(text_a: str, text_b: str, threshold: float = 0.8) -> bool:
-    """
-    Check if text_a and text_b match with threshold similarity.
+_MATCH_STOPWORDS = frozenset({
+    "a", "an", "the", "is", "are", "was", "were", "in", "for", "of", "to",
+    "with", "and", "or", "on", "that", "this", "it", "its", "be", "as", "by",
+    "at", "use", "used", "using", "uses", "user", "users", "should", "can",
+    "will", "only", "all", "very",
+})
 
-    Simple fuzzy match: text_a contains ≥threshold of text_b or vice versa.
-    This is a basic implementation; consider difflib.SequenceMatcher for production.
+
+def _content_words(text: str) -> set:
+    """Lowercased content words (stopwords and 1-char tokens removed)."""
+    import re
+    return {
+        w for w in re.findall(r"[a-z0-9@+]+", text.lower())
+        if w not in _MATCH_STOPWORDS and len(w) > 1
+    }
+
+
+def fuzzy_match_text(text_a: str, text_b: str, threshold: float = 0.6) -> bool:
+    """
+    Check whether two fact statements express the same fact.
+
+    Primary signal: content-word overlap ratio (|A∩B| / min(|A|,|B|)) — robust
+    to paraphrase ("Async functions are defined using the syntax 'async def'"
+    vs "Python async functions are defined with `async def` keyword"), which
+    pure SequenceMatcher at 0.8 rejects. SequenceMatcher kept as a secondary
+    signal for near-verbatim strings with little word overlap after stopwords.
+    Calibrated against real qwen3.5:4b extractions vs golden labels (2026-07-08).
 
     Args:
-        text_a: First text to compare
-        text_b: Second text to compare
-        threshold: Minimum character overlap ratio (0.0-1.0)
+        text_a: First fact text
+        text_b: Second fact text
+        threshold: Minimum content-word overlap ratio (0.0-1.0)
 
     Returns:
-        True if texts match within threshold
+        True if the statements match
     """
     if not text_a or not text_b:
         return False
 
-    # Simple substring match first (fastest case)
     if text_b.lower() in text_a.lower() or text_a.lower() in text_b.lower():
         return True
 
-    # For more robust fuzzy matching, use difflib
+    words_a = _content_words(text_a)
+    words_b = _content_words(text_b)
+    if words_a and words_b:
+        overlap = len(words_a & words_b) / min(len(words_a), len(words_b))
+        if overlap >= threshold:
+            return True
+
     from difflib import SequenceMatcher
-
-    matcher = SequenceMatcher(None, text_a.lower(), text_b.lower())
-    ratio = matcher.ratio()
-
-    return ratio >= threshold
+    return SequenceMatcher(None, text_a.lower(), text_b.lower()).ratio() >= 0.8
 
 
 def extraction_recall_and_precision(

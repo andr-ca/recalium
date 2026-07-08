@@ -49,6 +49,36 @@
             "async",
             "concurrency"
           ]
+        },
+        {
+          "id": "fact-005",
+          "text": "Python's async/await is built on asyncio",
+          "source_span": "Python's async/await is built on asyncio",
+          "confidence": 0.95,
+          "tags": [
+            "python",
+            "async"
+          ]
+        },
+        {
+          "id": "fact-006",
+          "text": "Run async programs with asyncio.run(main())",
+          "source_span": "Run with `asyncio.run(main())`",
+          "confidence": 0.9,
+          "tags": [
+            "python",
+            "async"
+          ]
+        },
+        {
+          "id": "fact-007",
+          "text": "Use try/except around await expressions for error handling in asyncio",
+          "source_span": "Use try/except around await expressions",
+          "confidence": 0.9,
+          "tags": [
+            "python",
+            "error-handling"
+          ]
         }
       ],
       "metadata": {
@@ -111,6 +141,36 @@
           "tags": [
             "postgresql",
             "fts"
+          ]
+        },
+        {
+          "id": "fact-106",
+          "text": "Hash indexes in PostgreSQL are for exact matches only",
+          "source_span": "Hash indexes** for exact matches only",
+          "confidence": 0.9,
+          "tags": [
+            "postgresql",
+            "indexing"
+          ]
+        },
+        {
+          "id": "fact-107",
+          "text": "GiST indexes are for geometric data or full-text search in PostgreSQL",
+          "source_span": "GiST** for geometric data or full-text search",
+          "confidence": 0.9,
+          "tags": [
+            "postgresql",
+            "indexing"
+          ]
+        },
+        {
+          "id": "fact-108",
+          "text": "GIN index on tsvector is much faster than LIKE for large datasets",
+          "source_span": "much faster than LIKE",
+          "confidence": 0.85,
+          "tags": [
+            "postgresql",
+            "performance"
           ]
         }
       ],
@@ -219,6 +279,36 @@
           "tags": [
             "rust",
             "lifetimes"
+          ]
+        },
+        {
+          "id": "fact-305",
+          "text": "When the owner drops, the Rust value is freed",
+          "source_span": "When the owner drops, the value is freed",
+          "confidence": 0.9,
+          "tags": [
+            "rust",
+            "ownership"
+          ]
+        },
+        {
+          "id": "fact-306",
+          "text": "Rust does not allow a mutable borrow while immutable references exist",
+          "source_span": "can't borrow mutable if immutable refs exist",
+          "confidence": 0.9,
+          "tags": [
+            "rust",
+            "borrowing"
+          ]
+        },
+        {
+          "id": "fact-307",
+          "text": "Rust borrows are checked at compile time by the borrow checker",
+          "source_span": "checked at compile-time",
+          "confidence": 0.85,
+          "tags": [
+            "rust",
+            "compilation"
           ]
         }
       ],
@@ -352,6 +442,7 @@
     "Query q-005 is public but references a sensitive conversation (test cross-conversation sensitivity checks).",
     "Schema can be extended with custom fields in facts and queries; eval runner only consumes standard fields.",
     "All raw_text is synthetic (no real personal data or proprietary information).",
-    "Queries flagged semantic_only are paraphrases sharing no content-word stems with their source conversation (verified programmatically at authoring time). Keyword/FTS is expected to miss them; they measure the recall embeddings add (semantic_lift)."
+    "Queries flagged semantic_only are paraphrases sharing no content-word stems with their source conversation (verified programmatically at authoring time). Keyword/FTS is expected to miss them; they measure the recall embeddings add (semantic_lift).",
+    "Golden facts are intended to be EXHAUSTIVE per conversation (2026-07-08): precision counts unlisted-but-correct extractions as errors, so every true fact in the source must be labeled."
   ]
 }

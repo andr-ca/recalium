@@ -155,27 +155,82 @@ async def run_check(client: httpx.AsyncClient, golden: Dict[str, Any], settings:
     except Exception:
         pass
 
+    # EXACT verification (F15): read the gate's decisions from the audit trail.
+    # sensitive items must be blocked=true; control items must include
+    # blocked=false (proving the gate isn't just blocking everything — F22).
+    gate_events: dict = {}
+    try:
+        audit_resp = await client.get(
+            f"{base_url}/api/audit/events",
+            params={"event_type": "sensitivity_gate", "limit": 200},
+            timeout=10.0,
+        )
+        if audit_resp.status_code == 200:
+            for ev in audit_resp.json().get("items", []):
+                aid = ev.get("raw_archive_id")
+                if aid:
+                    gate_events[aid] = ev.get("operation_metadata") or {}
+    except Exception:
+        pass
+
+    control_ids = {
+        aid
+        for ids in settings.get("ingested_archive_ids", {}).values()
+        for aid in ids
+    }
+    sensitive_gate = [gate_events[a] for a in sensitive_archive_ids if a in gate_events]
+    control_gate = [gate_events[a] for a in control_ids if a in gate_events]
+
+    audit_observable = bool(sensitive_gate)
+    sensitive_all_blocked = audit_observable and all(m.get("blocked") is True for m in sensitive_gate)
+    control_some_allowed = any(m.get("blocked") is False for m in control_gate)
+
+    if audit_observable:
+        # Primary: exact audit-based verification; leaked facts double-checked
+        blocked = sensitive_all_blocked and len(leaked_facts) == 0
+        passed = blocked and control_some_allowed
+        details = (
+            f"Audit-based gate verification (F15): {len(sensitive_gate)}/{ingest_ok} sensitive "
+            f"conversations have gate audit events; all blocked={sensitive_all_blocked}. "
+            f"Control items with gate events: {len(control_gate)}, at least one allowed="
+            f"{control_some_allowed} (guards against block-everything, F22). "
+            f"Facts leaked from sensitive items: {len(leaked_facts)} (must be 0). "
+            f"{'PASS: gate blocks sensitive content while allowing controls.' if passed else 'FAIL: see metrics.'}"
+        )
+        return CheckResult(
+            name="sensitivity",
+            passed=passed,
+            metrics={
+                "block_verified": 1.0 if blocked else 0.0,
+                "control_allowed": 1.0 if control_some_allowed else 0.0,
+                "leaked_fact_count": float(len(leaked_facts)),
+                "sensitive_conversations_tested": float(ingest_ok),
+                "gate_events_observed": float(len(sensitive_gate) + len(control_gate)),
+            },
+            details=details,
+        )
+
+    # Fallback: differential test (older server without sensitivity_gate audit events)
     if not control_worked:
         return CheckResult(
             name="sensitivity",
             passed=False,
             metrics={"leaked_fact_count": float(len(leaked_facts))},
             details=(
-                "Control failed: extraction check produced no facts for non-sensitive "
-                "conversations, so 'zero facts from sensitive items' proves nothing."
+                "No sensitivity_gate audit events (server predates F15) AND extraction "
+                "control produced no facts — neither exact nor differential verification "
+                "is possible."
             ),
             skipped=True,
-            skip_reason="Extraction control did not produce facts — differential test inconclusive",
+            skip_reason="No gate audit events and extraction control failed — inconclusive",
         )
 
     blocked = len(leaked_facts) == 0
     details = (
-        f"Differential gate test: {ingest_ok} sensitive conversations processed with a "
-        f"configured provider; {len(leaked_facts)} facts were derived from them "
+        f"Differential gate test (no audit events — server predates F15): {ingest_ok} "
+        f"sensitive conversations processed; {len(leaked_facts)} facts derived from them "
         f"(must be 0) while control conversations produced facts. "
-        f"{'Gate BLOCKED sensitive content from extraction.' if blocked else 'LEAK: sensitive content reached the LLM extraction path!'} "
-        f"Note: direct gate observability (F15) would make this verification exact "
-        f"rather than differential."
+        f"{'Gate BLOCKED sensitive content from extraction.' if blocked else 'LEAK: sensitive content reached the LLM extraction path!'}"
     )
 
     return CheckResult(

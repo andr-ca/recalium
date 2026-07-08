@@ -422,7 +422,7 @@ is what surfaced and then confirmed fixes for F19–F21, and exposed F22.
 
 Running the eval surfaced three new verified findings:
 
-### F15: Sensitivity gate decision is unobservable (P0 for trust claims)
+### F15 (FIXED 2026-07-08): Sensitivity gate decision is unobservable (P0 for trust claims)
 
 The gate's block decision is only written to server logs
 (`backend/app/worker/dispatcher.py:499-503` — `logger.info("Sensitivity gate: ... blocked=%s")`).
@@ -476,7 +476,7 @@ for the first time exposed four defects; three were fixed in-session:
   API (systemic failures burn `attempts` across the whole queue; only a
   per-job reprocess endpoint exists today).
 
-### F22 (OPEN, P0): the sensitivity gate blocks essentially all real content — BYOK processing is effectively dead
+### F22 (FIXED 2026-07-08): the sensitivity gate blocks essentially all real content — BYOK processing is effectively dead
 
 With a provider configured and `EMBED_BACKEND=cpu` (NLI classifier active), the
 gate classified the eval's plainly *technical* conversations (Python async,
@@ -498,6 +498,37 @@ model, or chunk-level classification. Do NOT simply lower the threshold —
 tune with measured false-block AND false-allow rates (F15's audit event makes
 both observable). Blocking-by-default is the right failure direction; blocking
 *everything* makes the privacy promise vacuous and the product non-functional.
+
+### Resolution status for F15/F22 + run 3 baseline (2026-07-08, gate calibrated)
+
+- **F15 fixed**: the dispatcher now emits an `AuditEvent(event_type="sensitivity_gate")`
+  with category/confidence/blocked/method per job; `GET /api/audit/events`
+  exposes `raw_archive_id`. The eval's sensitivity check verifies the gate
+  EXACTLY from the audit trail.
+- **F22 fixed**: the NLI classifier was replaced with embedding-prototype
+  classification (all-MiniLM-L6-v2, cosine vs per-category prototype
+  sentences; pure decision-rule function with unit tests). Privacy-first
+  asymmetric thresholds: block at sim>=0.25 for sensitive categories, allow
+  `general` only at sim>=0.35 with margin>=0.15; unclassified stays blocked
+  (PRIV-05 unchanged). Measured: tech conversations -> general 0.71-0.80
+  allowed; therapy conversation -> blocked; subtle no-keyword health content ->
+  blocked.
+- **Ollama pipeline fixes** (found by the eval): the OpenAI-compat endpoint
+  cannot disable thinking, so reasoning models returned EMPTY content
+  (finish=length) — switched to native `/api/chat` with `think: false` and
+  `format: "json"`; robust first-JSON-object parsing (models append stray
+  fences).
+
+**Run 3 baseline** (`docs/operational/tests/artifacts/eval-baseline-2026-07-08-gate-calibrated/`),
+all 5 checks live for the first time, zero skips:
+ingest PASS; retrieval PASS (semantic/hybrid R@10 100%, paraphrase lift +100%);
+MCP PASS; **sensitivity PASS (audit-verified: sensitive blocked, controls
+allowed, zero leaked facts)**; extraction FAIL — recall 57.7% (needs 60%),
+precision 65.6% (needs 70%), span fidelity 100%, provenance completeness 100%.
+The extraction shortfall is a measured model-capability finding for
+qwen3.5:4b: it extracts accurately but predominantly from the FIRST turn of
+multi-turn conversations. Remedies: per-turn/chunked extraction (same fix as
+F3) or a larger local model; re-run `make eval` to verify.
 
 ### F17: Idempotency replay after deletion returns success for a dead item
 
@@ -527,14 +558,14 @@ Found because the eval suite's cleanup + fixed key produced exactly this state.
 | F12 | STATE.md Performance Metrics | Restore SLA ≤15 min, ingest P95 ≤1s, search P95 ≤2s all "Not yet measured" | Eval suite (this task) measures ingest P95 and search P95; defer restore to v1.2 if needed |
 | F13 | ANALYSIS.md section 2 + git status | RR-001…RR-014 work is implemented but uncommitted on `main` (release-integrity risk) | Merge in reviewable slices for v1.0.1; this task focuses on v1.1 quality evidence |
 | F14 | `backend/app/domain/...` (schema) | Embeddings record model_name+dim per row; provider-switch stale-embedding fallback exists | Status: correct (no action needed) |
-| F15 | `backend/app/worker/dispatcher.py:499-503` | Sensitivity gate block decision only in logs — unverifiable via API | Emit `sensitivity_gate_blocked` AuditEvent; then un-skip the sensitivity eval |
+| F15 | `backend/app/worker/dispatcher.py` | Sensitivity gate block decision only in logs — unverifiable via API | **FIXED** (sensitivity_gate AuditEvent; audit API exposes raw_archive_id; eval verifies exactly) |
 | F16 | `backend/app/api/routes/facts.py:131-137` | No `raw_archive_id` filter on facts list; per-source attribution is client-side | Add `raw_archive_id` query param |
 | F17 | `backend/app/mcp_server/server.py` (ingest_memory idempotency) | Idempotent replay after source deletion returns "accepted" for a nonexistent item | Define replay-after-delete semantics + test |
 | F18 | `backend/app/worker/loop.py` / `jobs/service.py` | Stale-claim recovery only at startup; stuck claims freeze queue until restart | Periodic reset_stale_jobs sweep + bulk requeue API |
 | F19 | `backend/app/worker/loop.py` | Detached-session bug: all job status transitions silently lost; jobs reprocessed every restart | **FIXED** (one session for claim+dispatch; regression test added) |
 | F20 | `backend/app/domain/conflict_detection.py:54`, `dispatcher.py:244` | numpy `str()` bound as pgvector literal → conflict/link detection never worked with real embeddings | **FIXED** (coerce to list before binding) |
 | F21 | `backend/app/worker/dispatcher.py` (steps 4–7) | Aborted transaction from a "non-fatal" step failure wedged status writes | **FIXED** (rollback + refresh per step failure) |
-| F22 | `backend/app/domain/policy/gate.py` | Gate's NLI classifier blocks essentially all real content (tech Q&A → `personal_profile` @0.99) → no summaries/facts ever produced | **P0**: calibrate against eval dataset; keyword-first + NLI escalator; requires F15 observability |
+| F22 | `backend/app/domain/policy/gate.py` | Gate's NLI classifier blocked essentially all real content (tech Q&A → `personal_profile` @0.99) | **FIXED** (embedding-prototype classifier, asymmetric privacy-first thresholds, unit-tested decision rule) |
 
 ---
 
