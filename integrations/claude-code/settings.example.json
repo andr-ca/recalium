@@ -1,49 +1,37 @@
 {
   "hooks": {
-    "sessionStart": {
-      "enabled": true,
-      "command": "python3",
-      "args": [
-        "${workspaceFolder}/integrations/claude-code/hooks/session_start.py"
-      ],
-      "environment": {
-        "RECALIUM_URL": "http://localhost:8000",
-        "RECALIUM_TOKEN": "",
-        "RECALIUM_TIMEOUT_S": "5"
-      },
-      "description": "Retrieves relevant context from Recalium when a new session starts"
-    },
-    "userPromptSubmit": {
-      "enabled": true,
-      "command": "python3",
-      "args": [
-        "${workspaceFolder}/integrations/claude-code/hooks/user_prompt_submit.py"
-      ],
-      "environment": {
-        "RECALIUM_URL": "http://localhost:8000",
-        "RECALIUM_TOKEN": "",
-        "RECALIUM_TIMEOUT_S": "5"
-      },
-      "description": "Injects relevant memory based on the user's prompt"
-    },
-    "sessionEnd": {
-      "enabled": true,
-      "command": "python3",
-      "args": [
-        "${workspaceFolder}/integrations/claude-code/hooks/session_end.py"
-      ],
-      "environment": {
-        "RECALIUM_URL": "http://localhost:8000",
-        "RECALIUM_TOKEN": "",
-        "RECALIUM_TIMEOUT_S": "5"
-      },
-      "description": "Archives the finished session transcript into Recalium (runs in background)"
-    }
-  },
-  "notes": {
-    "installation": "Copy the 'hooks' section above into your .claude/settings.json file (create if missing). Adjust paths if your Recalium repo is not at workspace root.",
-    "environment_variables": "RECALIUM_URL defaults to http://localhost:8000. RECALIUM_TOKEN is optional (for bearer auth). RECALIUM_TIMEOUT_S is optional (defaults to 5 seconds).",
-    "alternativeSetup": "You can also set these env vars globally in your shell or OS environment instead of in the hooks section.",
-    "recaliumStack": "Ensure 'docker compose up' is running in the Recalium root directory before starting a Claude Code session."
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/integrations/claude-code/hooks/session_start.py\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/integrations/claude-code/hooks/user_prompt_submit.py\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/integrations/claude-code/hooks/session_end.py\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
   }
 }

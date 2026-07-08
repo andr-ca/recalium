@@ -30,25 +30,43 @@ This integration consists of three hooks and a CLI tool:
 
 ## Installation
 
-### Option 1: Project-scope hooks (recommended for development)
+`settings.example.json` is a ready-to-copy Claude Code hooks block. Claude Code's
+hook schema uses PascalCase event names (`SessionStart`, `UserPromptSubmit`,
+`SessionEnd`), each mapping to a list of `{ "hooks": [ { "type": "command",
+"command": "..." } ] }` entries — **not** a VS Code `enabled`/`args`/`environment`
+object. Use the example verbatim; only the script path changes between scopes.
 
-1. Copy `settings.example.json` content into `.claude/settings.json` in your project root:
+### Option 1: Project-scope hooks (only inside the Recalium repo)
+
+Use this when Claude Code is running with the Recalium repo as the project.
+`$CLAUDE_PROJECT_DIR` resolves to the project root at hook time.
+
+1. Merge the `hooks` block from `settings.example.json` into `.claude/settings.json`:
 
    ```bash
    mkdir -p .claude
    cp integrations/claude-code/settings.example.json .claude/settings.json
    ```
 
-2. Edit `.claude/settings.json`:
-   - Replace `${workspaceFolder}` with absolute path to your Recalium repo, or keep it if Recalium is your workspace root
-   - Set `RECALIUM_URL` if using a non-standard address
-   - Set `RECALIUM_TOKEN` if using bearer auth
+   (If `.claude/settings.json` already exists, merge the `SessionStart` /
+   `UserPromptSubmit` / `SessionEnd` arrays into its `hooks` object rather than
+   overwriting the file.)
 
-3. Restart Claude Code to load the new hooks
+2. Restart Claude Code (already-open sessions do not pick up new hooks).
 
-### Option 2: User-scope hooks (system-wide)
+### Option 2: User-scope hooks (every project, system-wide)
 
-Set hook commands and environment variables in Claude Code settings at the **user scope** (not project scope). Refer to Claude Code documentation for user settings location.
+To make the hooks fire in **all** projects, add the same block to your user
+settings at `~/.claude/settings.json`, but replace `$CLAUDE_PROJECT_DIR` with an
+**absolute path to your Recalium checkout** — in another project
+`$CLAUDE_PROJECT_DIR` points at *that* project, where these scripts don't exist:
+
+```json
+"command": "python3 \"/absolute/path/to/recalium/integrations/claude-code/hooks/session_start.py\""
+```
+
+Because the hooks default to `http://localhost:8000` and need no token for a
+local stack, no extra environment configuration is required for the common case.
 
 ## Configuration
 
@@ -60,9 +78,17 @@ All configuration uses environment variables:
 | `RECALIUM_TOKEN` | (empty) | Optional bearer token for authenticated access |
 | `RECALIUM_TIMEOUT_S` | `5` | HTTP request timeout in seconds |
 
+These are all optional — the defaults work against a local stack. Set them only
+for a non-default URL or bearer auth.
+
 ### Loading from `.env` file
 
-If you have a `.env` file in your project, these variables will be loaded automatically. Otherwise, set them in the hook environment (see `settings.example.json`).
+The client (`recalium_client.py`) reads these variables from the OS environment
+first, then searches for a `.env` file in the current working directory and up to
+three parent directories. When Claude Code runs a hook, the working directory is
+the active project — so a project-local `.env` (e.g. the Recalium repo's `.env`)
+is picked up automatically in project scope. For user-scope hooks running in other
+projects, set the variables in your shell/OS environment instead.
 
 ## Usage
 
@@ -113,7 +139,7 @@ This integration mirrors Recalium's MCP tools:
 | CLI `recall` | `retrieve_memory` | Hybrid |
 | CLI `remember` | `ingest_memory` | Deferred |
 
-All retrievals include source provenance (`source_name`, `captured_at`) so you know where context came from.
+All retrievals include source provenance (`source_system`, `type`, `captured_at`) so you know where context came from. Items are labelled `[source_system · type]` (e.g. `[paste_text · excerpt]`).
 
 ## Troubleshooting
 
@@ -124,13 +150,16 @@ All retrievals include source provenance (`source_name`, `captured_at`) so you k
    - Check: `curl http://localhost:8000/api/health`
    - If down: `cd /path/to/recalium && docker compose up`
 
-2. **Hooks are disabled in settings:**
-   - Check `.claude/settings.json` → `hooks.sessionStart.enabled` (and others)
-   - Ensure `enabled: true` for each hook you want
+2. **Hooks not registered:**
+   - Check `.claude/settings.json` has `SessionStart` / `UserPromptSubmit` /
+     `SessionEnd` arrays under `hooks` (PascalCase), matching `settings.example.json`
+   - Restart Claude Code — open sessions don't pick up newly added hooks
 
 3. **Wrong path to hooks:**
-   - Verify `args[0]` path points to correct `session_start.py` location
-   - Use absolute path or `${workspaceFolder}` macro correctly
+   - Verify the `command` path resolves to the real script. In project scope
+     `$CLAUDE_PROJECT_DIR` must point at the Recalium repo; in user scope use an
+     absolute path to the checkout
+   - Test resolution: `python3 "$CLAUDE_PROJECT_DIR/integrations/claude-code/hooks/session_start.py" < /dev/null`
 
 4. **Bearer token rejected:**
    - If you set `RECALIUM_TOKEN`, ensure it's valid for your Recalium instance
@@ -145,8 +174,8 @@ All retrievals include source provenance (`source_name`, `captured_at`) so you k
 Example debugging:
 
 ```bash
-# Test the hook with synthetic input
-echo '{"hookEventName":"SessionStart","sessionId":"test-001","workspacePath":"/tmp"}' | \
+# Test the hook with synthetic input (Claude Code fields are snake_case)
+echo '{"hook_event_name":"SessionStart","session_id":"test-001","cwd":"/tmp"}' | \
   python3 integrations/claude-code/hooks/session_start.py | python3 -m json.tool
 
 # Should output valid JSON (either {} or {"hookSpecificOutput": {...}})
@@ -186,10 +215,18 @@ python3 integrations/claude-code/cli.py recall "Claude Code integration"
 
 ```bash
 # Test SessionStart hook with synthetic input
-echo '{"hookEventName":"SessionStart","sessionId":"test","workspacePath":"/tmp/project"}' | \
+echo '{"hook_event_name":"SessionStart","session_id":"test","cwd":"/tmp/project"}' | \
   python3 integrations/claude-code/hooks/session_start.py | python3 -m json.tool
 
 # Expected: Valid JSON output (either {} or {"hookSpecificOutput": {...}})
+
+# Test SessionEnd hook (writes an idempotency marker, spawns a background ingest)
+printf '%s\n%s\n' \
+  '{"type":"user","message":{"content":"remember this test note"}}' \
+  '{"type":"assistant","message":{"content":[{"type":"text","text":"noted"}]}}' > /tmp/t.jsonl
+echo '{"session_id":"end-test","transcript_path":"/tmp/t.jsonl","cwd":"/tmp/project"}' | \
+  python3 integrations/claude-code/hooks/session_end.py
+# Expected: {}  — then ~/.recalium/ingested/end-test appears after ingest succeeds
 ```
 
 ### Resilience test (stack down)
@@ -246,18 +283,13 @@ All operations use `RECALIUM_TIMEOUT_S` (default 5s) to avoid blocking indefinit
 
 ## Advanced: Custom retrieval modes
 
-Edit `settings.example.json` to customize retrieval:
-
-```json
-"environment": {
-  "RECALIUM_URL": "http://localhost:8000",
-  "RECALIUM_MODE": "keyword",  // Switch to keyword-only (no semantic search)
-  "RECALIUM_BUDGET": "1024",   // Reduce budget per request
-  "RECALIUM_LIMIT": "3"        // Return fewer items
-}
-```
-
-Then update `recalium_client.py` method calls to use these env vars.
+Retrieval mode, budget, and item limit are set where each hook calls
+`client.retrieve(...)` — e.g. `session_start.py` uses
+`retrieve(query, mode="hybrid", budget=2048, limit=5)` and `user_prompt_submit.py`
+uses `mode="hybrid", budget=1024, limit=3`. To customise, edit those calls
+directly (for example switch `mode="keyword"` for keyword-only retrieval, or lower
+`limit`). Only `RECALIUM_URL`, `RECALIUM_TOKEN`, and `RECALIUM_TIMEOUT_S` are read
+from the environment; the client does not read mode/budget/limit env vars.
 
 ## Future extensions
 
