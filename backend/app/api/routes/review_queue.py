@@ -8,8 +8,11 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.domain.archive.models import RawArchiveItem
+from app.domain.derived_memory.models import ConflictGroup, Fact
 from app.domain.review_queue.service import (
     ReviewItemNotFoundError,
     dismiss_review_item,
@@ -26,7 +29,54 @@ class ResolveBody(BaseModel):
     resolution_note: str = ""
 
 
-def _item_to_dict(item) -> dict:
+def _fact_to_dict(fact: Fact, archive: RawArchiveItem | None) -> dict:
+    return {
+        "id": str(fact.id),
+        "raw_archive_id": str(fact.raw_archive_id),
+        "fact_text": fact.fact_text,
+        "source_span": fact.source_span,
+        "confidence_tier": fact.confidence_tier,
+        "derivation_method": fact.derivation_method,
+        "derivation_model": fact.derivation_model,
+        "source_status": fact.source_status,
+        "review_status": fact.review_status,
+        "source_name": archive.source_name if archive else None,
+        "source_type": archive.source_type if archive else None,
+        "created_at": fact.created_at.isoformat() if fact.created_at else None,
+    }
+
+
+async def _conflict_group_details(session: AsyncSession, group_id: uuid.UUID) -> dict:
+    group_result = await session.execute(
+        select(ConflictGroup).where(
+            ConflictGroup.id == group_id,
+            ConflictGroup.source_status == "active",
+        )
+    )
+    group = group_result.scalar_one_or_none()
+
+    facts_result = await session.execute(
+        select(Fact, RawArchiveItem)
+        .join(RawArchiveItem, RawArchiveItem.id == Fact.raw_archive_id)
+        .where(
+            Fact.conflict_group_id == group_id,
+            Fact.source_status == "active",
+            Fact.review_status.in_(["active", "disputed", "stale"]),
+            RawArchiveItem.deleted_at.is_(None),
+        )
+        .order_by(Fact.confidence_tier.asc(), Fact.created_at.asc())
+    )
+    facts = [_fact_to_dict(fact, archive) for fact, archive in facts_result.all()]
+    return {
+        "group_type": group.group_type if group else None,
+        "group_source_status": group.source_status if group else None,
+        "fact_count": len(facts),
+        "facts": facts,
+    }
+
+
+async def _item_to_dict(item, session: AsyncSession, include_details: bool = True) -> dict:
+    details = await _conflict_group_details(session, item.conflict_group_id) if include_details else {}
     return {
         "id": str(item.id),
         "conflict_group_id": str(item.conflict_group_id),
@@ -37,13 +87,14 @@ def _item_to_dict(item) -> dict:
         "resolved_by": item.resolved_by,
         "created_at": item.created_at.isoformat() if item.created_at else None,
         "resolved_at": item.resolved_at.isoformat() if item.resolved_at else None,
+        **details,
     }
 
 
 @router.get("")
 async def list_items(session: AsyncSession = Depends(get_session)) -> dict:
     items = await list_pending_review_items(session)
-    return {"items": [_item_to_dict(i) for i in items], "count": len(items)}
+    return {"items": [await _item_to_dict(i, session) for i in items], "count": len(items)}
 
 
 @router.post("/{item_id}/resolve")
@@ -60,7 +111,7 @@ async def resolve(
         )
     except ReviewItemNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
-    return _item_to_dict(item)
+    return await _item_to_dict(item, session)
 
 
 @router.post("/{item_id}/dismiss")
@@ -72,4 +123,4 @@ async def dismiss(
         item = await dismiss_review_item(session, item_id)
     except ReviewItemNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
-    return _item_to_dict(item)
+    return await _item_to_dict(item, session)

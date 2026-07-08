@@ -400,7 +400,19 @@ async def test_mcp_ingest_memory_success(live_client: httpx.AsyncClient) -> None
     """MCP ingest_memory tool with valid content returns accepted status."""
     tag = uuid4()
     content = f"E2E-{tag} MCP ingest memory recalium integration"
-    result = await _mcp_call(live_client, "ingest_memory", {"content": content})
+    result = await _mcp_call(live_client, "ingest_memory", {
+        "content": content,
+        "source_metadata": {
+            "source_type": "e2e_mcp",
+            "source_name": f"e2e-mcp-{tag}",
+        },
+        "client_identity": "e2e-mcp-client",
+        "import_method": "mcp_tool",
+        "idempotency_key": f"e2e-mcp-{tag}",
+        "sensitivity_hint": "normal",
+        "project_hint": "recalium",
+        "processing_mode": "deferred",
+    })
     # MCP ingest returns {"status": "accepted", "archive_ids": [...]}
     assert "error" not in result
     assert result.get("status") == "accepted"
@@ -411,10 +423,14 @@ async def test_mcp_ingest_memory_success(live_client: httpx.AsyncClient) -> None
 
 async def test_mcp_ingest_memory_missing_content(live_client: httpx.AsyncClient) -> None:
     """MCP ingest_memory tool with empty content returns descriptive error (not 500)."""
-    result = await _mcp_call(live_client, "ingest_memory", {"content": ""})
-    # Should return {"error": "content is required and must be non-empty"}
+    result = await _mcp_call(live_client, "ingest_memory", {
+        "content": "",
+        "source_metadata": {"source_type": "e2e_mcp"},
+    })
     assert "error" in result
-    assert "content" in result["error"].lower()
+    assert result["status"] == "error"
+    assert result["error"]["code"] == "validation_error"
+    assert result["error"]["details"]["field"] == "content"
 
 
 async def test_mcp_retrieve_returns_results(live_client: httpx.AsyncClient) -> None:

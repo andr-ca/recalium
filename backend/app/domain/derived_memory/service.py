@@ -16,7 +16,7 @@ import uuid
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.domain.derived_memory.models import Summary, Fact, FtsEntry, Embedding
+from app.domain.derived_memory.models import Summary, Fact, FtsEntry, Embedding, Tag, FactTag, MemoryLink
 
 logger = logging.getLogger(__name__)
 
@@ -225,3 +225,116 @@ async def get_existing_embedding(
         .limit(1)
     )
     return result.scalar_one_or_none()
+
+
+# ── Linkage & tagging writers ─────────────────────────────────────────────────
+
+async def write_tags(
+    session: AsyncSession,
+    fact_id: uuid.UUID,
+    tags: list[str],
+    assigned_by: str = "pipeline",
+) -> list[FactTag]:
+    """Upsert tags and create FactTag associations for a fact.
+
+    Tag names are normalised to lower-case before upsert.
+    Duplicate (fact_id, tag_id) pairs are skipped (INSERT OR IGNORE semantics).
+    Returns the newly created FactTag rows (may be empty if all already existed).
+    """
+    if not tags:
+        return []
+
+    created: list[FactTag] = []
+    for raw_name in tags:
+        name = raw_name.strip().lower()
+        if not name:
+            continue
+
+        # Upsert tag by name
+        result = await session.execute(
+            select(Tag).where(Tag.name == name).limit(1)
+        )
+        tag = result.scalar_one_or_none()
+        if tag is None:
+            tag = Tag(name=name)
+            session.add(tag)
+            await session.flush()  # populate tag.id
+
+        # Check if association already exists
+        assoc_result = await session.execute(
+            select(FactTag)
+            .where(FactTag.fact_id == fact_id)
+            .where(FactTag.tag_id == tag.id)
+            .limit(1)
+        )
+        if assoc_result.scalar_one_or_none() is None:
+            ft = FactTag(fact_id=fact_id, tag_id=tag.id, assigned_by=assigned_by)
+            session.add(ft)
+            created.append(ft)
+
+    if created:
+        await session.commit()
+        logger.debug("Wrote %d tag associations for fact_id=%s", len(created), fact_id)
+
+    return created
+
+
+async def write_links(
+    session: AsyncSession,
+    links_data: list[dict],
+) -> list[MemoryLink]:
+    """Write memory links between facts.
+
+    Each dict in links_data must contain:
+      - source_fact_id: uuid.UUID
+      - target_fact_id: uuid.UUID
+      - link_type: str  ('related'|'supports'|'elaborates'|'contradicts'|'entity')
+      - confidence: float  (0.0–1.0)
+      - created_by: str
+      - entity_name: str | None  (required when link_type='entity')
+
+    Duplicate (source, target, type) triplets are skipped silently.
+    Returns list of created MemoryLink rows.
+    """
+    if not links_data:
+        return []
+
+    created: list[MemoryLink] = []
+    for item in links_data:
+        src = item["source_fact_id"]
+        tgt = item["target_fact_id"]
+        ltype = item["link_type"]
+
+        # Skip self-links (DB constraint would reject them anyway)
+        if src == tgt:
+            continue
+
+        # Check for existing triplet
+        existing = await session.execute(
+            select(MemoryLink)
+            .where(MemoryLink.source_fact_id == src)
+            .where(MemoryLink.target_fact_id == tgt)
+            .where(MemoryLink.link_type == ltype)
+            .limit(1)
+        )
+        if existing.scalar_one_or_none() is not None:
+            continue
+
+        link = MemoryLink(
+            source_fact_id=src,
+            target_fact_id=tgt,
+            link_type=ltype,
+            entity_name=item.get("entity_name"),
+            confidence=float(item.get("confidence", 1.0)),
+            created_by=item.get("created_by", "pipeline_semantic"),
+        )
+        session.add(link)
+        created.append(link)
+
+    if created:
+        await session.commit()
+        for link in created:
+            await session.refresh(link)
+        logger.debug("Wrote %d memory links", len(created))
+
+    return created

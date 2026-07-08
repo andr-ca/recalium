@@ -73,7 +73,8 @@ COPY frontend/dist/ ./backend/app/static/
 
 # ── Development stage ─────────────────────────────────────────────────────────
 FROM base AS development
-# No static copy in dev — Vite dev server handles frontend separately
+# Copy built React SPA as static files (dev uses compiled dist, not Vite dev server)
+COPY frontend/dist/ ./backend/app/static/
 
 # Default to production target
 FROM production

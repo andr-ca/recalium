@@ -2,10 +2,19 @@
 
 Covers: MCP-01 (retrieve tool), MCP-03 (audit events), MCP-04 (client identity).
 """
+from __future__ import annotations
+
+import uuid
+
 import pytest
 pytest.importorskip("app.mcp_server.server")
 
-from app.mcp_server.server import mcp_app, create_mcp_server
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+from app.domain.archive.models import RawArchiveItem
+from app.mcp_server import server as mcp_server_module
+from app.mcp_server.server import ingest_memory, mcp_app, create_mcp_server
 from mcp.server.fastmcp import FastMCP
 
 
@@ -34,8 +43,100 @@ def test_retrieve_memory_tool_has_required_params():
     assert "budget" in props
 
 
+def test_ingest_memory_tool_has_v1_metadata_params():
+    """MCP-02/MCP-24: ingest_memory exposes the v1 metadata contract fields."""
+    tools = mcp_app._tool_manager.list_tools()
+    tool = next((t for t in tools if t.name == "ingest_memory"), None)
+    assert tool is not None
+    props = tool.parameters.get("properties", {})
+    for field in [
+        "content",
+        "source_metadata",
+        "client_identity",
+        "import_method",
+        "idempotency_key",
+        "sensitivity_hint",
+        "project_hint",
+        "processing_mode",
+    ]:
+        assert field in props
+
+
 def test_create_mcp_server_returns_fastmcp():
     """MCP-01: create_mcp_server() returns the FastMCP instance."""
     server = create_mcp_server()
     assert isinstance(server, FastMCP)
     assert server is mcp_app  # Same singleton
+
+
+@pytest.mark.asyncio
+async def test_ingest_memory_requires_source_metadata() -> None:
+    """MCP-24a: missing source metadata returns a stable validation error envelope."""
+    result = await ingest_memory(content="This is long enough to pass content validation.")
+
+    assert result["status"] == "error"
+    assert result["error"]["code"] == "validation_error"
+    assert result["error"]["details"]["field"] == "source_metadata"
+    assert result["error"]["retryable"] is False
+
+
+@pytest.mark.asyncio
+async def test_ingest_memory_requires_content() -> None:
+    """MCP-24a: missing content returns a stable validation error envelope."""
+    result = await ingest_memory(source_metadata={"source_type": "copilot_chat"})
+
+    assert result["status"] == "error"
+    assert result["error"]["code"] == "validation_error"
+    assert result["error"]["details"]["field"] == "content"
+
+
+@pytest.mark.asyncio
+async def test_ingest_memory_accepts_metadata_and_replays_idempotency(
+    test_engine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """MCP-24: valid metadata is stored and idempotency returns the same archive id."""
+    factory = async_sessionmaker(test_engine, class_=AsyncSession, expire_on_commit=False)
+    monkeypatch.setattr(mcp_server_module, "get_session_factory", lambda: factory)
+    key = f"test-idempotency-{uuid.uuid4()}"
+
+    first = await ingest_memory(
+        content="MCP clients can ingest source-backed memories with metadata.",
+        source_metadata={
+            "source_type": "copilot_chat",
+            "source_name": "copilot-session",
+            "conversation_id": "conv-123",
+        },
+        client_identity="copilot-test-client",
+        import_method="mcp_tool",
+        idempotency_key=key,
+        sensitivity_hint="normal",
+        project_hint="recalium",
+        processing_mode="deferred",
+    )
+    replay = await ingest_memory(
+        content="MCP clients can ingest source-backed memories with metadata.",
+        source_metadata={"source_type": "copilot_chat", "source_name": "copilot-session"},
+        client_identity="copilot-test-client",
+        import_method="mcp_tool",
+        idempotency_key=key,
+        sensitivity_hint="normal",
+        project_hint="recalium",
+        processing_mode="deferred",
+    )
+
+    assert first["status"] == "accepted"
+    assert replay["status"] == "accepted"
+    assert replay["idempotent_replay"] is True
+    assert replay["archive_ids"] == first["archive_ids"]
+
+    async with factory() as session:
+        archive_id = uuid.UUID(first["archive_ids"][0])
+        item = await session.scalar(select(RawArchiveItem).where(RawArchiveItem.id == archive_id))
+
+    assert item is not None
+    assert item.source_type == "copilot_chat"
+    assert item.source_name == "copilot-session"
+    assert item.metadata_json["idempotency_key"] == key
+    assert item.metadata_json["client_identity"] == "copilot-test-client"
+    assert item.metadata_json["import_method"] == "mcp_tool"

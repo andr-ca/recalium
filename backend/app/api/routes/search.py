@@ -35,6 +35,7 @@ async def search(
     category: str | None = Query(None),
     source_system: str | None = Query(None),
     canonical_only: bool = Query(False),
+    tags: list[str] = Query(default=[], description="Filter by fact tags (all must match)"),
     session: AsyncSession = Depends(get_session),
 ) -> dict:
     if mode not in _VALID_MODES:
@@ -50,6 +51,7 @@ async def search(
             category=category,
             source_system=source_system,
             canonical_only=canonical_only,
+            tags=tags,
         ),
         actor="user_ui",
         limit=limit,
@@ -67,6 +69,7 @@ class RetrieveFiltersBody(BaseModel):
     time_range_start: str | None = None
     time_range_end: str | None = None
     canonical_only: bool = False
+    tags: list[str] = []
 
 
 class RetrieveRequestBody(BaseModel):
@@ -98,6 +101,7 @@ async def retrieve_structured(
             time_range_start=body.filters.time_range_start,
             time_range_end=body.filters.time_range_end,
             canonical_only=body.filters.canonical_only,
+            tags=body.filters.tags,
         ),
         actor=body.actor,
         limit=body.limit,
@@ -137,6 +141,8 @@ def _response_to_dict(response: RetrievalResponse) -> dict:
                 "captured_at": item.captured_at,
                 "conflict_label": item.conflict_label,
                 "provenance": item.provenance,
+                "source_fact_id": item.source_fact_id,
+                "link_type": item.link_type,
             }
             for item in response.items
         ],

@@ -106,6 +106,8 @@ class Fact(Base):
     source_status: Mapped[str] = mapped_column(
         _source_status, nullable=False, default="active"
     )
+    review_status: Mapped[str] = mapped_column(String(32), nullable=False, default="active")
+    # "active" | "disputed" | "stale" | "archived" | "deleted"
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)
     )
@@ -153,6 +155,93 @@ class FtsEntry(Base):
     source_status: Mapped[str] = mapped_column(
         _source_status, nullable=False, default="active"
     )
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)
+    )
+
+
+# ── Linkage & tagging models ──────────────────────────────────────────────────
+
+class Tag(Base):
+    """Canonical tag label. Name is unique and lower-cased at write time.
+
+    Tags are created via upsert — callers should normalise to lower-case before
+    calling write_tags().
+    """
+    __tablename__ = "tags"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    name: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)
+    )
+
+
+class FactTag(Base):
+    """Association between a Fact and a Tag.
+
+    Composite PK (fact_id, tag_id) — one fact may carry many tags and vice-versa.
+    assigned_by records who created the association: 'pipeline' or 'user_ui'.
+    Implicit cleanup: join through facts.source_status='active' to exclude
+    facts whose source has been removed.
+    """
+    __tablename__ = "fact_tags"
+
+    fact_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("facts.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    tag_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("tags.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    assigned_by: Mapped[str] = mapped_column(String(32), nullable=False, default="pipeline")
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)
+    )
+
+
+class MemoryLink(Base):
+    """Directed link between two Facts with a typed relationship.
+
+    link_type values:
+      - 'related'     — general topical relatedness (semantic pass A)
+      - 'supports'    — target fact provides evidence for source (LLM pass B)
+      - 'elaborates'  — target fact expands on source (LLM pass B)
+      - 'contradicts' — target fact contradicts source (LLM pass B)
+                        (informational — conflict_groups own the review queue)
+      - 'entity'      — both facts mention the same named entity (pass C);
+                        entity_name is non-null for this type
+
+    Implicit cleanup: join through facts.source_status='active' on both sides.
+    Unique constraint prevents duplicate (source, target, type) triplets.
+    Check constraint prevents self-links.
+    """
+    __tablename__ = "memory_links"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    source_fact_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("facts.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    target_fact_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("facts.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    link_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    entity_name: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Populated for link_type='entity'; null for all other types
+    confidence: Mapped[float] = mapped_column(nullable=False, default=1.0)
+    created_by: Mapped[str] = mapped_column(String(32), nullable=False)
+    # 'pipeline_semantic' | 'pipeline_llm' | 'pipeline_entity' | 'user_ui'
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)
     )

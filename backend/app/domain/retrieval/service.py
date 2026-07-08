@@ -46,6 +46,7 @@ class RetrievalFilters:
     time_range_start: str | None = None
     time_range_end: str | None = None
     canonical_only: bool = False
+    tags: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -69,6 +70,8 @@ class RetrievalItem:
     captured_at: str
     conflict_label: str | None
     provenance: dict
+    source_fact_id: str | None = None
+    link_type: str | None = None
 
 
 @dataclass
@@ -95,6 +98,7 @@ def _cache_key(req: RetrievalRequest) -> str:
             "time_range_start": req.filters.time_range_start,
             "time_range_end": req.filters.time_range_end,
             "canonical_only": req.filters.canonical_only,
+            "tags": sorted(req.filters.tags),
         },
     }, sort_keys=True)
     return hashlib.sha256(payload.encode()).hexdigest()
@@ -173,10 +177,32 @@ async def _keyword_candidates(
     session: AsyncSession,
     query: str,
     limit: int = RRF_CANDIDATES_PER_MODE,
+    tags: list[str] | None = None,
 ) -> list[dict]:
     """Retrieve keyword candidates using PostgreSQL FTS."""
+    # Build optional tag filter clause — restricts to archive items whose facts carry ALL requested tags
+    tag_filter_sql = ""
+    tag_params: dict = {}
+    if tags:
+        normalised = [t.strip().lower() for t in tags if t.strip()]
+        if normalised:
+            tag_filter_sql = """
+              AND fe.raw_archive_id IN (
+                  SELECT f.raw_archive_id
+                  FROM facts f
+                  JOIN fact_tags ft ON ft.fact_id = f.id
+                  JOIN tags tg ON tg.id = ft.tag_id
+                  WHERE f.source_status = 'active'
+                                        AND f.review_status = 'active'
+                    AND tg.name = ANY(:tag_names)
+                  GROUP BY f.raw_archive_id
+                  HAVING COUNT(DISTINCT tg.name) >= :tag_count
+              )
+            """
+            tag_params = {"tag_names": normalised, "tag_count": len(normalised)}
+
     fts_result = await session.execute(
-        text("""
+        text(f"""
             SELECT
                 fe.id::text AS id,
                 'excerpt' AS type,
@@ -192,10 +218,11 @@ async def _keyword_candidates(
             WHERE fe.source_status = 'active'
               AND ra.deleted_at IS NULL
               AND fe.search_vector @@ websearch_to_tsquery('english', :q)
+              {tag_filter_sql}
             ORDER BY score DESC
             LIMIT :limit
         """),
-        {"q": query, "limit": limit},
+        {"q": query, "limit": limit, **tag_params},
     )
     fts_rows = fts_result.mappings().all()
 
@@ -247,6 +274,7 @@ async def _semantic_candidates(
     session: AsyncSession,
     query: str,
     limit: int = RRF_CANDIDATES_PER_MODE,
+    tags: list[str] | None = None,
 ) -> tuple[list[dict], bool]:
     """Retrieve semantic candidates using pgvector cosine similarity.
 
@@ -259,8 +287,29 @@ async def _semantic_candidates(
         logger.info("Semantic search unavailable: sentence-transformers not installed (degraded mode)")
         return [], True
 
+    # Build optional tag filter clause
+    tag_filter_sql = ""
+    tag_params: dict = {}
+    if tags:
+        normalised = [t.strip().lower() for t in tags if t.strip()]
+        if normalised:
+            tag_filter_sql = """
+              AND e.raw_archive_id IN (
+                  SELECT f.raw_archive_id
+                  FROM facts f
+                  JOIN fact_tags ft ON ft.fact_id = f.id
+                  JOIN tags tg ON tg.id = ft.tag_id
+                  WHERE f.source_status = 'active'
+                                        AND f.review_status = 'active'
+                    AND tg.name = ANY(:tag_names)
+                  GROUP BY f.raw_archive_id
+                  HAVING COUNT(DISTINCT tg.name) >= :tag_count
+              )
+            """
+            tag_params = {"tag_names": normalised, "tag_count": len(normalised)}
+
     result = await session.execute(
-        text("""
+        text(f"""
             SELECT
                 e.id::text AS id,
                 e.raw_archive_id::text AS raw_archive_id,
@@ -272,6 +321,7 @@ async def _semantic_candidates(
             WHERE e.source_status = 'active'
               AND ra.deleted_at IS NULL
               AND e.embedding_model = :model
+              {tag_filter_sql}
             ORDER BY e.embedding <=> :vec
             LIMIT :limit
         """),
@@ -279,6 +329,7 @@ async def _semantic_candidates(
             "vec": str(query_vector),
             "model": "all-MiniLM-L6-v2",
             "limit": limit,
+            **tag_params,
         },
     )
     rows = result.mappings().all()
@@ -329,6 +380,81 @@ async def _semantic_candidates(
     return candidates, False
 
 
+# ── Link traversal ────────────────────────────────────────────────────────────
+
+async def _traverse_links(
+    session: AsyncSession,
+    archive_ids: list[str],
+    max_links: int = 10,
+) -> list[dict]:
+    """Find linked facts for the given archive items and return them as candidates.
+
+    For each archive item in the current result set, find outgoing 'related',
+    'supports', 'elaborates', and 'entity' links and return the linked facts
+    as additional RetrievalItem dicts (type='fact').
+
+    Limits to max_links total to avoid flooding the context budget.
+    """
+    if not archive_ids:
+        return []
+
+    rows = (await session.execute(
+        text("""
+            SELECT
+                ml.id::text AS link_id,
+                ml.link_type,
+                ml.confidence,
+                ml.source_fact_id::text AS source_fact_id,
+                ml.target_fact_id::text AS target_fact_id,
+                tf.fact_text AS target_fact_text,
+                tf.raw_archive_id::text AS target_archive_id,
+                ra.source_type AS source_system,
+                ra.ingested_at::text AS captured_at
+            FROM memory_links ml
+            JOIN facts sf ON sf.id = ml.source_fact_id
+            JOIN facts tf ON tf.id = ml.target_fact_id
+            JOIN raw_archive ra ON ra.id = tf.raw_archive_id
+            WHERE sf.raw_archive_id = ANY(:archive_ids)
+              AND sf.source_status = 'active'
+              AND tf.source_status = 'active'
+                            AND sf.review_status = 'active'
+                            AND tf.review_status = 'active'
+              AND ra.deleted_at IS NULL
+              AND ml.link_type != 'contradicts'
+            ORDER BY ml.confidence DESC
+            LIMIT :max_links
+        """),
+        {"archive_ids": archive_ids, "max_links": max_links},
+    )).mappings().all()
+
+    seen_fact_ids: set[str] = set()
+    candidates: list[dict] = []
+    for row in rows:
+        tgt_id = row["target_fact_id"]
+        if tgt_id in seen_fact_ids:
+            continue
+        seen_fact_ids.add(tgt_id)
+        candidates.append({
+            "id": tgt_id,
+            "type": "fact",
+            "content": row["target_fact_text"] or "",
+            "score": float(row["confidence"] or 0.5) * 0.5,  # discount vs direct match
+            "source_id": row["target_archive_id"] or "",
+            "source_system": row["source_system"] or "unknown",
+            "captured_at": str(row["captured_at"] or ""),
+            "conflict_label": None,
+            "source_fact_id": row["source_fact_id"],
+            "link_type": row["link_type"],
+            "provenance": {
+                "derivation_method": "link_traversal",
+                "derivation_model": "memory_links",
+                "source_excerpt": (row["target_fact_text"] or "")[:200],
+            },
+        })
+
+    return candidates
+
+
 # ── Main retrieve function ────────────────────────────────────────────────────
 
 async def retrieve(
@@ -353,14 +479,22 @@ async def retrieve(
     effective_mode = req.mode
 
     if req.mode == "keyword":
-        candidates = await _keyword_candidates(session, req.query, RRF_CANDIDATES_PER_MODE)
+        candidates = await _keyword_candidates(
+            session, req.query, RRF_CANDIDATES_PER_MODE, tags=req.filters.tags or None
+        )
 
     elif req.mode == "semantic":
-        candidates, degraded = await _semantic_candidates(session, req.query, RRF_CANDIDATES_PER_MODE)
+        candidates, degraded = await _semantic_candidates(
+            session, req.query, RRF_CANDIDATES_PER_MODE, tags=req.filters.tags or None
+        )
 
     else:  # hybrid
-        kw_candidates = await _keyword_candidates(session, req.query, RRF_CANDIDATES_PER_MODE)
-        sem_candidates, sem_degraded = await _semantic_candidates(session, req.query, RRF_CANDIDATES_PER_MODE)
+        kw_candidates = await _keyword_candidates(
+            session, req.query, RRF_CANDIDATES_PER_MODE, tags=req.filters.tags or None
+        )
+        sem_candidates, sem_degraded = await _semantic_candidates(
+            session, req.query, RRF_CANDIDATES_PER_MODE, tags=req.filters.tags or None
+        )
 
         if sem_degraded or not sem_candidates:
             degraded = True
@@ -379,6 +513,17 @@ async def retrieve(
                     c["score"] = rrf_s
                     candidates.append(c)
 
+    # ── Link traversal — fetch linked facts for direct candidates ────────────
+    direct_archive_ids = list({c["source_id"] for c in candidates if c.get("source_id")})
+    try:
+        async with session.begin_nested():
+            linked_candidates = await _traverse_links(session, direct_archive_ids)
+        # Avoid duplicating items already in candidates
+        existing_ids = {c["id"] for c in candidates}
+        candidates += [lc for lc in linked_candidates if lc["id"] not in existing_ids]
+    except Exception as exc:
+        logger.debug("Link traversal failed (non-fatal): %s", exc)
+
     items = [
         RetrievalItem(
             id=c["id"],
@@ -390,6 +535,8 @@ async def retrieve(
             captured_at=c["captured_at"],
             conflict_label=c.get("conflict_label"),
             provenance=c.get("provenance", {}),
+            source_fact_id=c.get("source_fact_id"),
+            link_type=c.get("link_type"),
         )
         for c in candidates
     ]

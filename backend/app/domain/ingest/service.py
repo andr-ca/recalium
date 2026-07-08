@@ -13,8 +13,10 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from typing import Any
 from uuid import UUID
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.archive.models import RawArchiveItem
@@ -29,6 +31,7 @@ logger = logging.getLogger(__name__)
 class IngestResult:
     item_count: int
     archive_ids: list[UUID]
+    idempotent_replay: bool = False
 
 
 async def ingest_text_content(
@@ -36,6 +39,9 @@ async def ingest_text_content(
     content: str,
     source_name: str | None = None,
     actor: str = "user_ui",
+    source_type: str | None = None,
+    extra_metadata: dict[str, Any] | None = None,
+    idempotency_key: str | None = None,
 ) -> IngestResult:
     """Ingest plain text or JSON content (paste mode)."""
     content = content.strip()
@@ -43,6 +49,33 @@ async def ingest_text_content(
         raise ValueError(f"Content too short to ingest (got {len(content)} chars, need ≥ 10)")
 
     parsed = detect_and_parse(content=content, filename=None, source_name=source_name)
+    if source_type:
+        parsed.source_type = source_type
+    parsed.metadata = {
+        **(parsed.metadata or {}),
+        **(extra_metadata or {}),
+    } or None
+
+    if idempotency_key:
+        existing = (await session.execute(
+            text("""
+                SELECT id::text AS id, conversation_count, content_hash
+                FROM raw_archive
+                WHERE metadata_json ->> 'idempotency_key' = :idempotency_key
+                  AND deleted_at IS NULL
+                LIMIT 1
+            """),
+            {"idempotency_key": idempotency_key},
+        )).mappings().first()
+        if existing is not None:
+            if existing["content_hash"] != parsed.content_hash:
+                raise ValueError("idempotency key was already used with different content")
+            return IngestResult(
+                item_count=int(existing["conversation_count"] or 1),
+                archive_ids=[UUID(existing["id"])],
+                idempotent_replay=True,
+            )
+
     return await _persist_ingest(session=session, parsed=parsed, actor=actor)
 
 
@@ -109,6 +142,8 @@ async def _persist_ingest(
         status="pending",
     )
     session.add(job)
+
+    await session.commit()
 
     logger.info(
         f"Ingested: id={archive_item.id} type={parsed.source_type} "
