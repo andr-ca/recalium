@@ -139,6 +139,7 @@ _(none)_
 | 260707-jlg | In-depth project analysis, recommendations doc (docs/recommendations.md), and eval suite (evals/) with first live baseline | 2026-07-07 | e4dd775 | [260707-jlg-in-depth-project-analysis-recommendation](./quick/260707-jlg-in-depth-project-analysis-recommendation/) |
 | 260707-krr | Eval embeddings/provider validation + Ollama run; fixed F19-F21 pipeline bugs; found F22 gate over-blocking (P0) | 2026-07-08 | ee80112, 835d0df | [260707-krr-extend-eval-suite-to-validate-embeddings](./quick/260707-krr-extend-eval-suite-to-validate-embeddings/) |
 | 260707-tt8 | Gate observability (F15) + calibration (F22): audit events + embedding-prototype classifier; all 5 eval checks live, sensitivity audit-verified PASS | 2026-07-08 | 13d188a, 0a8c89f | [260707-tt8-gate-observability-f15-sensitivity-gate-](./quick/260707-tt8-gate-observability-f15-sensitivity-gate-/) |
+| 260708-0kx | Chunked per-turn extraction (F3) — first fully green eval: 5/5 checks, extraction 62.5%/76.7%, span+provenance 100% | 2026-07-08 | 35f5b89 | [260708-0kx-chunked-per-turn-fact-extraction-f3-to-c](./quick/260708-0kx-chunked-per-turn-fact-extraction-f3-to-c/) |
 
 ---
 
@@ -188,4 +189,4 @@ _(none)_
 
 ---
 
-*Last updated: 2026-07-08 — Completed quick task 260707-tt8: F15+F22 fixed; sensitivity gate audit-verified by eval; extraction measured at 57.7%/65.6% with qwen3.5:4b (model-capability finding)*
+*Last updated: 2026-07-08 — Completed quick task 260708-0kx: chunked extraction (F3); eval fully green (5/5, zero skips) — every v1 core claim now measured and passing*
