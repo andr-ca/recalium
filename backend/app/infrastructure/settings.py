@@ -54,6 +54,21 @@ class Settings(BaseSettings):
     ollama_model: str = "llama3.2"
     # Default Ollama model for summarization/extraction; override via OLLAMA_MODEL env var
 
+    # Per-function model names (F1) — overridable via env; "auto" uses the
+    # provider default (gpt-4o-mini for OpenAI, claude-3-haiku for Anthropic,
+    # OLLAMA_MODEL for Ollama).
+    summarize_model: str = "auto"
+    extract_model: str = "auto"
+    embed_model: str = "all-MiniLM-L6-v2"
+
+    # Per-function provider routing (F2, BYOK-08) — "auto" | "openai" |
+    # "anthropic" | "ollama". "auto" falls back to the first configured key
+    # (openai → anthropic → ollama). An explicit provider without a key skips
+    # the job (pending_provider) rather than silently falling through.
+    summarize_provider: str = "auto"
+    extract_provider: str = "auto"
+    embed_provider: str = "sentence-transformers"
+
     @field_validator("app_env")
     @classmethod
     def validate_app_env(cls, v: str) -> str:

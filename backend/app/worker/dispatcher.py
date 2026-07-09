@@ -135,6 +135,26 @@ def _dedupe_facts(facts: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return result
 
 
+def _validate_spans(facts: list[dict[str, Any]], raw_source: str) -> list[dict[str, Any]]:
+    """F4: verify each source_span is a verbatim substring of the raw source.
+
+    Hallucinated spans poison provenance (the product differentiator). For a span
+    that is non-empty but not a verbatim substring of the source, clear it and
+    downgrade confidence to 'low' — the fact is kept but flagged as unverified via
+    the empty-span rule in write_facts(). Local substring check; no LLM cost.
+    """
+    for fact in facts:
+        span = (fact.get("source_span") or "").strip()
+        if span and span not in raw_source:
+            logger.info(
+                "F4: cleared unverifiable source_span (%d chars) — not verbatim in source",
+                len(span),
+            )
+            fact["source_span"] = ""
+            fact["confidence_tier"] = "low"
+    return facts
+
+
 def _parse_json_object(raw: str) -> dict:
     """Parse the first JSON object out of model output.
 
@@ -191,18 +211,23 @@ async def _ollama_chat(system: str, user: str, *, format_json: bool = False) -> 
         return resp.json().get("message", {}).get("content") or ""
 
 async def _run_summarize_job(text: str) -> str | None:
-    """Run LLM summarization. Returns summary text or None if no provider configured.
+    """Run LLM summarization via the configured provider/model (F1/F2).
 
     Reads API keys from settings at call time (never from DB or job record).
+    Returns None if no provider is available (caller marks pending_provider).
     Raises exception on API error (caller converts to retryable_failed).
     """
     settings = get_settings()
+    provider = _resolve_provider(settings.summarize_provider)
+    if provider is None:
+        return None
+    model = _resolve_model(provider, settings.summarize_model)
 
-    if settings.openai_api_key:
+    if provider == "openai":
         from openai import AsyncOpenAI  # noqa: PLC0415
         client = AsyncOpenAI(api_key=settings.openai_api_key)
         response = await client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=model,
             messages=[
                 {"role": "system", "content": SUMMARIZATION_SYSTEM_PROMPT},
                 {"role": "user", "content": text},
@@ -212,21 +237,19 @@ async def _run_summarize_job(text: str) -> str | None:
         )
         return response.choices[0].message.content
 
-    if settings.anthropic_api_key:
+    if provider == "anthropic":
         from anthropic import AsyncAnthropic  # noqa: PLC0415
         client = AsyncAnthropic(api_key=settings.anthropic_api_key)
         response = await client.messages.create(
-            model="claude-3-haiku-20240307",
+            model=model,
             max_tokens=512,
             messages=[{"role": "user", "content": text}],
             system=SUMMARIZATION_SYSTEM_PROMPT,
         )
         return response.content[0].text
 
-    if settings.ollama_base_url:
-        return await _ollama_chat(SUMMARIZATION_SYSTEM_PROMPT, text)
-
-    return None  # No provider configured — caller marks as pending_provider
+    # provider == "ollama"
+    return await _ollama_chat(SUMMARIZATION_SYSTEM_PROMPT, text)
 
 
 async def _run_extract_job(text: str) -> list[dict[str, Any]]:
@@ -240,24 +263,29 @@ async def _run_extract_job(text: str) -> list[dict[str, Any]]:
     Raises exception on API error (caller converts to retryable_failed).
     """
     settings = get_settings()
-    if not (settings.openai_api_key or settings.anthropic_api_key or settings.ollama_base_url):
-        return []  # No provider configured
+    if _resolve_provider(settings.extract_provider) is None:
+        return []  # No provider available for extraction
 
     facts: list[dict[str, Any]] = []
     for chunk in _split_conversation(text):
         facts.extend(await _extract_chunk(chunk))
+    facts = _validate_spans(facts, text)  # F4: reject hallucinated spans
     return _dedupe_facts(facts)
 
 
 async def _extract_chunk(text: str) -> list[dict[str, Any]]:
-    """Single-call fact extraction for one chunk."""
+    """Single-call fact extraction for one chunk via the configured provider/model (F1/F2)."""
     settings = get_settings()
+    provider = _resolve_provider(settings.extract_provider)
+    if provider is None:
+        return []
+    model = _resolve_model(provider, settings.extract_model)
 
-    if settings.openai_api_key:
+    if provider == "openai":
         from openai import AsyncOpenAI  # noqa: PLC0415
         client = AsyncOpenAI(api_key=settings.openai_api_key)
         response = await client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=model,
             messages=[
                 {"role": "system", "content": FACT_EXTRACTION_SYSTEM_PROMPT},
                 {"role": "user", "content": text},
@@ -268,11 +296,11 @@ async def _extract_chunk(text: str) -> list[dict[str, Any]]:
         data = json.loads(response.choices[0].message.content or "{}")
         return data.get("facts", [])
 
-    if settings.anthropic_api_key:
+    if provider == "anthropic":
         from anthropic import AsyncAnthropic  # noqa: PLC0415
         client = AsyncAnthropic(api_key=settings.anthropic_api_key)
         response = await client.messages.create(
-            model="claude-3-haiku-20240307",
+            model=model,
             max_tokens=2048,
             messages=[{"role": "user", "content": text}],
             system=FACT_EXTRACTION_SYSTEM_PROMPT,
@@ -284,15 +312,13 @@ async def _extract_chunk(text: str) -> list[dict[str, Any]]:
             logger.warning("Anthropic returned non-JSON facts response: %s", raw[:200])
             return []
 
-    if settings.ollama_base_url:
-        raw = await _ollama_chat(FACT_EXTRACTION_SYSTEM_PROMPT, text, format_json=True)
-        try:
-            return _parse_json_object(raw).get("facts", [])
-        except json.JSONDecodeError:
-            logger.warning("Ollama returned non-JSON facts response (%d chars): %s", len(raw), raw[:200])
-            return []
-
-    return []  # No provider configured
+    # provider == "ollama"
+    raw = await _ollama_chat(FACT_EXTRACTION_SYSTEM_PROMPT, text, format_json=True)
+    try:
+        return _parse_json_object(raw).get("facts", [])
+    except json.JSONDecodeError:
+        logger.warning("Ollama returned non-JSON facts response (%d chars): %s", len(raw), raw[:200])
+        return []
 
 
 async def _run_link_detection_job(session: AsyncSession, raw_archive_id: "uuid.UUID") -> None:
@@ -316,6 +342,7 @@ async def _run_link_detection_job(session: AsyncSession, raw_archive_id: "uuid.U
     from sqlalchemy import select, text as sa_text  # noqa: PLC0415
     from app.domain.derived_memory.models import Fact, Embedding  # noqa: PLC0415
     from app.domain.derived_memory.service import write_links  # noqa: PLC0415
+    from app.domain.audit.models import AuditEvent  # noqa: PLC0415
 
     # Load facts that belong to this archive item
     fact_rows = (await session.execute(
@@ -407,6 +434,18 @@ async def _run_link_detection_job(session: AsyncSession, raw_archive_id: "uuid.U
                         })
                 except Exception as exc:
                     logger.debug("LLM link classification failed (non-fatal): %s", exc)
+                    # F5: make the (non-fatal) failure observable in the audit log
+                    session.add(AuditEvent(
+                        event_type="link_detection_error",
+                        raw_archive_id=raw_archive_id,
+                        actor="pipeline_worker",
+                        operation_metadata={
+                            "pass": "llm_typed",
+                            "source_fact_id": str(src_fact.id),
+                            "target_fact_id": str(tgt_fact.id),
+                            "error_reason": str(exc)[:500],
+                        },
+                    ))
 
         if links_to_write:
             await write_links(session, links_to_write)
@@ -496,52 +535,90 @@ async def _classify_link_pair(source_text: str, target_text: str) -> str | None:
         "Reply with exactly one word: supports, elaborates, contradicts, or unrelated."
     )
     settings = get_settings()
+    provider = _resolve_provider(settings.extract_provider)
+    if provider is None:
+        return None
+    model = _resolve_model(provider, settings.extract_model)
 
     try:
-        if settings.openai_api_key:
+        if provider == "openai":
             from openai import AsyncOpenAI  # noqa: PLC0415
             client = AsyncOpenAI(api_key=settings.openai_api_key)
             resp = await client.chat.completions.create(
-                model="gpt-4o-mini",
+                model=model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0,
                 max_tokens=5,
             )
             return resp.choices[0].message.content.strip().lower() or None
 
-        if settings.anthropic_api_key:
+        if provider == "anthropic":
             from anthropic import AsyncAnthropic  # noqa: PLC0415
             client = AsyncAnthropic(api_key=settings.anthropic_api_key)
             resp = await client.messages.create(
-                model="claude-3-haiku-20240307",
+                model=model,
                 max_tokens=5,
                 messages=[{"role": "user", "content": prompt}],
             )
             return resp.content[0].text.strip().lower() or None
 
-        if settings.ollama_base_url:
-            raw = await _ollama_chat(
-                "You classify relationships between facts. Reply with exactly one word.",
-                prompt,
-            )
-            word = raw.strip().lower().split()[0] if raw.strip() else ""
-            return word if word in ("supports", "elaborates", "contradicts", "unrelated") else None
+        # provider == "ollama"
+        raw = await _ollama_chat(
+            "You classify relationships between facts. Reply with exactly one word.",
+            prompt,
+        )
+        word = raw.strip().lower().split()[0] if raw.strip() else ""
+        return word if word in ("supports", "elaborates", "contradicts", "unrelated") else None
     except Exception as exc:
         logger.debug("_classify_link_pair failed: %s", exc)
+        raise
 
+
+_PROVIDER_DEFAULT_MODEL = {
+    "openai": "gpt-4o-mini",
+    "anthropic": "claude-3-haiku-20240307",
+}
+
+
+def _resolve_provider(configured: str) -> str | None:
+    """Resolve a configured provider ("auto" | name) to an available provider (F2).
+
+    "auto" falls back to the first configured key (openai → anthropic → ollama).
+    An explicit provider whose key is missing returns None so the caller degrades
+    transparently (pending_provider) instead of silently using another provider.
+    """
+    settings = get_settings()
+    available = {
+        "openai": bool(settings.openai_api_key),
+        "anthropic": bool(settings.anthropic_api_key),
+        "ollama": bool(settings.ollama_base_url),
+    }
+    choice = (configured or "auto").strip().lower()
+    if choice != "auto":
+        return choice if available.get(choice) else None
+    for name in ("openai", "anthropic", "ollama"):
+        if available[name]:
+            return name
     return None
 
 
+def _resolve_model(provider: str, configured_model: str) -> str:
+    """Resolve the model name for a provider (F1). "auto"/empty → provider default."""
+    if provider == "ollama":
+        return get_settings().ollama_model
+    model = (configured_model or "auto").strip()
+    if model and model.lower() != "auto":
+        return model
+    return _PROVIDER_DEFAULT_MODEL.get(provider, "gpt-4o-mini")
+
+
 def _provider_name() -> str:
-    """Return name of configured LLM provider (for derivation_model field)."""
+    """Model used for extraction (recorded in the fact derivation_model field)."""
     settings = get_settings()
-    if settings.openai_api_key:
-        return "gpt-4o-mini"
-    if settings.anthropic_api_key:
-        return "claude-3-haiku-20240307"
-    if settings.ollama_base_url:
-        return settings.ollama_model
-    return "none"
+    provider = _resolve_provider(settings.extract_provider)
+    if provider is None:
+        return "none"
+    return _resolve_model(provider, settings.extract_model)
 
 
 def _has_llm_provider() -> bool:

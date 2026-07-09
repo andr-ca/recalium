@@ -32,7 +32,11 @@ RRF_K: int = 60
 RRF_CANDIDATES_PER_MODE: int = 50
 RRF_FINAL_TOP_N: int = 20
 RRF_MIN_THRESHOLD: float = 1 / (RRF_K + 25)  # ≈ 0.01176
-DEFAULT_BUDGET: int = 2000
+# Context budget is measured in CHARACTERS, not tokens (F7). As a rule of thumb
+# ~1 token ≈ 4 characters for English text. The MCP/API `budget` parameter uses
+# this same character unit.
+CHAR_BUDGET: int = 2000
+DEFAULT_BUDGET: int = CHAR_BUDGET  # backward-compatible alias (deprecated; use CHAR_BUDGET)
 
 # ── In-process LRU cache ──────────────────────────────────────────────────────
 _cache: TTLCache = TTLCache(maxsize=256, ttl=60)
