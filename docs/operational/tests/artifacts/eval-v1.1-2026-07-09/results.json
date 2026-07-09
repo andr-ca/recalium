@@ -1,0 +1,163 @@
+{
+  "timestamp": "2026-07-09T12:27:38.980583Z",
+  "overall_passed": true,
+  "thresholds": {
+    "ingest_latency_p95_ms": {
+      "value": 1000,
+      "operator": "<=",
+      "description": "Ingest latency P95 must be \u22641 second (product claim)"
+    },
+    "extraction_recall": {
+      "value": 0.6,
+      "operator": ">=",
+      "description": "Extraction must capture \u226560% of golden facts (baseline; >0.6 indicates truncation/hallucination issues)"
+    },
+    "extraction_precision": {
+      "value": 0.7,
+      "operator": ">=",
+      "description": "Extracted facts must be \u226570% correct (baseline; <0.7 indicates LLM hallucination)"
+    },
+    "extraction_span_fidelity": {
+      "value": 0.95,
+      "operator": ">=",
+      "description": "Source spans must be \u226595% verbatim substrings of raw source (stringent; provenance is the differentiator)"
+    },
+    "retrieval_recall_at_5_hybrid": {
+      "value": 0.5,
+      "operator": ">=",
+      "description": "Hybrid retrieval must find \u226550% of relevant facts in top-5 (baseline)"
+    },
+    "retrieval_recall_at_10_hybrid": {
+      "value": 0.7,
+      "operator": ">=",
+      "description": "Hybrid retrieval must find \u226570% of relevant facts in top-10 (main threshold; beats keyword-only ~40%)"
+    },
+    "retrieval_mrr_hybrid": {
+      "value": 0.3,
+      "operator": ">=",
+      "description": "Mean reciprocal rank for hybrid \u22650.3 (first relevant item \u2264rank 3 on average)"
+    },
+    "retrieval_ndcg_at_10_hybrid": {
+      "value": 0.6,
+      "operator": ">=",
+      "description": "Normalized DCG@10 for hybrid \u22650.6 (ranking quality accounting for relevance gradation)"
+    },
+    "retrieval_latency_p95_ms": {
+      "value": 2000,
+      "operator": "<=",
+      "description": "Search latency P95 must be \u22642 seconds (product claim)"
+    },
+    "sensitivity_block_rate": {
+      "value": 1.0,
+      "operator": "==",
+      "description": "Differential test (requires configured provider): zero facts derived from personal/relationship conversations while control conversations produce facts (zero tolerance for leaks)"
+    },
+    "mcp_error_correctness": {
+      "value": 1.0,
+      "operator": "==",
+      "description": "100% of malformed MCP requests must return structured error envelopes (not 500 errors)"
+    },
+    "extraction_provenance_completeness": {
+      "value": 1.0,
+      "operator": "==",
+      "description": "Every extracted fact must carry source_span + confidence_tier + derivation_method + derivation_model (PIPE-02, absolute)"
+    },
+    "retrieval_paraphrase_recall_at_10": {
+      "value": 0.66,
+      "operator": ">=",
+      "description": "Semantic or hybrid mode must find >=2/3 of semantic_only paraphrase queries in top-10 (embeddings must add recall beyond FTS); only enforced when embeddings enabled"
+    },
+    "retrieval_semantic_lift": {
+      "value": 0.0,
+      "operator": ">",
+      "description": "Semantic paraphrase recall must exceed keyword paraphrase recall (embeddings demonstrably add value); only enforced when embeddings enabled"
+    }
+  },
+  "checks": [
+    {
+      "name": "ingest",
+      "passed": true,
+      "skipped": false,
+      "skip_reason": "",
+      "metrics": {
+        "latency_p50_ms": 18.28312873840332,
+        "latency_p95_ms": 21.599340438842773,
+        "latency_p99_ms": 22.049436569213864,
+        "success_rate": 1.0,
+        "count_ingested": 4
+      },
+      "details": "Ingested 4/4 conversations. P95 latency: 22ms (threshold: 1000ms). Success rate: 100%."
+    },
+    {
+      "name": "extraction",
+      "passed": true,
+      "skipped": false,
+      "skip_reason": "",
+      "metrics": {
+        "recall": 0.625,
+        "precision": 0.7671957671957671,
+        "span_fidelity": 1.0,
+        "provenance_completeness": 1.0,
+        "count_facts": 19,
+        "count_conversations": 3
+      },
+      "details": "Extraction metrics (avg across 3 conversations, 19 facts): Recall 62.50% (threshold: 60%), Precision 76.72% (threshold: 70%), Span fidelity 100.00% (threshold: 95%), Provenance completeness 100.00% (threshold: 100%; PIPE-02: span+confidence+method+model)."
+    },
+    {
+      "name": "retrieval",
+      "passed": true,
+      "skipped": false,
+      "skip_reason": "",
+      "metrics": {
+        "keyword_recall_at_5": 0.625,
+        "semantic_recall_at_5": 0.875,
+        "hybrid_recall_at_5": 1.0,
+        "keyword_recall_at_10": 0.625,
+        "semantic_recall_at_10": 0.875,
+        "hybrid_recall_at_10": 1.0,
+        "keyword_mrr": 0.375,
+        "semantic_mrr": 0.625,
+        "hybrid_mrr": 0.6666666666666666,
+        "keyword_ndcg_at_10": 0.44046487678572877,
+        "semantic_ndcg_at_10": 0.6904648767857288,
+        "hybrid_ndcg_at_10": 0.7529648767857288,
+        "keyword_latency_p95_ms": 26.863455772399902,
+        "semantic_latency_p95_ms": 158.9333415031433,
+        "hybrid_latency_p95_ms": 216.0469055175781,
+        "keyword_paraphrase_recall_at_10": 0.0,
+        "semantic_paraphrase_recall_at_10": 1.0,
+        "hybrid_paraphrase_recall_at_10": 1.0,
+        "semantic_lift": 1.0,
+        "semantic_mode_available": 1.0
+      },
+      "details": "Retrieval evaluation across 13 queries:\n  KEYWORD: R@5=62.50%, R@10=62.50%, MRR=0.38, nDCG=0.44, P95=27ms (adversarial: 2 tested, 0 crashed)\n  SEMANTIC: R@5=87.50%, R@10=87.50%, MRR=0.62, nDCG=0.69, P95=159ms (adversarial: 2 tested, 0 crashed)\n  HYBRID: R@5=100.00%, R@10=100.00%, MRR=0.67, nDCG=0.75, P95=216ms (adversarial: 2 tested, 0 crashed)\n  PARAPHRASE (semantic_only): keyword R@10=0% (expected ~0), semantic R@10=100%, hybrid R@10=100%, semantic_lift=+100% (need \u226566% and lift>0)\nThresholds: R@10\u226570% (hybrid), P95\u22642000ms, hybrid \u2265 best single mode"
+    },
+    {
+      "name": "sensitivity",
+      "passed": true,
+      "skipped": false,
+      "skip_reason": "",
+      "metrics": {
+        "block_verified": 1.0,
+        "control_allowed": 1.0,
+        "leaked_fact_count": 0.0,
+        "sensitive_conversations_tested": 1.0,
+        "gate_events_observed": 5.0
+      },
+      "details": "Audit-based gate verification (F15): 1/1 sensitive conversations have gate audit events; all blocked=True. Control items with gate events: 4, at least one allowed=True (guards against block-everything, F22). Facts leaked from sensitive items: 0 (must be 0). PASS: gate blocks sensitive content while allowing controls."
+    },
+    {
+      "name": "mcp",
+      "passed": true,
+      "skipped": false,
+      "skip_reason": "",
+      "metrics": {
+        "ingest_accepted": 1.0,
+        "retrieve_memory_provenance": 1.0,
+        "retrieve_budget_metadata": 1.0,
+        "structured_error_correctness": 1.0
+      },
+      "details": "MCP protocol (SSE) contract: ingest_accepted=\u2713, retrieve_provenance=\u2713, retrieve_budget_metadata=\u2713, structured_errors=\u2713."
+    }
+  ]
+}
