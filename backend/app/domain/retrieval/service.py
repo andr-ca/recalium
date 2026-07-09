@@ -114,6 +114,56 @@ def invalidate_cache() -> None:
     logger.debug("Retrieval cache invalidated")
 
 
+CACHE_INVALIDATE_CHANNEL = "recalium_cache_invalidate"
+
+
+async def notify_cache_invalidation(session: AsyncSession) -> None:
+    """Clear the retrieval cache and broadcast the change to all app processes (F8).
+
+    Replaces easily-forgotten manual invalidation after memory writes. The
+    in-process cache is cleared immediately; the Postgres NOTIFY makes the
+    invalidation event-driven and multi-process safe (any process running
+    cache_invalidation_listener() clears its own cache).
+    """
+    invalidate_cache()
+    try:
+        await session.execute(text(f"NOTIFY {CACHE_INVALIDATE_CHANNEL}"))
+    except Exception as exc:
+        logger.debug("cache NOTIFY failed (non-fatal): %s", exc)
+
+
+async def cache_invalidation_listener() -> None:
+    """Background task: LISTEN for cache-invalidation events and clear the cache (F8).
+
+    Reconnects on error; the 60s TTL remains as a safety net. Started from the
+    FastAPI lifespan alongside the worker.
+    """
+    import asyncio  # noqa: PLC0415
+    import asyncpg  # noqa: PLC0415
+    from app.infrastructure.settings import get_settings  # noqa: PLC0415
+
+    dsn = get_settings().database_url.replace("+asyncpg", "")
+    while True:
+        conn = None
+        try:
+            conn = await asyncpg.connect(dsn)
+            await conn.add_listener(CACHE_INVALIDATE_CHANNEL, lambda *_: invalidate_cache())
+            logger.info("Cache invalidation listener connected (channel=%s)", CACHE_INVALIDATE_CHANNEL)
+            while True:
+                await asyncio.sleep(3600)
+        except asyncio.CancelledError:
+            break
+        except Exception as exc:
+            logger.warning("Cache invalidation listener error (reconnecting in 5s): %s", exc)
+            await asyncio.sleep(5)
+        finally:
+            if conn is not None:
+                try:
+                    await conn.close()
+                except Exception:
+                    pass
+
+
 # ── RRF helpers ───────────────────────────────────────────────────────────────
 
 def rrf_score(rank: int, k: int = RRF_K) -> float:
@@ -461,6 +511,23 @@ async def _traverse_links(
 
 # ── Main retrieve function ────────────────────────────────────────────────────
 
+_MAX_QUERY_CHARS = 2000
+
+
+def _sanitize_fts_query(q: str) -> str:
+    """F9: harden free-text search input before it reaches Postgres FTS.
+
+    websearch_to_tsquery tolerates arbitrary punctuation, but NUL bytes are
+    invalid in Postgres text and pathologically long inputs waste work. Strip
+    NUL/control characters (keep tab/newline) and cap length. Normal queries are
+    unchanged.
+    """
+    if not q:
+        return q
+    cleaned = "".join(ch for ch in q if ch in "\t\n" or ord(ch) >= 32)
+    return cleaned[:_MAX_QUERY_CHARS].strip()
+
+
 async def retrieve(
     session: AsyncSession,
     req: RetrievalRequest,
@@ -471,6 +538,7 @@ async def retrieve(
     Always emits an AuditEvent.
     Uses in-process LRU cache for repeated identical queries.
     """
+    req.query = _sanitize_fts_query(req.query)
     cache_key = _cache_key(req)
     if cache_key in _cache:
         logger.debug("Retrieval cache hit for query=%r", req.query[:50])

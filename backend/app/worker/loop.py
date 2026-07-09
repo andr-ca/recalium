@@ -59,6 +59,10 @@ async def worker_loop() -> None:
                         from app.worker.dispatcher import dispatch_job  # noqa: PLC0415
                         await dispatch_job(session, job)
 
+                        # F8: memory changed — invalidate retrieval caches (event-driven)
+                        from app.domain.retrieval.service import notify_cache_invalidation  # noqa: PLC0415
+                        await notify_cache_invalidation(session)
+
                 if job is None:
                     await asyncio.sleep(_POLL_INTERVAL_SECONDS)
                     continue

@@ -136,6 +136,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     _worker_task = _asyncio.create_task(worker_loop(), name="pipeline-worker")
     logger.info("Pipeline worker task started")
 
+    # Start cache invalidation listener (F8: event-driven retrieval-cache clearing)
+    from app.domain.retrieval.service import cache_invalidation_listener
+    _cache_listener_task = _asyncio.create_task(
+        cache_invalidation_listener(), name="cache-invalidation-listener"
+    )
+    logger.info("Cache invalidation listener task started")
+
     # Start backup scheduler task (daily at midnight UTC, BKUP-01)
     _backup_task = _asyncio.create_task(_backup_scheduler(), name="backup-scheduler")
     logger.info("Backup scheduler task started")
@@ -163,6 +170,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except _asyncio.CancelledError:
         pass
     logger.info("Pipeline worker task stopped")
+
+    # Shutdown cache invalidation listener cleanly
+    _cache_listener_task.cancel()
+    try:
+        await _cache_listener_task
+    except _asyncio.CancelledError:
+        pass
+    logger.info("Cache invalidation listener task stopped")
 
     # Shutdown backup scheduler cleanly
     _backup_task.cancel()
