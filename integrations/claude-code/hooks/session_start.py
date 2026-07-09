@@ -65,7 +65,7 @@ def main():
 
     # Retrieve memory
     client = RecaliumClient()
-    result = client.retrieve(query, mode="hybrid", budget=2048, limit=5)
+    result = client.retrieve(query, mode="hybrid", budget=1536, limit=3)
 
     if not result or "items" not in result:
         return {}

@@ -14,8 +14,19 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/integrations/recalium/hooks/recalium_session_start.sh\"",
-            "timeout": 15
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/integrations/claude-code/hooks/session_start.py\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/integrations/claude-code/hooks/user_prompt_submit.py\"",
+            "timeout": 10
           }
         ]
       }
@@ -40,13 +51,15 @@
             "timeout": 30
           }
         ]
-      },
+      }
+    ],
+    "SessionEnd": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/integrations/recalium/hooks/recalium_stop.sh\"",
-            "timeout": 15
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/integrations/claude-code/hooks/session_end.py\"",
+            "timeout": 10
           }
         ]
       }
