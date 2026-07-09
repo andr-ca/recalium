@@ -11,7 +11,7 @@ This guide explains how to start Recalium locally, verify the app, use the UI, e
 ## Prerequisites
 
 - Linux, macOS, or WSL2.
-- Docker Compose v2.
+- Docker Compose v2 for the container path, **or** a native PostgreSQL 16 with the `pgvector` extension for the no-Docker path (see [Local installation without Docker (native)](#local-installation-without-docker-native)).
 - Python 3.12+ for host-side backend tooling.
 - `uv` for Python dependency management.
 - Node.js compatible with Vite 8 and `pnpm` 10 for frontend work.
@@ -66,6 +66,124 @@ Before building the production app image:
 3. Build the Docker image.
 
 The Dockerfile copies `frontend/dist` into the FastAPI static directory in [backend/Dockerfile](../../backend/Dockerfile).
+
+## Local installation without Docker (native)
+
+Run Recalium directly on the host with no containers. You provide PostgreSQL; the
+FastAPI app, background worker, backup scheduler, and file watcher all run inside
+the single Uvicorn process. This is an alternative to the Docker Compose path
+above — use one or the other, not both on the same ports.
+
+### Native prerequisites
+
+- PostgreSQL 16 with the `pgvector` extension available on the server:
+  - Debian/Ubuntu: `sudo apt install postgresql-16 postgresql-16-pgvector`
+  - macOS (Homebrew): `brew install postgresql@16 pgvector`
+- Python 3.12+ and `uv`.
+- Node.js >= 20.19 and `pnpm` 10 (only if you want the UI).
+
+### 1. Create the database and extension
+
+Create the role, database, and `pgvector` extension. The extension must be
+created once by a superuser — migration `0001` runs `CREATE EXTENSION IF NOT
+EXISTS vector`, which is then a no-op:
+
+```bash
+sudo -u postgres psql -c "CREATE ROLE recalium LOGIN PASSWORD 'recalium';"
+sudo -u postgres psql -c "CREATE DATABASE recalium OWNER recalium;"
+sudo -u postgres psql -d recalium -c "CREATE EXTENSION IF NOT EXISTS vector;"
+```
+
+Use a strong password for anything beyond local use and mirror it in `DATABASE_URL`.
+
+### 2. Configure the backend environment
+
+```bash
+cd backend
+cp .env.sample .env
+```
+
+[backend/.env.sample](../../backend/.env.sample) already targets a local database:
+`DATABASE_URL=postgresql+asyncpg://recalium:recalium@localhost:5432/recalium`.
+Keep `APP_BIND_HOST=127.0.0.1` for localhost mode (no auth). Put provider keys
+only in `.env`.
+
+### 3. Install backend dependencies
+
+```bash
+uv sync                       # runtime + dev dependencies
+# For local sentence-transformers embeddings, also install the CPU ML extra:
+uv sync --extra local-ml-cpu  # then set EMBED_BACKEND=cpu in .env
+```
+
+Leave `EMBED_BACKEND=none` to run with keyword search or a BYOK provider — no
+local ML is required.
+
+### 4. Run migrations
+
+Run Alembic as a module (`python -m`) so `backend/` is on `sys.path` and the `app`
+package resolves — the Docker image sets `PYTHONPATH=/app/backend` for the same
+reason. `--env-file` loads `DATABASE_URL` for Alembic:
+
+```bash
+uv run --env-file .env python -m alembic upgrade head
+```
+
+### 5. Start the backend
+
+```bash
+# production-style
+uv run --env-file .env python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+# development (live reload)
+uv run --env-file .env python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+```
+
+Confirm health at `http://localhost:8000/api/health`. The worker, daily backup,
+and (if `WATCH_DIR` is set) file watcher start automatically inside this process.
+MCP is served at `http://localhost:8000/mcp/sse`, exactly as in the Docker path.
+
+### 6. Run the frontend (optional)
+
+Development (hot reload, proxies `/api` to the backend via
+[frontend/vite.config.ts](../../frontend/vite.config.ts)):
+
+```bash
+cd frontend
+pnpm install
+pnpm dev            # http://localhost:5173
+```
+
+Production-style (served by the backend at `http://localhost:8000`):
+
+```bash
+pnpm build
+mkdir -p ../backend/app/static
+cp -r dist/* ../backend/app/static/
+```
+
+The backend serves `backend/app/static` when that directory exists; otherwise it
+assumes the Vite dev server is in use.
+
+### Native ports
+
+- `8000` API/UI, `5173` Vite dev, `5432` native PostgreSQL (the Docker dev
+  override uses `5435` instead to avoid clashing).
+
+### Native troubleshooting
+
+- `CREATE EXTENSION "vector"` fails or migrations error on `vector`: install the
+  `pgvector` package for your PostgreSQL 16 server, then create the extension as a
+  superuser (step 1).
+- Alembic cannot find the database: ensure `DATABASE_URL` is loaded
+  (`uv run --env-file .env …`) and PostgreSQL is listening on `localhost:5432`.
+- `ModuleNotFoundError: No module named 'app'` from Alembic or Uvicorn: run them
+  as modules (`python -m alembic …`, `python -m uvicorn …`) from `backend/`, or
+  export `PYTHONPATH="$PWD"` first (this mirrors the Docker image's
+  `PYTHONPATH=/app/backend`).
+- UI missing at `:8000`: build the frontend and copy `dist` into
+  `backend/app/static`, or use the Vite dev server at `:5173`.
+- Port already in use: a running Docker stack also binds `8000` — stop it with
+  `docker compose down` before starting the native app on the same port.
 
 ## First local usage path
 

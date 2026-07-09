@@ -27,6 +27,10 @@ Track release gaps in [docs/operational/validations/recalium-v1-release-readines
 
 See [docs/guides/local-use-and-test.md](docs/guides/local-use-and-test.md) for the detailed local setup, UI, MCP, and testing walkthrough.
 
+### Run without Docker
+
+Prefer a native setup? Provide PostgreSQL 16 with `pgvector`, then run the backend with `uv` and the UI with `pnpm` — no containers. See [Local installation without Docker (native)](docs/guides/local-use-and-test.md#local-installation-without-docker-native).
+
 ## First use
 
 1. Open the local UI.
