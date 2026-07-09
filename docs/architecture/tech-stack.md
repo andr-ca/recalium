@@ -27,8 +27,8 @@ Committed. All agents must use these decisions without deviation. Do not introdu
 - Served by: FastAPI static file serving embedded in `recalium-app`
 
 ## MCP interface
-- Library: official Python MCP SDK (`mcp`)
-- Transport: stdio for CLI/agent use; SSE for local HTTP MCP use
+- Library: official Python MCP SDK (`mcp`, pinned `>=1.26,<2`)
+- Transport: stdio for CLI/agent use; SSE for local HTTP MCP use. The SSE-vs-Streamable-HTTP migration path is recorded in [ADR 0001](decisions/0001-mcp-transport.md) (F11).
 
 ## Embeddings
 - Local: `sentence-transformers` (all-MiniLM-L6-v2 as default local model)
