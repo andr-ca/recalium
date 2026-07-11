@@ -219,8 +219,11 @@ export function WizardPage() {
             <div>
               <h2 className="text-base font-semibold mb-1">Configure a provider key</h2>
               <p className="text-sm text-muted-foreground">
-                Enter your API key below. It will be validated with a test call and stored only
-                in your <code className="text-xs font-mono">.env</code> file — never in the database.
+                Enter your API key to validate it with a test call. Recalium does <strong>not</strong>{" "}
+                store the key from here — add the validated key to your{" "}
+                <code className="text-xs font-mono">.env</code> file and restart the app so the
+                worker can use it. Keys live only in <code className="text-xs font-mono">.env</code>,
+                never in the database.
               </p>
             </div>
 

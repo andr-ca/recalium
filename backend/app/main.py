@@ -17,6 +17,8 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse as _JSONResponse
+from starlette.responses import FileResponse as _FileResponse
+from starlette.exceptions import HTTPException as _StarletteHTTPException
 
 from app.api.routes import router as api_router
 from app.api.routes.search import router as search_router
@@ -235,6 +237,24 @@ async def _backup_scheduler() -> None:
             logger.error("Scheduled backup failed: %s", exc)
 
 
+class SPAStaticFiles(StaticFiles):
+    """StaticFiles that falls back to index.html for unmatched routes (GPT5.6 #7).
+
+    Enables client-side routing: deep links like /facts or /search return the SPA
+    shell instead of 404. API (/api) and MCP (/mcp) are mounted first, so their
+    404s remain correct JSON responses and never reach this fallback.
+    """
+    async def get_response(self, path: str, scope):  # type: ignore[override]
+        try:
+            return await super().get_response(path, scope)
+        except _StarletteHTTPException as exc:
+            if exc.status_code == 404:
+                index = os.path.join(str(self.directory), "index.html")
+                if os.path.isfile(index):
+                    return _FileResponse(index)
+            raise
+
+
 def create_app() -> FastAPI:
     settings = get_settings()
 
@@ -283,7 +303,7 @@ def create_app() -> FastAPI:
     static_dir = os.path.join(os.path.dirname(__file__), "static")
     if os.path.isdir(static_dir):
         # Mount at / so React Router handles client-side routing
-        app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
+        app.mount("/", SPAStaticFiles(directory=static_dir, html=True), name="static")
         logger.info(f"Serving static files from {static_dir}")
     else:
         logger.info("No static/ directory found — assuming Vite dev server in use.")

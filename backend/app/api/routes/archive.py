@@ -127,6 +127,10 @@ async def list_archive(
                 status_badge=_job_status_to_badge(row.job_status),
                 job_id=str(row.job_id) if row.job_id else None,
                 job_error=row.job_error,
+                deleted_at=(
+                    row.RawArchiveItem.deleted_at.isoformat()
+                    if row.RawArchiveItem.deleted_at else None
+                ),
             )
             for row in rows
         ],
