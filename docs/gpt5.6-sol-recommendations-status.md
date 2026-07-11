@@ -14,42 +14,42 @@ Most P0s are **multi-day architectural builds**, not one-pass fixes; those are a
 
 ## Summary
 
-| # | P | Finding (short) | Decision | Evidence |
-| --- | --- | --- | --- | --- |
-| 1 | P0 | Cold-start vendor import not implemented | 📋 Planned | design below |
-| 2 | P0 | Deletion/backup/restore safety | 📋 Planned | design below |
-| 3 | P0 | Eval can go green after skips/errors | 🟡 Implemented (strict mode) | `b285da8` |
-| 4 | P0 | Retrieval filters + hybrid fusion | 🟡 Filters+mode done; fusion planned | `9d216b3` |
-| 5 | P0 | BYOK wizard claims config it doesn't do | ✅ Implemented | `6788d91` |
-| 6 | P0 | MCP processing/sensitivity not enforced | 📋 Planned | design below |
-| 7 | P0 | Clean build fails; deep links 404 | 🟡 SPA fallback done; multi-stage build planned | `6788d91` |
-| 8 | P0 | "Memory bundle" is a raw archive | 🟡 Scope corrected; graph bundle planned | this commit |
-| 9 | P0 | Concurrency: deletion vs promotion races | 📋 Planned | design below |
-| 10 | P0 | Conflict detection empty; resolve is a no-op | 📋 Planned | design below |
-| 11 | P1 | MCP reads not durably audited; error contracts | ✅ Implemented | `9d216b3` |
-| 12 | P1 | Extraction/ranking metric defects | � Implemented (matching/span/nDCG + tests) | `evals/metrics.py` |
-| 13 | P1 | Red/skipped gates; no app CI | 🟡 Frontend gate fixed; CI planned | `500542f` |
-| 14 | P1 | Keyboard a11y + curation incomplete | 🟡 Starter fixed; full suite planned | `500542f` |
-| 15 | P1 | Website/repo claims inaccurate; no LICENSE | 🟡 LICENSE added; website copy planned | `500542f` |
-| 16 | P1 | Requirements/plans not traceable | 📋 Planned | — |
-| 17 | P1 | Provenance/canonical integrity below promise | 🟡 Claim corrected; envelope planned | this commit |
-| 18 | P1 | `memory/` credential & path-traversal hazards | 📋 Planned (quarantine) | — |
-| 19 | P1 | "Exposed mode" not fully wired/secure | 📋 Planned (declare unsupported) | — |
-| 20 | P1 | Eval not representative/isolated/at-scale | 📋 Planned | — |
-| 21 | P1 | Embedding provider routing partial | 💬 + 📋 Planned | — |
-| 22 | P1 | Frontend error/deleted-item states mislead | ✅ Implemented (deleted_at) | `6788d91` |
-| 23 | P1 | Differentiation/market evidence stale | 💬 Accepted (docs) | 📋 |
-| 24 | P1 | Initial customer/packaging unresolved | 💬 Accepted (product) | 📋 |
-| 25 | P2 | Move MCP to Streamable-HTTP | 🔵 ADR exists; spike planned | ADR 0001 |
-| 26 | P2 | Static debt / oversized modules | 📋 Planned | — |
-| 27 | P2 | "Local-first" wording too strong | 📋 Planned (wording) | — |
+| #   | P   | Finding (short)                                | Decision                                       | Evidence           |
+| --- | --- | ---------------------------------------------- | ---------------------------------------------- | ------------------ |
+| 1   | P0  | Cold-start vendor import not implemented       | 📋 Planned                                      | design below       |
+| 2   | P0  | Deletion/backup/restore safety                 | 📋 Planned                                      | design below       |
+| 3   | P0  | Eval can go green after skips/errors           | 🟡 Implemented (strict mode)                    | `b285da8`          |
+| 4   | P0  | Retrieval filters + hybrid fusion              | 🟡 Filters+mode done; fusion planned            | `9d216b3`          |
+| 5   | P0  | BYOK wizard claims config it doesn't do        | ✅ Implemented                                  | `6788d91`          |
+| 6   | P0  | MCP processing/sensitivity not enforced        | 📋 Planned                                      | design below       |
+| 7   | P0  | Clean build fails; deep links 404              | ✅ SPA fallback + multi-stage build             | `6788d91`, Dockerfile |
+| 8   | P0  | "Memory bundle" is a raw archive               | 🟡 Scope corrected; graph bundle planned        | this commit        |
+| 9   | P0  | Concurrency: deletion vs promotion races       | 📋 Planned                                      | design below       |
+| 10  | P0  | Conflict detection empty; resolve is a no-op   | 📋 Planned                                      | design below       |
+| 11  | P1  | MCP reads not durably audited; error contracts | ✅ Implemented                                  | `9d216b3`          |
+| 12  | P1  | Extraction/ranking metric defects              | � Implemented (matching/span/nDCG + tests)     | `evals/metrics.py` |
+| 13  | P1  | Red/skipped gates; no app CI                   | 🟡 Frontend gate fixed; CI planned              | `500542f`          |
+| 14  | P1  | Keyboard a11y + curation incomplete            | 🟡 Starter fixed; full suite planned            | `500542f`          |
+| 15  | P1  | Website/repo claims inaccurate; no LICENSE     | 🟡 LICENSE added; website copy planned          | `500542f`          |
+| 16  | P1  | Requirements/plans not traceable               | 📋 Planned                                      | —                  |
+| 17  | P1  | Provenance/canonical integrity below promise   | 🟡 Claim corrected; envelope planned            | this commit        |
+| 18  | P1  | `memory/` credential & path-traversal hazards  | 📋 Planned (quarantine)                         | —                  |
+| 19  | P1  | "Exposed mode" not fully wired/secure          | 📋 Planned (declare unsupported)                | —                  |
+| 20  | P1  | Eval not representative/isolated/at-scale      | 📋 Planned                                      | —                  |
+| 21  | P1  | Embedding provider routing partial             | 💬 + 📋 Planned                                  | —                  |
+| 22  | P1  | Frontend error/deleted-item states mislead     | ✅ Implemented (deleted_at)                     | `6788d91`          |
+| 23  | P1  | Differentiation/market evidence stale          | 💬 Accepted (docs)                              | 📋                  |
+| 24  | P1  | Initial customer/packaging unresolved          | 💬 Accepted (product)                           | 📋                  |
+| 25  | P2  | Move MCP to Streamable-HTTP                    | 🔵 ADR exists; spike planned                    | ADR 0001           |
+| 26  | P2  | Static debt / oversized modules                | 📋 Planned                                      | —                  |
+| 27  | P2  | "Local-first" wording too strong               | 📋 Planned (wording)                            | —                  |
 
 ## Implemented this pass
 
 - **#3** — `evals/runner.py --strict` release mode fails on any skipped/errored check (default run stays fail-open for local smoke). `b285da8`.
 - **#4** — `retrieve()` now enforces `canonical_only`/`source_system`/time-range filters on the candidate set (fixes the confirmed `canonical_only` leak) and validates the mode at the boundary (invalid mode → validation error, not silent hybrid). `9d216b3`. *Not yet:* SQL-level pre-ranking filters, shared `(source_kind, source_id, chunk_id)` fusion identity, direct fact indexing — see #4 plan.
 - **#5** — Wizard copy corrected to the truthful `.env`-only model (validate here, add to `.env`, restart). `6788d91`.
-- **#7 (SPA)** — `SPAStaticFiles` serves `index.html` for unmatched non-API/non-MCP routes; deep links no longer 404. `6788d91`.
+- **#7** — `SPAStaticFiles` serves `index.html` for unmatched non-API/non-MCP routes so deep links no longer 404 (`6788d91`); and a Node **frontend-build** stage in `backend/Dockerfile` builds the SPA in-image, so a clean checkout builds without a host `frontend/dist` (verified: `docker build --target frontend-build` produced `dist/`).
 - **#8 / #17 (claims)** — Bundle doc labelled a **source-archive** bundle; quality claim narrowed (span fidelity is extraction-set only) with a small-corpus caveat. This commit.
 - **#11** — MCP retrieve access audit event is now committed (verified live: an `mcp_retrieve` row persists for a fresh actor); `get_fact_links` errors use the standard envelope. `9d216b3`.
 - **#13 / #14 (regressions)** — Vitest scoped to `src/` so the Playwright spec no longer breaks `pnpm test`; `pnpm-lock.yaml` updated so `--frozen-lockfile` works with `@playwright/test`. `500542f`.
@@ -65,7 +65,7 @@ Each is valid and would improve the product, but is a substantial build. Recomme
 - **#2 Deletion/backup/restore.** Define deletion semantics (physical/crypto-erase after retention); exclude erased content from new backups; append-only tombstone ledger; staged restore into a separate DB with signed-manifest + schema validation, tombstone reapply, integrity check, worker quiesce, atomic cutover, rollback, and path-containment on filenames. **Gate:** secret-ingest→delete→backup→restore(pre/post)→never-retrievable + corrupted-restore rollback test.
 - **#4 (remainder).** Shared retrieval-document identity for true RRF fusion; SQL-level filters; direct active-fact indexing; propagate conflict/review state; canonical priority without starvation.
 - **#6 Policy enforcement.** Typed, validated `processing_mode`/`sensitivity_hint` columns; resolve an effective policy before every provider call (summarize/extract/link/embed), default to stricter, and audit decision+provider+data-class+item-ids. Capture-proxy privacy test asserting zero sensitive egress.
-- **#7 (build).** Multi-stage `Dockerfile`: `node` stage runs frozen `pnpm install` + build; python stage installs deps; copy `frontend/dist` + wheels into runtime. Publish a pinned image digest. **Gate:** clean-clone one-command install passes health + serves every deep link.
+- **#7 (remainder).** Publish a pinned image **digest** for non-developer users and add a clean-clone CI build job (the multi-stage image build itself is now implemented).
 - **#8 (full).** Versioned graph bundle: typed raw + normalized conversation/turn + derived + canonical + provenance + link + tombstone + audit records, content hashes, streaming, migrations.
 - **#9 Concurrency.** Row-lock/version-token deletion↔processing serialization in one transaction; promotion accepts only fact id + confirmation, derives content/provenance server-side, verifies active status, writes immutable actor.
 - **#10 Conflict/curation.** Fact-level duplicate/overlap/contradiction detection with persisted memberships/evidence; transactional queue materialization; resolutions with domain effects (keep/merge/supersede/suppress) + reindex + audit.

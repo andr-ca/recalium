@@ -12,6 +12,18 @@
 #   docker compose build --build-arg EMBED_BACKEND=gpu
 #   docker compose build --build-arg EMBED_BACKEND=none
 # ─────────────────────────────────────────────────────────────────────────────
+# ── Frontend build stage ─────────────────────────────────────────────────────
+# GPT5.6 #7: build the React SPA inside the image so a clean checkout builds
+# without a host-side frontend/dist (which is gitignored and absent on clone).
+FROM node:22-slim AS frontend-build
+WORKDIR /app/frontend
+RUN corepack enable && corepack prepare pnpm@10.28.0 --activate
+# Install dependencies first (cache-friendly), then build.
+COPY frontend/package.json frontend/pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
+COPY frontend/ ./
+RUN pnpm build
+
 FROM python:3.12-slim AS base
 
 ARG EMBED_BACKEND=cpu
@@ -68,13 +80,13 @@ RUN chmod +x /app/entrypoint.sh /app/dev-entrypoint.sh
 
 # ── Production stage ──────────────────────────────────────────────────────────
 FROM base AS production
-# Pre-built React SPA served as static files
-COPY frontend/dist/ ./backend/app/static/
+# React SPA built in the frontend-build stage (GPT5.6 #7)
+COPY --from=frontend-build /app/frontend/dist/ ./backend/app/static/
 
 # ── Development stage ─────────────────────────────────────────────────────────
 FROM base AS development
-# Copy built React SPA as static files (dev uses compiled dist, not Vite dev server)
-COPY frontend/dist/ ./backend/app/static/
+# React SPA built in the frontend-build stage (dev serves compiled dist unless Vite is used)
+COPY --from=frontend-build /app/frontend/dist/ ./backend/app/static/
 
 # Default to production target
 FROM production
