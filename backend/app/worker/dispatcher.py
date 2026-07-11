@@ -892,26 +892,48 @@ async def dispatch_job(session: AsyncSession, job: Job) -> None:
         await session.rollback()  # aborted tx would wedge every later step
         await session.refresh(job)  # rollback expired the instance
 
-    # ── Step 6: Conflict detection (CANM-06) ─────────────────────────────────
+    # ── Step 6: Conflict detection (CANM-06 / GPT5.6 #10) ────────────────────
     try:
-        from app.domain.conflict_detection import (  # noqa: PLC0415
-            find_duplicate_candidates,
-            create_conflict_group,
-        )
+        from app.domain.conflict_detection import detect_and_group_duplicates  # noqa: PLC0415
         from app.domain.derived_memory.service import get_existing_embedding  # noqa: PLC0415
         current_embedding = await get_existing_embedding(session, job.raw_archive_id)
         if current_embedding is not None:
-            candidates = await find_duplicate_candidates(
+            detection = await detect_and_group_duplicates(
                 session,
+                raw_archive_id=job.raw_archive_id,
+                embedding_id=current_embedding.id,
                 embedding=current_embedding.embedding,
-                exclude_id=current_embedding.id,
             )
-            if candidates:
-                group = await create_conflict_group(session, group_type="duplicate")
+            if detection is not None:
                 logger.info(
-                    "Conflict group %s created: job=%s has %d near-duplicate(s)",
-                    group.id, job.id, len(candidates),
+                    "Conflict group %s: job=%s duplicates=%d linked_facts=%d",
+                    detection.group.id, job.id,
+                    len(detection.duplicate_archive_ids), detection.linked_fact_count,
                 )
+                # Surface the duplicate in the audit trail (the group itself
+                # surfaces in the review queue via linked facts).
+                try:
+                    from app.domain.audit.models import AuditEvent  # noqa: PLC0415
+                    session.add(AuditEvent(
+                        event_type="conflict_detected",
+                        raw_archive_id=job.raw_archive_id,
+                        actor="pipeline_worker",
+                        operation_metadata={
+                            "conflict_group_id": str(detection.group.id),
+                            "group_type": "duplicate",
+                            "duplicate_archive_ids": [
+                                str(a) for a in detection.duplicate_archive_ids
+                            ],
+                            "linked_fact_count": detection.linked_fact_count,
+                        },
+                    ))
+                    await session.commit()
+                except Exception as audit_exc:
+                    logger.warning(
+                        "conflict_detected audit write failed (non-fatal): %s", audit_exc
+                    )
+                    await session.rollback()
+                    await session.refresh(job)
     except Exception as e:
         logger.warning("Conflict detection failed for job %s (non-fatal): %s", job.id, e)
         await session.rollback()  # aborted tx would wedge every later step

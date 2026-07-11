@@ -9,12 +9,13 @@ from __future__ import annotations
 
 import logging
 import uuid
+from dataclasses import dataclass, field
 from typing import Sequence
 
-from sqlalchemy import text
+from sqlalchemy import select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.domain.derived_memory.models import ConflictGroup
+from app.domain.derived_memory.models import ConflictGroup, Embedding, Fact
 
 logger = logging.getLogger(__name__)
 
@@ -87,3 +88,94 @@ async def create_conflict_group(
     await session.refresh(group)
     logger.info("Created conflict group id=%s type=%s", group.id, group_type)
     return group
+
+
+@dataclass
+class DuplicateDetection:
+    """Result of a duplicate scan: the group plus what it linked."""
+
+    group: ConflictGroup
+    duplicate_archive_ids: list[uuid.UUID] = field(default_factory=list)
+    linked_fact_count: int = 0
+
+
+async def _resolve_embedding_archive_ids(
+    session: AsyncSession, embedding_ids: Sequence[uuid.UUID]
+) -> list[uuid.UUID]:
+    """Map embedding row ids to their distinct source ``raw_archive_id`` values."""
+    ids = list(embedding_ids)
+    if not ids:
+        return []
+    result = await session.execute(
+        select(Embedding.raw_archive_id).where(Embedding.id.in_(ids))
+    )
+    seen: list[uuid.UUID] = []
+    for (archive_id,) in result.all():
+        if archive_id is not None and archive_id not in seen:
+            seen.append(archive_id)
+    return seen
+
+
+async def link_facts_to_group(
+    session: AsyncSession,
+    group_id: uuid.UUID,
+    raw_archive_ids: Sequence[uuid.UUID],
+) -> int:
+    """Assign active, not-yet-grouped facts of the given items to a conflict group.
+
+    Returns the number of facts newly linked. Idempotent: facts already in a
+    group are left untouched.
+    """
+    ids = [rid for rid in raw_archive_ids if rid is not None]
+    if not ids:
+        return 0
+    result = await session.execute(
+        update(Fact)
+        .where(Fact.raw_archive_id.in_(ids))
+        .where(Fact.source_status == "active")
+        .where(Fact.conflict_group_id.is_(None))
+        .values(conflict_group_id=group_id)
+    )
+    await session.commit()
+    return int(result.rowcount or 0)
+
+
+async def detect_and_group_duplicates(
+    session: AsyncSession,
+    *,
+    raw_archive_id: uuid.UUID,
+    embedding_id: uuid.UUID,
+    embedding: list[float],
+) -> DuplicateDetection | None:
+    """Detect near-duplicate embeddings and, if any, create + populate a group.
+
+    CANM-06 / GPT5.6 #10: the prior wiring created an empty ``ConflictGroup``
+    that was never linked to any fact, so duplicates never surfaced in the
+    review queue. This creates the group *and* links the involved items' active
+    facts to it so the conflict is reviewable.
+
+    Returns a ``DuplicateDetection`` (group + involved items + linked fact count)
+    or ``None`` when no other item is a near-duplicate.
+    """
+    candidates = await find_duplicate_candidates(
+        session, embedding=embedding, exclude_id=embedding_id
+    )
+    if not candidates:
+        return None
+
+    dup_archive_ids = [
+        aid
+        for aid in await _resolve_embedding_archive_ids(session, candidates)
+        if aid != raw_archive_id
+    ]
+    if not dup_archive_ids:
+        return None
+
+    group = await create_conflict_group(session, group_type="duplicate")
+    involved = [raw_archive_id, *dup_archive_ids]
+    linked = await link_facts_to_group(session, group.id, involved)
+    return DuplicateDetection(
+        group=group,
+        duplicate_archive_ids=dup_archive_ids,
+        linked_fact_count=linked,
+    )

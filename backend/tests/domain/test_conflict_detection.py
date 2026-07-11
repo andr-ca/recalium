@@ -86,3 +86,108 @@ async def test_conflict_group_created_for_duplicates(db_session_phase2):
     assert group is not None
     assert group.group_type == "duplicate"
     assert group.resolved_at is None
+
+
+def _one_hot(index: int) -> list[float]:
+    """A normalized 384-dim one-hot vector — orthogonal to other tests' vectors."""
+    vec = [0.0] * 384
+    vec[index] = 1.0
+    return vec
+
+
+async def _make_fact(session, archive_id, text_value: str):
+    from app.domain.derived_memory.models import Fact
+    fact = Fact(
+        id=uuid.uuid4(),
+        raw_archive_id=archive_id,
+        fact_text=text_value,
+        source_span=text_value,
+        confidence_tier="high",
+        derivation_method="rule_based",
+        derivation_model="local_rules_v1",
+    )
+    session.add(fact)
+    await session.flush()
+    return fact
+
+
+async def _make_embedding(session, archive_id, vec):
+    from app.domain.derived_memory.models import Embedding
+    emb = Embedding(
+        id=uuid.uuid4(),
+        raw_archive_id=archive_id,
+        embedding=vec,
+        embedding_model="all-MiniLM-L6-v2",
+    )
+    session.add(emb)
+    await session.commit()
+    await session.refresh(emb)
+    return emb
+
+
+async def test_link_facts_to_group_links_active_ungrouped_facts(db_session_phase2):
+    """GPT5.6 #10: facts of involved items are assigned to the conflict group."""
+    from app.domain.conflict_detection import create_conflict_group, link_facts_to_group
+
+    item = await _make_archive_item(db_session_phase2)
+    f1 = await _make_fact(db_session_phase2, item.id, "alpha")
+    f2 = await _make_fact(db_session_phase2, item.id, "beta")
+    await db_session_phase2.commit()
+
+    group = await create_conflict_group(db_session_phase2, group_type="duplicate")
+    linked = await link_facts_to_group(db_session_phase2, group.id, [item.id])
+
+    assert linked == 2
+    await db_session_phase2.refresh(f1)
+    await db_session_phase2.refresh(f2)
+    assert f1.conflict_group_id == group.id
+    assert f2.conflict_group_id == group.id
+    # Idempotent: already-grouped facts are not relinked.
+    assert await link_facts_to_group(db_session_phase2, group.id, [item.id]) == 0
+
+
+async def test_detect_and_group_duplicates_links_both_items_facts(db_session_phase2):
+    """GPT5.6 #10: a near-duplicate creates a group AND links both items' facts."""
+    from app.domain.conflict_detection import detect_and_group_duplicates
+
+    vec = _one_hot(5)
+    item_a = await _make_archive_item(db_session_phase2)
+    item_b = await _make_archive_item(db_session_phase2)
+    await _make_embedding(db_session_phase2, item_a.id, vec)
+    emb_b = await _make_embedding(db_session_phase2, item_b.id, vec)  # identical → duplicate
+    fact_a = await _make_fact(db_session_phase2, item_a.id, "a")
+    fact_b = await _make_fact(db_session_phase2, item_b.id, "b")
+    await db_session_phase2.commit()
+
+    detection = await detect_and_group_duplicates(
+        db_session_phase2,
+        raw_archive_id=item_b.id,
+        embedding_id=emb_b.id,
+        embedding=vec,
+    )
+
+    assert detection is not None
+    assert item_a.id in detection.duplicate_archive_ids
+    assert detection.linked_fact_count >= 2
+    await db_session_phase2.refresh(fact_a)
+    await db_session_phase2.refresh(fact_b)
+    assert fact_a.conflict_group_id == detection.group.id
+    assert fact_b.conflict_group_id == detection.group.id
+
+
+async def test_detect_and_group_duplicates_none_when_unique(db_session_phase2):
+    """GPT5.6 #10: a unique embedding produces no conflict group."""
+    from app.domain.conflict_detection import detect_and_group_duplicates
+
+    vec = _one_hot(0)  # orthogonal to every other test vector
+    item = await _make_archive_item(db_session_phase2)
+    emb = await _make_embedding(db_session_phase2, item.id, vec)
+    await db_session_phase2.commit()
+
+    detection = await detect_and_group_duplicates(
+        db_session_phase2,
+        raw_archive_id=item.id,
+        embedding_id=emb.id,
+        embedding=vec,
+    )
+    assert detection is None
