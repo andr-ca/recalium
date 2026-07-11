@@ -147,6 +147,12 @@ Examples:
         help="Path to thresholds config (default: evals/thresholds.json)",
     )
 
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="Release mode: fail on ANY skipped or errored check (no fail-open).",
+    )
+
     args = parser.parse_args()
 
     print(f"Recalium Evaluation Suite")
@@ -181,6 +187,15 @@ Examples:
     # Determine overall status
     non_skipped_checks = [c for c in checks if not c.skipped]
     overall_passed = all(c.passed for c in non_skipped_checks) if non_skipped_checks else False
+
+    # GPT5.6 #3: release/strict mode refuses to pass on any skipped or errored
+    # check (the default run stays fail-open for local development smoke signals).
+    skipped_checks = [c for c in checks if c.skipped]
+    if args.strict and skipped_checks:
+        overall_passed = False
+        print("STRICT: failing because checks were skipped or errored:")
+        for c in skipped_checks:
+            print(f"  - {c.name}: {c.skip_reason}")
 
     print(f"\n")
 
