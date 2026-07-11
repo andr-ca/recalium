@@ -19,6 +19,23 @@ export function IngestPage() {
   const dismissToast = React.useCallback(() => setToast(null), []);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
+  // Roving-tabindex keyboard navigation for the ingest tabs (a11y — GPT5.6 #14)
+  const tabOrder = React.useMemo<Tab[]>(() => ["paste", "file"], []);
+  const tabRefs = React.useRef<Record<Tab, HTMLButtonElement | null>>({ paste: null, file: null });
+  const handleTabKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
+    const idx = tabOrder.indexOf(activeTab);
+    let next: number;
+    if (e.key === "ArrowRight" || e.key === "ArrowDown") next = (idx + 1) % tabOrder.length;
+    else if (e.key === "ArrowLeft" || e.key === "ArrowUp") next = (idx - 1 + tabOrder.length) % tabOrder.length;
+    else if (e.key === "Home") next = 0;
+    else if (e.key === "End") next = tabOrder.length - 1;
+    else return;
+    e.preventDefault();
+    const nextTab = tabOrder[next];
+    setActiveTab(nextTab);
+    tabRefs.current[nextTab]?.focus();
+  };
+
   const handlePasteSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!pasteContent.trim()) return;
@@ -66,13 +83,16 @@ export function IngestPage() {
       <h1 className="text-2xl font-bold mb-6">Ingest Conversations</h1>
 
       {/* Tab switcher */}
-      <div className="flex gap-1 mb-6 border-b" role="tablist">
+      <div className="flex gap-1 mb-6 border-b" role="tablist" aria-label="Ingest method">
         {(["paste", "file"] as Tab[]).map((tab) => (
           <button
             key={tab}
+            ref={(el) => { tabRefs.current[tab] = el; }}
             onClick={() => setActiveTab(tab)}
+            onKeyDown={handleTabKeyDown}
             className={cn(
               "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
+              "focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-sm",
               activeTab === tab
                 ? "border-primary text-primary"
                 : "border-transparent text-muted-foreground hover:text-foreground"
@@ -137,8 +157,16 @@ export function IngestPage() {
             onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
             onDragLeave={() => setIsDragging(false)}
             onClick={() => fileInputRef.current?.click()}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                fileInputRef.current?.click();
+              }
+            }}
+            tabIndex={0}
             className={cn(
               "flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed p-12 cursor-pointer transition-colors",
+              "focus:outline-none focus-visible:ring-2 focus-visible:ring-primary",
               isDragging
                 ? "border-primary bg-primary/5"
                 : "border-muted-foreground/30 hover:border-primary/50"
