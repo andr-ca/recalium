@@ -16,7 +16,7 @@ Most P0s are **multi-day architectural builds**, not one-pass fixes; those are a
 
 | #   | P   | Finding (short)                                | Decision                                       | Evidence           |
 | --- | --- | ---------------------------------------------- | ---------------------------------------------- | ------------------ |
-| 1   | P0  | Cold-start vendor import not implemented       | 📋 Planned                                      | design below       |
+| 1   | P0  | Cold-start vendor import not implemented       | � Import domain built (per-conversation)       | `feat(import)`     |
 | 2   | P0  | Deletion/backup/restore safety                 | 📋 Planned                                      | design below       |
 | 3   | P0  | Eval can go green after skips/errors           | 🟡 Implemented (strict mode)                    | `b285da8`          |
 | 4   | P0  | Retrieval filters + hybrid fusion              | 🟡 Filters+mode done; fusion planned            | `9d216b3`          |
@@ -46,6 +46,7 @@ Most P0s are **multi-day architectural builds**, not one-pass fixes; those are a
 
 ## Implemented this pass
 
+- **#1 (vendor import).** New `imports` domain decomposes a **ChatGPT** (`mapping` graph or `messages` list) or **Claude** (`chat_messages`) export into individual conversations — each persisted as its own `raw_archive` item with provenance (`source_system`, `source_conversation_id`, title, message count, timestamps) and its own `pending_pipeline` job, so every conversation is summarized/extracted/linked separately instead of as one opaque multi-conversation blob. Idempotent by per-conversation `content_hash`. Exposed via `POST /api/import` and an **Import Export** tab in the ingest UI. 11 new tests (adapters + fan-out + idempotency); full backend suite **219 pass**. *Remainder (planned):* ZIP streaming, pre-import preview/selection, exhaustive branch/tool-call fidelity, deterministic IDs + checkpointed batches, a per-item error ledger.
 - **#3** — `evals/runner.py --strict` release mode fails on any skipped/errored check (default run stays fail-open for local smoke). `b285da8`.
 - **#4** — `retrieve()` now enforces `canonical_only`/`source_system`/time-range filters on the candidate set (fixes the confirmed `canonical_only` leak) and validates the mode at the boundary (invalid mode → validation error, not silent hybrid). `9d216b3`. *Not yet:* SQL-level pre-ranking filters, shared `(source_kind, source_id, chunk_id)` fusion identity, direct fact indexing — see #4 plan.
 - **#5** — Wizard copy corrected to the truthful `.env`-only model (validate here, add to `.env`, restart). `6788d91`.
@@ -63,7 +64,7 @@ Most P0s are **multi-day architectural builds**, not one-pass fixes; those are a
 
 Each is valid and would improve the product, but is a substantial build. Recommended sequencing follows the review's "one trustworthy loop."
 
-- **#1 Vendor import.** Create an `import` domain with versioned ChatGPT/Claude adapters (wrapper-object, top-level-array, and `mapping` shapes), canonical conversation/turn records, ZIP streaming, preview/selection, deterministic IDs, checkpointed batches, and a per-item error ledger. Preserve the raw export; treat unknown schema versions explicitly. **Gate:** import real exports (incl. ZIP/branches/tool-calls) with exact count/role/timestamp/span assertions.
+- **#1 (import remainder).** Core per-conversation import is now built (see “Implemented this pass”). Still planned: ZIP streaming of full export archives, pre-import preview/selection, exhaustive branch/tool-call fidelity, deterministic content IDs with checkpointed batches, an explicit per-item error ledger, and explicit unknown-schema-version handling. **Gate:** import real exports (incl. ZIP/branches/tool-calls) with exact count/role/timestamp/span assertions.
 - **#2 Deletion/backup/restore.** Define deletion semantics (physical/crypto-erase after retention); exclude erased content from new backups; append-only tombstone ledger; staged restore into a separate DB with signed-manifest + schema validation, tombstone reapply, integrity check, worker quiesce, atomic cutover, rollback, and path-containment on filenames. **Gate:** secret-ingest→delete→backup→restore(pre/post)→never-retrievable + corrupted-restore rollback test.
 - **#4 (remainder).** Shared retrieval-document identity for true RRF fusion; SQL-level filters; direct active-fact indexing; propagate conflict/review state; canonical priority without starvation.
 - **#6 Policy enforcement.** Typed, validated `processing_mode`/`sensitivity_hint` columns; resolve an effective policy before every provider call (summarize/extract/link/embed), default to stricter, and audit decision+provider+data-class+item-ids. Capture-proxy privacy test asserting zero sensitive egress.
