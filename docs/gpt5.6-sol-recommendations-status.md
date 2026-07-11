@@ -28,7 +28,7 @@ Most P0s are **multi-day architectural builds**, not one-pass fixes; those are a
 | 10  | P0  | Conflict detection empty; resolve is a no-op   | 📋 Planned                                      | design below       |
 | 11  | P1  | MCP reads not durably audited; error contracts | ✅ Implemented                                  | `9d216b3`          |
 | 12  | P1  | Extraction/ranking metric defects              | � Implemented (matching/span/nDCG + tests)     | `evals/metrics.py` |
-| 13  | P1  | Red/skipped gates; no app CI                   | 🟡 Frontend gate fixed; CI planned              | `500542f`          |
+| 13  | P1  | Red/skipped gates; no app CI                   | ✅ CI workflow (backend/frontend/docker build)  | `.github/workflows/ci.yml` |
 | 14  | P1  | Keyboard a11y + curation incomplete            | 🟡 Ingest tabs/upload keyboard-operable; suite planned | `500542f`, IngestPage |
 | 15  | P1  | Website/repo claims inaccurate; no LICENSE     | 🟡 LICENSE added; website copy planned          | `500542f`          |
 | 16  | P1  | Requirements/plans not traceable               | 📋 Planned                                      | —                  |
@@ -54,9 +54,10 @@ Most P0s are **multi-day architectural builds**, not one-pass fixes; those are a
 - **#11** — MCP retrieve access audit event is now committed (verified live: an `mcp_retrieve` row persists for a fresh actor); `get_fact_links` errors use the standard envelope. `9d216b3`.
 - **#13 / #14 (regressions)** — Vitest scoped to `src/` so the Playwright spec no longer breaks `pnpm test`; `pnpm-lock.yaml` updated so `--frozen-lockfile` works with `@playwright/test`. `500542f`.
 - **#14 (a11y)** — Ingest tabs are now arrow-key navigable (roving tabindex + Home/End) and the upload drop zone is keyboard-operable (Tab focus + Enter/Space + visible focus ring). `IngestPage.tsx`.
+- **#13 (CI)** — Added `.github/workflows/ci.yml`: backend (Postgres+pgvector, non-e2e suite with the 3 stale phase-5 MCP tests allow-listed, eval metric unit tests, informational ruff/mypy), frontend (typecheck + Vitest + build), and a clean-checkout **docker build** (also proves #7). Validated locally: 208 pass / 3 deselected, metrics 7 pass.
 - **#15** — MIT `LICENSE` added (claimed by website/README, previously missing). `500542f`.
 - **#22** — `deleted_at` populated in the archive list response so "show deleted" renders correctly. `6788d91`.
-- **#12** — Metric engine hardened: greedy **one-to-one** matching (duplicate predictions are now false positives, e.g. 1 golden + 3 duplicates → precision 1/3), **missing span = failure** in span fidelity, and nDCG accepts `total_relevant` so omitted relevant docs reduce the score. Added `evals/test_metrics.py` (7 tests, all pass). *Remainder:* centralized metric IDs from config + operator validation, and keeping zero-fact conversations in the extraction denominator.
+- **#12** — Metric engine hardened: greedy **one-to-one** matching (duplicate predictions are now false positives, e.g. 1 golden + 3 duplicates → precision 1/3), **missing span = failure** in span fidelity, and nDCG accepts `total_relevant` so omitted relevant docs reduce the score. Added `evals/test_metrics.py` (7 tests, all pass). *Remainder:* centralized metric IDs from config + operator validation, and keeping zero-fact conversations in the extraction denominator. A follow-up eval run showed extraction **recall flicker (58%–62.5%)** around the 60% threshold on the 4-conversation set under the honest metrics + LLM variance — concrete evidence for #3/#20 that a sealed real corpus (not this tuned fixture) is required for release claims.
 
 ## Accepted and planned (not built this pass)
 
@@ -71,7 +72,7 @@ Each is valid and would improve the product, but is a substantial build. Recomme
 - **#9 Concurrency.** Row-lock/version-token deletion↔processing serialization in one transaction; promotion accepts only fact id + confirmation, derives content/provenance server-side, verifies active status, writes immutable actor.
 - **#10 Conflict/curation.** Fact-level duplicate/overlap/contradiction detection with persisted memberships/evidence; transactional queue materialization; resolutions with domain effects (keep/merge/supersede/suppress) + reindex + audit.
 - **#12 Metric engine.** Max one-to-one matching; missing span = failure; keep zero-fact sources in the denominator; nDCG from full graded qrels; centralized metric IDs from config; fail on unknown/duplicate IDs and unsupported operators; table-driven/property tests. *(Matching, span fidelity, nDCG-with-qrels, and unit tests are implemented; the remainder — config-driven metric IDs, operator validation, zero-fact denominator — is planned.)*
-- **#13 (CI).** PR/release pipelines: frozen install, ruff/mypy, backend+frontend tests with Postgres/pgvector, Playwright/axe, clean image build, migrations, MCP contract, strict evals; allow-listed skips.
+- **#13 (remainder).** The core CI workflow exists; still to add: a Playwright/axe job, a strict-eval gate on a sealed corpus, a migration check, an MCP-contract job, and making ruff/mypy blocking once the static debt (#26) is cleared.
 - **#14 (remainder).** Ingest tabs + upload are now keyboard-operable; still to do: dialog focus trap (wizard), shared provenance drawer, all search filters, real resolve interactions, and full keyboard + axe suites across every workflow.
 - **#16 Traceability.** Immutable atomic requirement IDs + generated requirement→arch→test→evidence→status matrix; one status authority.
 - **#17 Provenance envelope.** One immutable provenance envelope across facts/summaries/links/canonical/retrieval/export/UI/audit; edits as new versions; source viewer with span highlighting; contract test follows every returned id to active raw source.
