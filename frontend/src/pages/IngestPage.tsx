@@ -1,12 +1,12 @@
 import * as React from "react";
 import { useNavigate } from "react-router-dom";
-import { Upload, FileText } from "lucide-react";
+import { Upload, FileText, Import as ImportIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Toast } from "@/components/ui/toast";
-import { ingestText, ingestFile, ApiError } from "@/lib/api";
+import { ingestText, ingestFile, importExport, ApiError } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
-type Tab = "paste" | "file";
+type Tab = "paste" | "file" | "import";
 
 export function IngestPage() {
   const navigate = useNavigate();
@@ -18,10 +18,11 @@ export function IngestPage() {
   const [toast, setToast] = React.useState<{ message: string; type: "success" | "error" } | null>(null);
   const dismissToast = React.useCallback(() => setToast(null), []);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const importInputRef = React.useRef<HTMLInputElement>(null);
 
   // Roving-tabindex keyboard navigation for the ingest tabs (a11y — GPT5.6 #14)
-  const tabOrder = React.useMemo<Tab[]>(() => ["paste", "file"], []);
-  const tabRefs = React.useRef<Record<Tab, HTMLButtonElement | null>>({ paste: null, file: null });
+  const tabOrder = React.useMemo<Tab[]>(() => ["paste", "file", "import"], []);
+  const tabRefs = React.useRef<Record<Tab, HTMLButtonElement | null>>({ paste: null, file: null, import: null });
   const handleTabKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
     const idx = tabOrder.indexOf(activeTab);
     let next: number;
@@ -66,6 +67,27 @@ export function IngestPage() {
     }
   };
 
+  const handleImportSubmit = async (file: File) => {
+    setIsSubmitting(true);
+    try {
+      const result = await importExport(file);
+      let message: string;
+      if (result.imported > 0) {
+        const dupSuffix = result.skipped > 0 ? ` (${result.skipped} already imported)` : "";
+        message = `Imported ${result.imported} conversation(s) from ${result.source_format} export${dupSuffix}`;
+      } else {
+        message = `Nothing new to import — ${result.skipped} conversation(s) already imported`;
+      }
+      setToast({ message, type: "success" });
+      if (result.imported > 0) setTimeout(() => navigate("/archive"), 1500);
+    } catch (err) {
+      const detail = err instanceof ApiError ? err.detail : "Import failed. Please try again.";
+      setToast({ message: detail, type: "error" });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
@@ -78,13 +100,35 @@ export function IngestPage() {
     if (file) handleFileSubmit(file);
   };
 
+  const handleImportDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file) handleImportSubmit(file);
+  };
+
+  const handleImportInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) handleImportSubmit(file);
+  };
+
+  const renderTabLabel = (tab: Tab) => {
+    if (tab === "paste") {
+      return <><FileText className="inline h-4 w-4 mr-1.5" aria-hidden="true" />Paste Text</>;
+    }
+    if (tab === "file") {
+      return <><Upload className="inline h-4 w-4 mr-1.5" aria-hidden="true" />Upload File</>;
+    }
+    return <><ImportIcon className="inline h-4 w-4 mr-1.5" aria-hidden="true" />Import Export</>;
+  };
+
   return (
     <div className="max-w-2xl mx-auto">
       <h1 className="text-2xl font-bold mb-6">Ingest Conversations</h1>
 
       {/* Tab switcher */}
       <div className="flex gap-1 mb-6 border-b" role="tablist" aria-label="Ingest method">
-        {(["paste", "file"] as Tab[]).map((tab) => (
+        {(["paste", "file", "import"] as Tab[]).map((tab) => (
           <button
             key={tab}
             ref={(el) => { tabRefs.current[tab] = el; }}
@@ -101,11 +145,7 @@ export function IngestPage() {
             role="tab"
             tabIndex={activeTab === tab ? 0 : -1}
           >
-            {tab === "paste" ? (
-              <><FileText className="inline h-4 w-4 mr-1.5" aria-hidden="true" />Paste Text</>
-            ) : (
-              <><Upload className="inline h-4 w-4 mr-1.5" aria-hidden="true" />Upload File</>
-            )}
+            {renderTabLabel(tab)}
           </button>
         ))}
       </div>
@@ -194,6 +234,55 @@ export function IngestPage() {
           />
           {isSubmitting && (
             <p className="text-sm text-center text-muted-foreground">Uploading and ingesting…</p>
+          )}
+        </div>
+      )}
+
+      {/* Import export tab — decomposes a full ChatGPT/Claude export into individual conversations */}
+      {activeTab === "import" && (
+        <div className="flex flex-col gap-4" role="tabpanel" aria-label="Import export tab">
+          <div
+            onDrop={handleImportDrop}
+            onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+            onDragLeave={() => setIsDragging(false)}
+            onClick={() => importInputRef.current?.click()}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                importInputRef.current?.click();
+              }
+            }}
+            tabIndex={0}
+            className={cn(
+              "flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed p-12 cursor-pointer transition-colors",
+              "focus:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+              isDragging
+                ? "border-primary bg-primary/5"
+                : "border-muted-foreground/30 hover:border-primary/50"
+            )}
+            role="button"
+            aria-label="Click or drag and drop a ChatGPT or Claude export file"
+          >
+            <ImportIcon className="h-10 w-10 text-muted-foreground" aria-hidden="true" />
+            <div className="text-center">
+              <p className="text-sm font-medium">
+                {isDragging ? "Drop export here" : "Click to browse or drag and drop"}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                ChatGPT or Claude <code>conversations.json</code> — each conversation is imported and processed separately
+              </p>
+            </div>
+          </div>
+          <input
+            ref={importInputRef}
+            type="file"
+            accept=".json"
+            className="hidden"
+            onChange={handleImportInputChange}
+            aria-label="Export file input"
+          />
+          {isSubmitting && (
+            <p className="text-sm text-center text-muted-foreground">Importing conversations…</p>
           )}
         </div>
       )}

@@ -13,6 +13,15 @@ export interface IngestResponse {
   archive_ids: string[];
 }
 
+export interface ImportResponse {
+  status: string;
+  source_format: string;
+  conversation_count: number;
+  imported: number;
+  skipped: number;
+  archive_ids: string[];
+}
+
 export type JobStatusBadge =
   | "Ingested"
   | "Processing"
@@ -100,6 +109,18 @@ export async function ingestFile(file: File): Promise<IngestResponse> {
   const formData = new FormData();
   formData.append("file", file);
   return request<IngestResponse>("/ingest/file", {
+    method: "POST",
+    headers: {}, // Don't set Content-Type — let browser set multipart boundary
+    body: formData,
+  });
+}
+
+// ── Import (ChatGPT / Claude conversation exports) ───────────────────────────
+
+export async function importExport(file: File): Promise<ImportResponse> {
+  const formData = new FormData();
+  formData.append("file", file);
+  return request<ImportResponse>("/import", {
     method: "POST",
     headers: {}, // Don't set Content-Type — let browser set multipart boundary
     body: formData,
