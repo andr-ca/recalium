@@ -179,7 +179,7 @@ labels in the response document.
 - **Finding 6 — Partial.** The worker now resolves effective policy from the
   content gate plus caller-declared processing mode and sensitivity hint,
   defaults conflicts to the stricter decision, gates summarize/extract external
-  calls, and emits a policy audit; MCP rejects undeclared mode/hint values.
+  calls, and emits a policy audit; MCP rejects invalid mode/hint values.
   Policy inputs still live in `metadata_json`, however, and Pass B link
   classification still invokes an external LLM solely when a provider is
   available, without consulting the resolved policy. An idempotent replay can
@@ -325,8 +325,10 @@ The findings below are ordered by expected user harm and release risk, not by fi
 
 **Baseline citation rule:** Every unqualified repository path and `path:line`
 reference in the ranked findings below refers to the file as stored at frozen
-commit `0d7ea28`, not the later working tree. The remediation table above is the
-source of truth for which baseline findings changed by `c83d0c8`.
+commit `0d7ea28`, not the later working tree. The `c83d0c8` remediation table
+above is the authority for intermediate changes; the `ba7f686` further-
+remediation delta and current-risk table are the authority for the latest
+disposition and ordering.
 
 ### 1. P0 — The flagship cold-start import is not implemented
 
@@ -1007,8 +1009,8 @@ Position v1 as a **provenance-first, locally custodied memory service for AI pow
 - The remediation response narrows the flagship claim, distinguishes source-archive portability, clarifies local custody versus remote processing, and adds a concrete status ledger.
 - An MIT license now supports the repository's core open-source claim.
 - The generated matrix inventories all 52 requirement tokens, reports 50
-  automated references plus two manual checks, and adds a useful freshness/CI
-  check.
+  scanned code/test token references plus two manual notes, and adds a useful
+  freshness/CI check.
 
 **What limits the score**
 
