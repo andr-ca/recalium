@@ -26,9 +26,29 @@ Recalium addresses a real and increasingly important problem: people accumulate 
 
 At the baseline, the release-readiness claim was nevertheless ahead of the product. The most important first-run workflow did not actually import and normalize a real ChatGPT history; a clean checkout could not build the application image; the key-setup wizard validated but did not configure a usable provider; several advertised retrieval filters were ignored; hybrid fusion combined row IDs that cannot match across retrieval modes; MCP retrieval audits were rolled back; deletion was not safe across backups or concurrent processing; and restore ran destructively against the active database. The evaluation suite was useful for development, but it could pass after skipped or errored checks and its tiny, tuned fixture made the headline 100% metrics non-diagnostic.
 
-The remediation pass materially improved packaging, per-conversation JSON import, frontend tests, selected retrieval filters, first-access MCP audit persistence, evaluation strict mode, metric helpers, keyboard ingest controls, error states, CI, licensing, and claim accuracy. It did **not** close the highest-risk data-safety, policy-enforcement, transaction-integrity, conflict-resolution, portability, hybrid-fusion, representative-evaluation, or exposed-mode gaps. Some fixes are also incomplete: category remains ignored, filters run after top-50 candidate selection, cache-hit MCP reads remain unaudited, the corrected nDCG denominator is not passed by the evaluator, and the SPA fallback turns unknown API routes into HTTP 200 HTML responses.
+The remediation through `c83d0c8` materially improved packaging,
+per-conversation JSON import, frontend tests, selected retrieval filters,
+first-access MCP audit persistence, evaluation strict mode, metric helpers,
+keyboard ingest controls, error states, CI, licensing, and claim accuracy. The
+four later slices through `ba7f686` add effective-policy enforcement for
+summarize/extract, duplicate-group links to active facts plus audit, a generated
+52-requirement token-reference inventory with freshness checking, and one active
+embedding-model constant with startup health warnings.
 
-The correct product classification is therefore **feature-rich alpha**, not release candidate. The fastest route to a credible v1 is to narrow scope around one trustworthy loop:
+Those four additions narrow their findings but leave their end-to-end gates
+unmet. External Pass B link classification can bypass the resolved policy;
+duplicate groups are not materialized into durable queue items and resolutions
+do not change memory; traceability can count semantically unrelated ID mentions
+as evidence; and configured embedding routing, compatibility, and migration are
+still absent. Category remains ignored, retrieval filters run after top-50
+candidate selection, cache-hit MCP reads remain unaudited, corrected nDCG is not
+fully wired, and unknown API routes still return HTTP 200 SPA HTML. Deletion and
+restore safety plus deletion/promotion concurrency remain wholly open; either
+one alone blocks a trustworthy public v1.
+
+The latest 54/100 result therefore remains a **feature-rich alpha**, not a
+release candidate. The fastest route to a credible v1 is to narrow scope around
+one trustworthy loop:
 
 1. Import a real vendor export from a clean install.
 2. Preserve conversations and provenance faithfully.
@@ -108,9 +128,9 @@ Seventeen commits landed after the baseline review. They are a useful response t
 | 26 | Static/maintainability debt | **Open** | Ruff remains at 27 errors; strict mypy increased to 110 errors across 29/67 files after new code. CI explicitly treats both as informational. |
 | 27 | Local-first overstatement | **Partial** | README now accurately distinguishes local custody from optional remote processing. Runtime policy enforcement and network-capture evidence remain open under finding 6. |
 
-### Release priorities after `c83d0c8`
+### Historical release priorities after `c83d0c8`
 
-After accounting for the remediation, the highest-value order is now:
+At the intermediate snapshot, the highest-value order was:
 
 1. Make deletion and restore tombstone-safe, staged, and rollback-capable.
 2. Enforce processing/sensitivity policy before every provider call.
@@ -262,6 +282,42 @@ backend total.
 | `uv run mypy app` | **Fail:** 113 errors in 30 of 68 files. |
 | Live MCP policy probe | **Partial pass:** `local_only` was accepted and completed, and its durable policy audit recorded `allow_external=false`; this does not exercise the unguarded link/provider matrix. |
 | Conflict reversed-order isolation probe | **Fail:** one pass and one fail; the committed fixture leaked into the clean two-test reversed-order empty-table check. |
+
+### Release priorities at `ba7f686`
+
+The current ranking puts irreversible privacy and integrity failures first,
+followed by fail-open or weak release evidence, before packaging or polish:
+
+1. Make deletion, backup, and staged restore tombstone-safe and rollback-capable
+   (finding 2, current rank 1).
+2. Extend the effective-policy decision to every external link/embed path, move
+   policy inputs to typed durable fields, make replay semantics coherent, and
+   require durable provider/mode/hint audit plus capture-proxy proof (finding 6,
+   rank 2).
+3. Serialize deletion with every pipeline write and derive canonical promotion
+   from locked server-side facts/provenance (finding 9, rank 3).
+4. Make release evaluation fail on every missing/error path, then run it in an
+   isolated representative holdout environment (findings 3 and 20, ranks 4–5).
+5. Implement stable-identity fusion, direct fact retrieval, and SQL-level
+   filters with held-out relevance evidence (finding 4, rank 6).
+6. Materialize evidence-backed review items transactionally and make
+   keep/merge/supersede/suppress resolutions update domain state, audit, and
+   indexes (finding 10, rank 7).
+7. Deliver full graph portability or retain the narrower source-archive promise
+   (finding 8, rank 8).
+8. Enforce one immutable provenance envelope across retrieval, curation, UI,
+   export, and audit (finding 17, rank 9).
+9. Finish real-export ZIP/branch/tool-call fidelity, preview, resumability, and
+   independently sourced import evidence (finding 1, rank 10).
+10. Audit every MCP attempt with server-derived identity and touched IDs before
+    widening the supported deployment surface (finding 11, rank 11).
+
+The next wave must still address exposed-mode and `memory/` security, the red
+default backend suite, unknown-API fallback, non-blocking Ruff/mypy gates,
+representative retrieval/evaluation, MCP live-client evidence, portability,
+import fidelity, accessibility, and misleading public/runtime states. The
+traceability and embedding slices narrow their next actions; they do not remove
+those risks from the release plan.
 
 ## Ranked findings and recommendations
 
@@ -914,7 +970,7 @@ User-facing copy, runtime network behavior, policy audit, and a capture-proxy pr
 
 ## Aspect-by-aspect review
 
-### Product idea — revalidated 68/100 (baseline 68)
+### Product idea — `ba7f686` 68/100 (`c83d0c8` 68; baseline 68)
 
 **What is strong**
 
@@ -931,12 +987,15 @@ User-facing copy, runtime network behavior, policy audit, and a capture-proxy pr
 - The v1 scope includes ingestion, extraction, retrieval, curation, conflict management, portability, backup/restore, multiple providers, UI, MCP, and exposed mode before the core loop is proven.
 - The interchange format and provenance layer are aspirations rather than demonstrated ecosystem advantages.
 - There is little external discovery, usability, retention, willingness-to-pay, or switching evidence.
+- The four post-`c83d0c8` engineering/documentation slices add no new market,
+  differentiation, activation, or initial-customer evidence, so there is no
+  product-score uplift.
 
 **Product recommendation**
 
 Position v1 as a **provenance-first, locally custodied memory service for AI power users and MCP developers**. Make the UI an audit/curation console. Win on faithful import, transparent retrieval, deletion safety, and portable evidence before adding broad automation or a managed tier.
 
-### Documentation — revalidated 66/100 (baseline 61)
+### Documentation — `ba7f686` 66/100 (`c83d0c8` 66; baseline 61)
 
 **What is strong**
 
@@ -947,10 +1006,20 @@ Position v1 as a **provenance-first, locally custodied memory service for AI pow
 - The evaluation documentation discloses that its data is synthetic rather than hiding the limitation.
 - The remediation response narrows the flagship claim, distinguishes source-archive portability, clarifies local custody versus remote processing, and adds a concrete status ledger.
 - An MIT license now supports the repository's core open-source claim.
+- The generated matrix inventories all 52 requirement tokens, reports 50
+  automated references plus two manual checks, and adds a useful freshness/CI
+  check.
 
 **What limits the score**
 
-- There is no stable, auditable traceability system despite advanced implementation.
+- The generated matrix equates any scanned requirement-ID mention with test
+  evidence and even scans frontend implementation. It does not establish the
+  requirement-to-architecture-to-implementation-to-evidence chain.
+- SRCH-05 is backed by explicitly structural/no-timing tests, BKUP-02 by a
+  missing-file 404, and WEBUI-02/03 by deletion/audit behavior rather than
+  keyboard/accessibility evidence.
+- Owners, severity, architecture, implementation, release disposition, and an
+  immutable review record are missing; duplicate status authorities remain.
 - “Draft,” “approved,” “release-ready,” and “blocked” states conflict across documents.
 - Current stack versions, ports, routes, tool schemas, and implemented gaps have drifted.
 - Canonical portability requirements still exceed the implemented source-archive bundle.
@@ -959,9 +1028,13 @@ Position v1 as a **provenance-first, locally custodied memory service for AI pow
 
 **Documentation recommendation**
 
-Make one machine-checked release manifest the status authority. Give each atomic requirement a permanent ID and evidence link. Archive historical reviews, generate public examples from contracts, and fail CI when claims, versions, metrics, or commands diverge.
+Keep the reference inventory, but require semantically reviewed evidence types
+and extend it through architecture, implementation, release disposition, and
+immutable point-in-time review. Retire competing status authorities, generate
+public examples from contracts, and fail CI when claims, versions, metrics, or
+commands diverge. Token references alone do not justify an uplift from 66.
 
-### Implementation — revalidated 49/100 (baseline 43)
+### Implementation — `ba7f686` 50/100 (`c83d0c8` 49; baseline 43)
 
 **What is strong**
 
@@ -971,20 +1044,31 @@ Make one machine-checked release manifest the status authority. Give each atomic
 - Canonical memory, links, review queue, portability, settings, backup, and provider abstractions have concrete schema/service foundations.
 - The system degrades from semantic to keyword retrieval when local embedding support is unavailable.
 - The committed remediation adds per-conversation ChatGPT/Claude JSON import, a reproducible image build, SPA deep-link handling, selected retrieval filters, durable first-access MCP audits, and corrected deleted-item state.
+- The latest slices add stricter effective-policy resolution for
+  summarize/extract, connect detected duplicate groups to active facts and an
+  audit event, and centralize the active local embedding model with drift
+  visibility. These earn one bounded implementation point.
 
 **What limits the score**
 
 - Vendor import is now a meaningful JSON-only foundation, but ZIP streaming, exact branch/raw fidelity, preview, checkpointing, and representative evidence remain; first-run provider configuration, full portability, conflict resolution, and exposed security are incomplete.
 - Deletion, processing, promotion, and restore have high-risk transaction/integrity gaps.
 - Category/pre-ranking filters, RRF fusion, fact indexing, conflict labels, provenance, cache-hit audit, and server-derived identity do not meet their contracts.
-- Privacy-related MCP inputs are metadata only.
+- Policy inputs remain JSON metadata; idempotent replay can misstate the durable
+  mode, policy audit is nonfatal, and external Pass B link classification is
+  still gated only by provider availability.
+- Duplicate groups are not guaranteed to become queue rows, resolutions remain
+  note/status-only, and group/link/audit writes are split across commits.
+- Configured embedding provider/model values are ignored; stale spaces can be
+  mixed by conflict/link SQL or suppress re-embedding, with no compatibility or
+  migration enforcement.
 - Packaging now builds and starts reproducibly, but its SPA fallback incorrectly converts unknown API routes into HTTP 200 HTML responses.
 
 **Implementation recommendation**
 
 Freeze feature expansion. Implement and verify the six-step trusted loop in the executive assessment, using explicit transaction boundaries and contract tests. Remove or label every non-functional surface instead of keeping optimistic scaffolding in the release UI/API.
 
-### Evaluation suite — revalidated 39/100 (baseline 32)
+### Evaluation suite — `ba7f686` 39/100 (`c83d0c8` 39; baseline 32)
 
 **What is strong**
 
@@ -993,6 +1077,9 @@ Freeze feature expansion. Implement and verify the six-step trusted loop in the 
 - The suite has already found real pipeline defects and is useful as a local development diagnostic.
 - Five named quality areas—ingest, extraction, retrieval, sensitivity, and MCP—are represented.
 - A strict mode now fails on skipped/errored checks, and seven focused tests cover corrected span, duplicate-matching, and nDCG helper behavior.
+- The focused latest-snapshot set passed 41 tests with two skips, and the
+  eval-metric plus traceability-generator set passed 11 tests. These support the
+  narrow slices but are not a representative release evaluation.
 
 **What limits the score**
 
@@ -1000,6 +1087,8 @@ Freeze feature expansion. Implement and verify the six-step trusted loop in the 
 - Labels are tiny, synthetic, tuned, archive-level, and not held out.
 - Several metric helpers improved, but the evaluator does not pass full-qrel counts to corrected nDCG, excludes zero-fact sources, and still hardcodes thresholds outside the frozen configuration.
 - It runs in the user's normal database and pollutes later retrieval.
+- A clean reversed-order conflict probe still fails one of two tests because a
+  committed fixture leaks between tests, reinforcing the isolation gap.
 - It does not cover actual vendor imports, scale, concurrency, deletion races, restore, accessibility, exposed auth, or full MCP contracts.
 - Reports lack the provenance required for independent reproduction.
 
@@ -1007,19 +1096,27 @@ Freeze feature expansion. Implement and verify the six-step trusted loop in the 
 
 Treat the current suite as `dev-smoke`, fix its mathematics and fail behavior, and build a separate hermetic `release-eval` with sealed data, human labels, strict dependencies, complete provenance, representative scale, and independent reproduction.
 
-### Code quality — revalidated 54/100 (baseline 47)
+### Code quality — `ba7f686` 54/100 (`c83d0c8` 54; baseline 47)
 
 **What is strong**
 
 - Backend domain folders and frontend API centralization provide a reasonable structure.
-- At the remediation snapshot, the CI-equivalent backend command passed **219 tests** with 10 skips and three explicit deselections; nine frontend component tests passed.
-- Frozen frontend install, frontend production build/typecheck, website check/build, clean Docker build/startup, seven eval-metric tests, `uv lock --check`, and Python compilation of the memory scripts passed.
+- At `ba7f686`, the CI-equivalent backend command passed **233 tests** with
+  10 skips and three intentional deselections; the focused set passed 41 with
+  two skips, and the eval/trace set passed 11.
+- Nine frontend tests, lint/typecheck, production build, and clean image
+  build/startup/health/root/facts probes passed.
 - SQL generally filters active/deleted state on read paths, secrets are not modeled as database columns, and many UI controls use native elements and visible focus styles.
 
 **What limits the score**
 
-- Frontend defaults are now green, but the default backend suite remains red with three stale MCP tests; Ruff reports 27 errors and strict mypy reports 110.
+- Frontend defaults are green, but the default backend suite remains red with
+  three stale MCP tests; Ruff reports 27 errors and strict mypy reports 113 in
+  30 of 68 files.
 - Application CI now enforces an allow-listed backend suite, frontend checks, and image build, but static checks are informational and startup/API semantics, Playwright/axe, live MCP, migrations, and strict release eval are not gated.
+- The clean two-test reversed-order conflict probe produces one pass and one
+  fail from committed fixture leakage, so the added conflict tests are not an
+  unqualified quality gain.
 - Large orchestration modules and broad exception handling hide partial or invalid states.
 - The separate `memory/` subsystem contains plaintext credential, external-data-flow, internal-API, and path-containment risks.
 - API/domain boundaries trust client-supplied identity and provenance in high-value operations.
@@ -1033,7 +1130,9 @@ Make clean, hermetic validation non-negotiable; reduce module responsibilities; 
 ### Phase 0 — Correct public status and stop unsafe release paths
 
 - Change release status to alpha/no-go.
-- Remove or qualify 100% quality, ZIP import, working key wizard, full portability, MIT/OSS, and secure exposed-mode claims.
+- Remove or qualify 100% quality, ZIP import, working key wizard, full
+  portability, and secure exposed-mode claims; retain only the now-supported MIT
+  license statement.
 - Mark legacy `memory/` automation experimental and disabled by default.
 - Keep public website commands and capability claims synchronized with tested behavior; the MIT license itself is now present.
 
@@ -1043,6 +1142,10 @@ Make clean, hermetic validation non-negotiable; reduce module responsibilities; 
 - Extend the new application CI with startup/API-semantic probes, Playwright/axe, MCP contracts, migrations, strict eval, and a strict skip policy.
 - Restrict SPA fallback to non-API/non-MCP paths and fix Compose environment propagation.
 - Split development and release evaluation modes and databases.
+- Remove committed-fixture leakage and prove order-independent conflict tests.
+- Extend the current requirement-token inventory into semantically reviewed,
+  immutable requirement → architecture → implementation → evidence → release
+  disposition records, then retire duplicate status authorities.
 
 ### Phase 2 — Deliver the real first-run loop
 
@@ -1053,15 +1156,22 @@ Make clean, hermetic validation non-negotiable; reduce module responsibilities; 
 
 ### Phase 3 — Repair trust and integrity primitives
 
-- Enforce processing policy before every provider call.
+- Keep the effective-policy resolver, but move mode/hint to typed durable fields,
+  reconcile idempotent replay, make policy audit mandatory, and enforce the
+  decision before every summarize, extract, link, and embed provider call.
 - Fix deletion/worker races and server-validated canonical promotion.
 - Implement staged tombstone-safe backup/restore.
 - Replace raw-only portability or narrow its name and promise.
-- Build fact-backed conflict groups and semantic resolution actions.
+- Materialize linked conflict groups into evidence-backed queue items in one
+  transaction; add overlap/contradiction classification and domain-effect
+  resolutions with audit and reindexing.
 
 ### Phase 4 — Make retrieval and MCP dependable
 
 - Apply all filters, index facts, fuse on stable document identity, integrate conflict state, and validate inputs.
+- Honor configured embedding provider/model settings; reject incompatible
+  model/dimension spaces, re-embed stale rows, and expose per-stage
+  complete/partial/degraded/failed outcomes.
 - Commit every MCP audit attempt and standardize envelopes.
 - Add Streamable HTTP and real-client compatibility/concurrency tests.
 
@@ -1081,21 +1191,25 @@ Recalium should not be called v1 release-ready until all of the following are tr
 | Clean install | Empty checkout/image pull to healthy stack and every deep link, with no undocumented host build. |
 | Real import | Current ChatGPT and Claude ZIP fixtures plus independently sourced exports; exact normalized counts and resumability. |
 | Provider setup | One documented secret model; successful post-restart processing; no plaintext leakage. |
-| Privacy | Capture-proxy proof that blocked/local-only content never reaches any external stage. |
-| Retrieval | Fact-level held-out relevance; working filters; true cross-mode fusion; deleted/disputed exclusion. |
+| Privacy | Provider × mode × hint capture-proxy proof that blocked/local-only content never reaches summarize, extract, link, or embed; durable policy metadata and audit must agree on replay. |
+| Retrieval | Fact-level held-out relevance; working filters; true cross-mode fusion; deleted/disputed exclusion; configured embedding routing plus model/dimension compatibility and re-embed evidence. |
 | Provenance | Every returned type resolves to immutable source bytes/span, derivation identity, and audit record. |
-| Curation | Server-validated promotion and effective duplicate/contradiction resolution. |
+| Curation | Server-validated promotion plus transactionally materialized duplicate/overlap/contradiction evidence and resolutions with domain, audit, and reindex effects. |
 | Deletion | Race-safe cascade plus proof that post-deletion backup/restore cannot resurrect content. |
 | Recovery | Staged restore, validation, tombstone replay, cutover, rollback, and measured recovery time. |
 | MCP | Versioned schema/errors, committed per-access audit, authenticated identity, current transport, real-client matrix. |
 | Accessibility | Complete keyboard-only workflows and zero serious automated violations on the production image. |
 | Quality suite | Strict fail-closed runner, sealed representative data, correct metrics, immutable provenance, independent reproduction. |
-| Engineering | Default tests, frozen installs, Ruff, mypy, image build, migration, UI, MCP, and eval CI all green with no unexpected skips. |
+| Engineering | Default tests, order-independent fixtures, frozen installs, Ruff, mypy, image build, migration, UI, MCP, and eval CI all green with no unexpected skips; semantic traceability has owners and immutable release dispositions. |
 | Legal/public claims | Committed license and public documentation whose commands and claims are CI-verified. |
 
 ## Baseline validation evidence at `0d7ea28`
 
-This table preserves the original evidence that produced the 48/100 baseline. The later clean-snapshot results used for the revalidated 53/100 score are recorded under [Fresh remediation validation](#fresh-remediation-validation).
+This table preserves the original evidence that produced the 48/100 baseline.
+The clean-snapshot evidence for the intermediate 53/100 result is recorded under
+[Fresh remediation validation](#fresh-remediation-validation); the exact
+`ba7f686` evidence for 54/100 is recorded under
+[Fresh validation at `ba7f686`](#fresh-validation-at-ba7f686).
 
 | Validation | Result |
 | --- | --- |
@@ -1128,4 +1242,22 @@ Recalium is not vaporware and should not be discarded. It has a differentiated t
 
 The project is also not ready for a public v1. Too many user-visible and safety-critical contracts currently exist as documentation, fields, UI surfaces, or schema scaffolding without enforced behavior. The evaluation suite then gives those incomplete surfaces more confidence than the data and mathematics justify.
 
-**Latest independently revalidated score: 53/100; original baseline: 48/100.** The five-point rounded improvement is earned by real work in import decomposition, reproducible packaging, frontend/test reliability, selected retrieval and MCP fixes, evaluation strictness/metric helpers, CI, accessibility, licensing, and claim accuracy through `c83d0c8`. The score remains in alpha territory because the irreversible and trust-defining contracts—deletion/restore, processing policy at the frozen snapshot, transactional integrity, conflict resolution, graph portability, true hybrid retrieval, comprehensive audit, and representative release evidence—remain open. Later remediation commits require their own clean-snapshot verification before receiving score credit. Closing the ranked P0 gates with independent evidence would justify a fresh release-readiness review and rescore.
+The three frozen totals are **48/100 at baseline `0d7ea28` (48.05 raw),
+53/100 at intermediate `c83d0c8` (53.40 raw), and 54/100 at latest
+`ba7f686b8d8452d1642293f54a0cd96c9f7c74eb` (53.70 raw)**. The latest
+increment is exactly +0.30 raw from `c83d0c8` and +5.65 raw from baseline. It
+comes from one bounded implementation-point increase, 49 → 50, for policy-gated
+summarize/extract, linked/audited duplicate facts, and embedding-model health
+protection. Product stays 68, documentation 66, evaluation 39, and code quality
+54: token-reference generation is not semantic traceability; focused tests are
+not representative release evaluation; and the red default suite, 27 Ruff
+errors, 113 mypy errors, non-blocking static gates, and conflict-test fixture
+leakage offset the added tests.
+
+The verdict remains **feature-rich alpha and no-go for a public v1**. Deletion
+and restore safety, deletion/promotion concurrency, representative fail-closed
+evaluation, retrieval/fusion, conflict domain effects, graph portability,
+comprehensive MCP audit, and other trust gates remain open. The policy,
+conflict, traceability, and embedding slices narrow their remainders but do not
+satisfy their original end-to-end gates. Independent evidence across the
+current P0 ranking is required before another release-readiness rescore.
