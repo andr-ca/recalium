@@ -10,6 +10,13 @@ export and import memory. It substantiates the "open format" positioning claim
 and lets external tools read/write Recalium memory without reverse-engineering
 the export code.
 
+> **Scope (GPT5.6 #8):** v1 is a **source-archive bundle** — it carries raw
+> archive items only. It does **not** include derived memory (summaries, facts,
+> links, embeddings), canonical items, stable derived IDs, or audit history;
+> those are regenerated on import. A v1 round-trip is therefore **not** lossless
+> "portable memory." A versioned full-graph bundle is planned — see
+> [gpt5.6-sol-recommendations-status.md](../gpt5.6-sol-recommendations-status.md).
+
 ## Design goals
 
 - **Portable & inspectable** — plain JSON, human-readable, no binary blobs.
