@@ -12,16 +12,19 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "outline" | "dest
 export function CanonicalPage() {
   const [items, setItems] = React.useState<CanonicalItem[]>([])
   const [loading, setLoading] = React.useState(true)
+  const [error, setError] = React.useState<string | null>(null)
   const [editingId, setEditingId] = React.useState<string | null>(null)
   const [editContent, setEditContent] = React.useState("")
 
   async function reload() {
     setLoading(true)
+    setError(null)
     try {
       const r = await listCanonical({ include_non_active: true })
       setItems(r.items)
     } catch (err) {
       console.error(err)
+      setError(err instanceof ApiError ? err.detail : "Failed to load canonical memory.")
     } finally {
       setLoading(false)
     }
@@ -68,6 +71,20 @@ export function CanonicalPage() {
       </div>
 
       {loading && <p role="status" className="text-sm text-muted-foreground">Loading…</p>}
+
+      {!loading && error && (
+        <div role="alert" className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm">
+          <p className="font-medium text-destructive">Couldn't load canonical memory</p>
+          <p className="text-muted-foreground mt-1">{error}</p>
+          <Button variant="outline" size="sm" className="mt-3" onClick={() => reload()}>Retry</Button>
+        </div>
+      )}
+
+      {!loading && !error && items.length === 0 && (
+        <p className="text-sm text-muted-foreground">
+          No canonical memory yet. Promote trusted facts from the Facts page.
+        </p>
+      )}
 
       <div className="space-y-3">
         {items.map((item) => (
