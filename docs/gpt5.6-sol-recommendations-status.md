@@ -42,7 +42,7 @@ Most P0s are **multi-day architectural builds**, not one-pass fixes; those are a
 | 24  | P1  | Initial customer/packaging unresolved          | 💬 Accepted (product)                           | 📋                  |
 | 25  | P2  | Move MCP to Streamable-HTTP                    | 🔵 ADR exists; spike planned                    | ADR 0001           |
 | 26  | P2  | Static debt / oversized modules                | 📋 Planned                                      | —                  |
-| 27  | P2  | "Local-first" wording too strong               | 📋 Planned (wording)                            | —                  |
+| 27  | P2  | "Local-first" wording too strong               | ✅ Clarified (README privacy model)             | `README.md`        |
 
 ## Implemented this pass
 
@@ -57,6 +57,7 @@ Most P0s are **multi-day architectural builds**, not one-pass fixes; those are a
 - **#14 (a11y)** — Ingest tabs are now arrow-key navigable (roving tabindex + Home/End) and the upload drop zone is keyboard-operable (Tab focus + Enter/Space + visible focus ring). `IngestPage.tsx`.
 - **#13 (CI)** — Added `.github/workflows/ci.yml`: backend (Postgres+pgvector, non-e2e suite with the 3 stale phase-5 MCP tests allow-listed, eval metric unit tests, informational ruff/mypy), frontend (typecheck + Vitest + build), and a clean-checkout **docker build** (also proves #7). Validated locally: 208 pass / 3 deselected, metrics 7 pass.
 - **#15** — MIT `LICENSE` added (claimed by website/README, previously missing). `500542f`.
+- **#27** — README now states the **privacy model explicitly**: local custody + no-key local default, with a clear disclosure that enabling a BYOK key sends the processed content to that third-party provider (and the sensitivity gate runs before any external call). `README.md`.
 - **#22** — `deleted_at` populated in the archive list response so "show deleted" renders correctly (`6788d91`); and Canonical memory now shows distinct **error (with Retry)** and **empty** states instead of rendering a load failure as an empty collection (`CanonicalPage.tsx`). *(SettingsPage backups already surface load errors; remaining: telemetry error surface + ArchiveItemCard retry error.)*
 - **#12** — Metric engine hardened: greedy **one-to-one** matching (duplicate predictions are now false positives, e.g. 1 golden + 3 duplicates → precision 1/3), **missing span = failure** in span fidelity, and nDCG accepts `total_relevant` so omitted relevant docs reduce the score. Added `evals/test_metrics.py` (7 tests, all pass). *Remainder:* centralized metric IDs from config + operator validation, and keeping zero-fact conversations in the extraction denominator. A follow-up eval run showed extraction **recall flicker (58%–62.5%)** around the 60% threshold on the 4-conversation set under the honest metrics + LLM variance — concrete evidence for #3/#20 that a sealed real corpus (not this tuned fixture) is required for release claims.
 

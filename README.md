@@ -1,6 +1,8 @@
 # Recalium
 
-Recalium is a local-first, MCP-native personal memory platform. It captures conversations and artifacts from AI tools, turns them into durable searchable memory, and exposes that memory to local UI workflows and MCP-compatible agents.
+Recalium is a local-first, MCP-native personal memory platform. Your conversation history and derived memory live in your own PostgreSQL, and processing runs locally by default — enabling an optional BYOK provider (OpenAI or Anthropic) sends only the content being processed to that provider, and nothing else leaves your machine. It captures conversations and artifacts from AI tools, turns them into durable searchable memory, and exposes that memory to local UI workflows and MCP-compatible agents.
+
+> **Privacy model — local custody, optional remote processing.** Storage, retrieval, and the default embedding/extraction path are fully local (no API key required). "Local-first" refers to data custody and the no-key default; it does **not** mean processing is always on-device. If you configure a BYOK key, the specific content you process is sent to that third-party provider under their terms. The built-in sensitivity gate runs before any external call.
 
 ## Current implementation status
 
