@@ -528,6 +528,26 @@ def _sanitize_fts_query(q: str) -> str:
     return cleaned[:_MAX_QUERY_CHARS].strip()
 
 
+def _apply_candidate_filters(candidates: list[dict], f: RetrievalFilters) -> list[dict]:
+    """Enforce declared filters on the candidate set (GPT5.6 #4 — filters were ignored).
+
+    canonical_only, source_system, and the time range are applied to the returned
+    set so retrieval/MCP clients can rely on them. (category needs source-level
+    fields not present on the candidate row — tracked as an SQL-layer follow-up.)
+    """
+    out = candidates
+    if f.canonical_only:
+        out = [c for c in out if c.get("type") == "canonical"]
+    if f.source_system:
+        want = f.source_system.strip().lower()
+        out = [c for c in out if (c.get("source_system") or "").strip().lower() == want]
+    if f.time_range_start:
+        out = [c for c in out if (c.get("captured_at") or "") >= f.time_range_start]
+    if f.time_range_end:
+        out = [c for c in out if (c.get("captured_at") or "") <= f.time_range_end]
+    return out
+
+
 async def retrieve(
     session: AsyncSession,
     req: RetrievalRequest,
@@ -539,6 +559,10 @@ async def retrieve(
     Uses in-process LRU cache for repeated identical queries.
     """
     req.query = _sanitize_fts_query(req.query)
+    if req.mode not in ("keyword", "semantic", "hybrid"):
+        raise ValueError(
+            f"Invalid retrieval mode {req.mode!r}: must be 'keyword', 'semantic', or 'hybrid'"
+        )
     cache_key = _cache_key(req)
     if cache_key in _cache:
         logger.debug("Retrieval cache hit for query=%r", req.query[:50])
@@ -595,6 +619,9 @@ async def retrieve(
         candidates += [lc for lc in linked_candidates if lc["id"] not in existing_ids]
     except Exception as exc:
         logger.debug("Link traversal failed (non-fatal): %s", exc)
+
+    # GPT5.6 #4: enforce declared filters on the final candidate set
+    candidates = _apply_candidate_filters(candidates, req.filters)
 
     items = [
         RetrievalItem(

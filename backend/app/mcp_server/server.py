@@ -101,7 +101,14 @@ async def retrieve_memory(
 
     factory = get_session_factory()
     async with factory() as session:
-        response = await retrieve(session, req)
+        try:
+            response = await retrieve(session, req)
+            # GPT5.6 #11: commit so the MCP access audit event is durable
+            # (retrieve() adds+flushes the event but leaves the commit to the caller).
+            await session.commit()
+        except ValueError as exc:
+            await session.rollback()
+            return _mcp_error("validation_error", str(exc), field="mode")
 
     return {
         "query": response.query,
@@ -147,13 +154,17 @@ async def get_fact_links(
         Returns {"error": "..."} if fact_id is invalid or fact not found.
     """
     if direction not in ("outgoing", "incoming", "both"):
-        return {"error": "direction must be 'outgoing', 'incoming', or 'both'"}
+        return _mcp_error(
+            "validation_error",
+            "direction must be 'outgoing', 'incoming', or 'both'",
+            field="direction",
+        )
 
     try:
         import uuid as _uuid  # noqa: PLC0415
         fid = _uuid.UUID(fact_id)
     except (ValueError, AttributeError):
-        return {"error": f"Invalid fact_id UUID: {fact_id!r}"}
+        return _mcp_error("validation_error", f"Invalid fact_id UUID: {fact_id!r}", field="fact_id")
 
     from sqlalchemy import text  # noqa: PLC0415
 
@@ -164,7 +175,7 @@ async def get_fact_links(
             {"fid": str(fid)},
         )).fetchone()
         if fact_check is None:
-            return {"error": f"Fact {fact_id} not found or not active"}
+            return _mcp_error("not_found", f"Fact {fact_id} not found or not active", field="fact_id")
 
         if direction == "outgoing":
             where = "ml.source_fact_id = :fid"
