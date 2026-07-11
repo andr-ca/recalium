@@ -37,6 +37,11 @@ except ImportError:
 
 _embed_model: "_SentenceTransformer | None" = None
 _EMBED_MODEL_NAME = "all-MiniLM-L6-v2"
+# Public, canonical name of the embedding model that produced the vectors in the
+# `embeddings` table. Write, retrieval, and provenance MUST reference this single
+# constant so they can never drift (GPT5.6 #21). Changing it requires a re-embed
+# migration — mixing models/dimensions silently corrupts semantic search.
+ACTIVE_EMBEDDING_MODEL = _EMBED_MODEL_NAME
 
 
 def _get_embed_model() -> "_SentenceTransformer":
@@ -225,6 +230,32 @@ async def get_existing_embedding(
         .limit(1)
     )
     return result.scalar_one_or_none()
+
+
+async def embedding_model_health(session: AsyncSession) -> dict:
+    """Report embedding-model distribution and stale-row count (GPT5.6 #21).
+
+    "Stale" = an active embedding whose model differs from
+    ``ACTIVE_EMBEDDING_MODEL`` — a vector that must not be compared against
+    current query embeddings and needs a re-embed. Retrieval already filters to
+    the active model, so stale rows are silently unsearchable without this report.
+    """
+    result = await session.execute(
+        text(
+            "SELECT embedding_model, count(*) AS n FROM embeddings "
+            "WHERE source_status = 'active' GROUP BY embedding_model"
+        )
+    )
+    by_model = {row.embedding_model: int(row.n) for row in result}
+    total = sum(by_model.values())
+    active = by_model.get(ACTIVE_EMBEDDING_MODEL, 0)
+    return {
+        "active_model": ACTIVE_EMBEDDING_MODEL,
+        "total": total,
+        "active_model_count": active,
+        "stale_count": total - active,
+        "models": by_model,
+    }
 
 
 # ── Linkage & tagging writers ─────────────────────────────────────────────────

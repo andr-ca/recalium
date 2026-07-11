@@ -161,6 +161,32 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     else:
         logger.info("File watcher disabled (WATCH_DIR not set)")
 
+    # GPT5.6 #21: surface embedding-model drift/staleness at startup so a model
+    # change doesn't silently make old vectors unsearchable.
+    try:
+        from app.domain.derived_memory.service import (
+            ACTIVE_EMBEDDING_MODEL,
+            embedding_model_health,
+        )
+        _factory = get_session_factory()
+        async with _factory() as _health_session:
+            _emb_health = await embedding_model_health(_health_session)
+        if settings.embed_model and settings.embed_model != ACTIVE_EMBEDDING_MODEL:
+            logger.warning(
+                "EMBED_MODEL=%s is configured but the active embedding model is %s. "
+                "The setting is not applied automatically — switching models requires a "
+                "re-embed migration; retrieval will keep using %s.",
+                settings.embed_model, ACTIVE_EMBEDDING_MODEL, ACTIVE_EMBEDDING_MODEL,
+            )
+        if _emb_health["stale_count"] > 0:
+            logger.warning(
+                "%d embedding(s) use a model other than the active %s and are excluded "
+                "from semantic retrieval until re-embedded. Models present: %s",
+                _emb_health["stale_count"], ACTIVE_EMBEDDING_MODEL, _emb_health["models"],
+            )
+    except Exception as e:
+        logger.warning("Embedding-model health check skipped: %s", e)
+
     logger.info("DB pool initialized. Application ready.")
     logger.info("MCP retrieve_memory tool registered (SSE transport on /mcp/sse)")
     yield

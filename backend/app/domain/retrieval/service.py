@@ -24,6 +24,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.audit.models import AuditEvent
+from app.domain.derived_memory.service import ACTIVE_EMBEDDING_MODEL
 
 logger = logging.getLogger(__name__)
 
@@ -381,7 +382,7 @@ async def _semantic_candidates(
         """),
         {
             "vec": str(query_vector),
-            "model": "all-MiniLM-L6-v2",
+            "model": ACTIVE_EMBEDDING_MODEL,
             "limit": limit,
             **tag_params,
         },
@@ -426,7 +427,7 @@ async def _semantic_candidates(
             "conflict_label": None,
             "provenance": {
                 "derivation_method": "semantic_retrieval",
-                "derivation_model": "all-MiniLM-L6-v2",
+                "derivation_model": ACTIVE_EMBEDDING_MODEL,
                 "source_excerpt": (content or "")[:200],
             },
         })

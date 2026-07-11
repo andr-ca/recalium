@@ -29,6 +29,56 @@ async def _make_archive_item(session):
     return item
 
 
+async def test_embedding_model_health_reports_stale(db_session_phase2):
+    """GPT5.6 #21: health report counts embeddings by model and flags stale rows."""
+    import math
+
+    from sqlalchemy import delete
+
+    from app.domain.archive.models import RawArchiveItem
+    from app.domain.derived_memory.models import Embedding
+    from app.domain.derived_memory.service import (
+        ACTIVE_EMBEDDING_MODEL,
+        embedding_model_health,
+    )
+
+    item_active = await _make_archive_item(db_session_phase2)
+    item_stale = await _make_archive_item(db_session_phase2)
+    vec = [1.0 / math.sqrt(384)] * 384
+    emb_active = Embedding(
+        id=uuid.uuid4(),
+        raw_archive_id=item_active.id,
+        embedding=vec,
+        embedding_model=ACTIVE_EMBEDDING_MODEL,
+    )
+    emb_stale = Embedding(
+        id=uuid.uuid4(),
+        raw_archive_id=item_stale.id,
+        embedding=vec,
+        embedding_model="old-model-v0",
+    )
+    db_session_phase2.add_all([emb_active, emb_stale])
+    await db_session_phase2.commit()
+
+    try:
+        health = await embedding_model_health(db_session_phase2)
+        assert health["active_model"] == ACTIVE_EMBEDDING_MODEL
+        assert health["models"].get("old-model-v0", 0) >= 1
+        assert health["stale_count"] >= 1
+        assert health["active_model_count"] >= 1
+    finally:
+        # Do not leak committed rows into sibling tests (worker/conflict suites).
+        await db_session_phase2.execute(
+            delete(Embedding).where(Embedding.id.in_([emb_active.id, emb_stale.id]))
+        )
+        await db_session_phase2.execute(
+            delete(RawArchiveItem).where(
+                RawArchiveItem.id.in_([item_active.id, item_stale.id])
+            )
+        )
+        await db_session_phase2.commit()
+
+
 async def test_fact_requires_source_span(db_session_phase2):
     """PIPE-02: Fact with empty source_span is stored with confidence_tier='low'."""
     archive_item = await _make_archive_item(db_session_phase2)
