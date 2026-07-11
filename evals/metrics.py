@@ -144,7 +144,7 @@ def idcg_at_k(relevance_scores: List[float], k: int = 10) -> float:
     return dcg_at_k(ideal, k)
 
 
-def ndcg_at_k(relevance_scores: List[float], k: int = 10) -> float:
+def ndcg_at_k(relevance_scores: List[float], k: int = 10, total_relevant: int | None = None) -> float:
     """
     Calculate nDCG@k (Normalized Discounted Cumulative Gain).
 
@@ -153,12 +153,17 @@ def ndcg_at_k(relevance_scores: List[float], k: int = 10) -> float:
     Args:
         relevance_scores: List of relevance scores (0.0-1.0) in rank order
         k: Cutoff position
+        total_relevant: Total number of relevant items in the qrels. When given,
+            the ideal DCG is computed over the full relevant set so that relevant
+            documents omitted from the returned list correctly reduce nDCG
+            (GPT5.6 #12). Defaults to the returned scores when omitted.
 
     Returns:
         nDCG score 0.0-1.0
     """
     actual_dcg = dcg_at_k(relevance_scores, k)
-    ideal_dcg = idcg_at_k(relevance_scores, k)
+    ideal_scores = [1.0] * total_relevant if total_relevant is not None else relevance_scores
+    ideal_dcg = idcg_at_k(ideal_scores, k)
 
     if ideal_dcg == 0:
         return 0.0
@@ -186,10 +191,9 @@ def span_fidelity(facts: List[Dict]) -> float:
         source_span = fact.get("source_span")
         raw_source = fact.get("raw_source", "")
 
+        # GPT5.6 #12: a missing/empty span is NOT faithful — provenance requires a
+        # verbatim source span. Only a span that is a verbatim substring counts.
         if source_span and source_span in raw_source:
-            valid_spans += 1
-        elif not source_span:
-            # No span is acceptable (not a fidelity error)
             valid_spans += 1
 
     return valid_spans / len(facts)
@@ -305,28 +309,26 @@ def extraction_recall_and_precision(
     if not extracted_facts:
         return (0.0, 0.0)  # No extractions; both metrics are 0
 
-    # Build fuzzy match matrix
-    matches = set()  # Set of (golden_idx, extracted_idx) pairs
+    # GPT5.6 #12: greedy ONE-TO-ONE matching. Each golden fact and each extracted
+    # fact can be credited at most once, so duplicate predictions become false
+    # positives (1 golden + 3 duplicate predictions -> precision 1/3, not 1.0).
+    matched_golden_idxs: set = set()
+    matched_extracted_idxs: set = set()
 
     for extracted_idx, extracted in enumerate(extracted_facts):
         extracted_text = extracted.get("text", "")
 
         for golden_idx, golden in enumerate(golden_facts):
-            if (golden_idx, extracted_idx) in matches:
-                continue  # Already matched
+            if golden_idx in matched_golden_idxs:
+                continue  # this golden fact is already consumed (one-to-one)
 
-            golden_text = golden.get("text", "")
+            if fuzzy_match_text(extracted_text, golden.get("text", ""), text_threshold):
+                matched_golden_idxs.add(golden_idx)
+                matched_extracted_idxs.add(extracted_idx)
+                break  # this extraction is consumed
 
-            if fuzzy_match_text(extracted_text, golden_text, text_threshold):
-                matches.add((golden_idx, extracted_idx))
-                break  # Each golden matches at most one extraction (greedy)
-
-    # Calculate metrics
-    matched_golden = len(set(m[0] for m in matches))
-    recall = matched_golden / len(golden_facts)
-
-    matched_extracted = len(set(m[1] for m in matches))
-    precision = matched_extracted / len(extracted_facts)
+    recall = len(matched_golden_idxs) / len(golden_facts)
+    precision = len(matched_extracted_idxs) / len(extracted_facts)
 
     return (recall, precision)
 

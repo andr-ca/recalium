@@ -27,7 +27,7 @@ Most P0s are **multi-day architectural builds**, not one-pass fixes; those are a
 | 9 | P0 | Concurrency: deletion vs promotion races | 📋 Planned | design below |
 | 10 | P0 | Conflict detection empty; resolve is a no-op | 📋 Planned | design below |
 | 11 | P1 | MCP reads not durably audited; error contracts | ✅ Implemented | `9d216b3` |
-| 12 | P1 | Extraction/ranking metric defects | 📋 Planned (spec below) | — |
+| 12 | P1 | Extraction/ranking metric defects | � Implemented (matching/span/nDCG + tests) | `evals/metrics.py` |
 | 13 | P1 | Red/skipped gates; no app CI | 🟡 Frontend gate fixed; CI planned | `500542f` |
 | 14 | P1 | Keyboard a11y + curation incomplete | 🟡 Starter fixed; full suite planned | `500542f` |
 | 15 | P1 | Website/repo claims inaccurate; no LICENSE | 🟡 LICENSE added; website copy planned | `500542f` |
@@ -55,6 +55,7 @@ Most P0s are **multi-day architectural builds**, not one-pass fixes; those are a
 - **#13 / #14 (regressions)** — Vitest scoped to `src/` so the Playwright spec no longer breaks `pnpm test`; `pnpm-lock.yaml` updated so `--frozen-lockfile` works with `@playwright/test`. `500542f`.
 - **#15** — MIT `LICENSE` added (claimed by website/README, previously missing). `500542f`.
 - **#22** — `deleted_at` populated in the archive list response so "show deleted" renders correctly. `6788d91`.
+- **#12** — Metric engine hardened: greedy **one-to-one** matching (duplicate predictions are now false positives, e.g. 1 golden + 3 duplicates → precision 1/3), **missing span = failure** in span fidelity, and nDCG accepts `total_relevant` so omitted relevant docs reduce the score. Added `evals/test_metrics.py` (7 tests, all pass). *Remainder:* centralized metric IDs from config + operator validation, and keeping zero-fact conversations in the extraction denominator.
 
 ## Accepted and planned (not built this pass)
 
@@ -68,7 +69,7 @@ Each is valid and would improve the product, but is a substantial build. Recomme
 - **#8 (full).** Versioned graph bundle: typed raw + normalized conversation/turn + derived + canonical + provenance + link + tombstone + audit records, content hashes, streaming, migrations.
 - **#9 Concurrency.** Row-lock/version-token deletion↔processing serialization in one transaction; promotion accepts only fact id + confirmation, derives content/provenance server-side, verifies active status, writes immutable actor.
 - **#10 Conflict/curation.** Fact-level duplicate/overlap/contradiction detection with persisted memberships/evidence; transactional queue materialization; resolutions with domain effects (keep/merge/supersede/suppress) + reindex + audit.
-- **#12 Metric engine.** Max one-to-one matching; missing span = failure; keep zero-fact sources in the denominator; nDCG from full graded qrels; centralized metric IDs from config; fail on unknown/duplicate IDs and unsupported operators; table-driven/property tests.
+- **#12 Metric engine.** Max one-to-one matching; missing span = failure; keep zero-fact sources in the denominator; nDCG from full graded qrels; centralized metric IDs from config; fail on unknown/duplicate IDs and unsupported operators; table-driven/property tests. *(Matching, span fidelity, nDCG-with-qrels, and unit tests are implemented; the remainder — config-driven metric IDs, operator validation, zero-fact denominator — is planned.)*
 - **#13 (CI).** PR/release pipelines: frozen install, ruff/mypy, backend+frontend tests with Postgres/pgvector, Playwright/axe, clean image build, migrations, MCP contract, strict evals; allow-listed skips.
 - **#14 (a11y).** Tested tab/dialog primitives, native focusable upload, shared provenance drawer, all search filters, real resolve interactions; full keyboard + axe suites.
 - **#16 Traceability.** Immutable atomic requirement IDs + generated requirement→arch→test→evidence→status matrix; one status authority.
