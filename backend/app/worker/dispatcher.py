@@ -711,8 +711,52 @@ async def dispatch_job(session: AsyncSession, job: Job) -> None:
         await session.rollback()
         await session.refresh(job)
 
-    # ── Step 3: LLM summarize + extract (only if gate allows AND provider configured) ──
-    if not sensitivity_decision.blocked:
+    # ── Step 2b: Resolve effective policy (gate + caller processing intent) ──
+    # GPT5.6 #6: honor the caller-declared processing_mode/sensitivity_hint
+    # (stored on the item's metadata, e.g. by MCP ingest), defaulting to
+    # stricter — a local_only mode or a sensitive hint forbids external calls
+    # even when the content gate would have allowed them.
+    from app.domain.policy.resolver import resolve_effective_policy  # noqa: PLC0415
+
+    item_metadata = archive_item.metadata_json or {}
+    effective_policy = resolve_effective_policy(
+        gate_allows=sensitivity_decision.is_allowed,
+        data_class=sensitivity_decision.category,
+        processing_mode=item_metadata.get("processing_mode"),
+        sensitivity_hint=item_metadata.get("sensitivity_hint"),
+    )
+    logger.info(
+        "Policy: job=%s allow_external=%s mode=%s hint=%s data_class=%s",
+        job.id, effective_policy.allow_external, effective_policy.processing_mode,
+        effective_policy.sensitivity_hint, effective_policy.data_class,
+    )
+    try:
+        from app.domain.audit.models import AuditEvent  # noqa: PLC0415
+        session.add(AuditEvent(
+            event_type="policy_decision",
+            raw_archive_id=job.raw_archive_id,
+            actor="pipeline_worker",
+            operation_metadata={
+                "allow_external": effective_policy.allow_external,
+                "processing_mode": effective_policy.processing_mode,
+                "sensitivity_hint": effective_policy.sensitivity_hint,
+                "data_class": effective_policy.data_class,
+                "provider": (
+                    _provider_name()
+                    if effective_policy.allow_external and _has_llm_provider()
+                    else None
+                ),
+                "reason": effective_policy.reason,
+            },
+        ))
+        await session.commit()
+    except Exception as e:
+        logger.warning("Failed to write policy_decision audit event (non-fatal): %s", e)
+        await session.rollback()
+        await session.refresh(job)
+
+    # ── Step 3: LLM summarize + extract (only if policy allows AND provider configured) ──
+    if effective_policy.allow_external:
         if not _has_llm_provider():
             # No provider — run FTS first (local, no LLM needed), then mark pending_provider
             try:

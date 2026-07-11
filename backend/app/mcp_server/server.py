@@ -336,6 +336,28 @@ async def ingest_memory(
             field="source_metadata",
         )
 
+    # GPT5.6 #6: validate declared processing intent at the boundary so an
+    # invalid mode/hint is rejected rather than silently ignored downstream.
+    from app.domain.policy.resolver import (  # noqa: PLC0415
+        ALLOWED_PROCESSING_MODES,
+        ALLOWED_SENSITIVITY_HINTS,
+        is_valid_processing_mode,
+        is_valid_sensitivity_hint,
+    )
+
+    if not is_valid_processing_mode(processing_mode):
+        return _mcp_error(
+            "validation_error",
+            f"invalid processing_mode {processing_mode!r}; allowed: {sorted(ALLOWED_PROCESSING_MODES)}",
+            field="processing_mode",
+        )
+    if not is_valid_sensitivity_hint(sensitivity_hint):
+        return _mcp_error(
+            "validation_error",
+            f"invalid sensitivity_hint {sensitivity_hint!r}; allowed: {sorted(ALLOWED_SENSITIVITY_HINTS)}",
+            field="sensitivity_hint",
+        )
+
     effective_actor = client_identity or actor or "mcp_client"
     source_type = str(source_metadata.get("source_type") or source_metadata.get("system") or "mcp")
     effective_source_name = str(

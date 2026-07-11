@@ -91,6 +91,34 @@ async def test_ingest_memory_requires_content() -> None:
 
 
 @pytest.mark.asyncio
+async def test_ingest_memory_rejects_invalid_processing_mode() -> None:
+    """GPT5.6 #6: an invalid processing_mode is rejected at the boundary."""
+    result = await ingest_memory(
+        content="This is long enough to pass content validation.",
+        source_metadata={"source_type": "copilot_chat"},
+        processing_mode="turbo",
+    )
+
+    assert result["status"] == "error"
+    assert result["error"]["code"] == "validation_error"
+    assert result["error"]["details"]["field"] == "processing_mode"
+
+
+@pytest.mark.asyncio
+async def test_ingest_memory_rejects_invalid_sensitivity_hint() -> None:
+    """GPT5.6 #6: an invalid sensitivity_hint is rejected at the boundary."""
+    result = await ingest_memory(
+        content="This is long enough to pass content validation.",
+        source_metadata={"source_type": "copilot_chat"},
+        sensitivity_hint="ultra",
+    )
+
+    assert result["status"] == "error"
+    assert result["error"]["code"] == "validation_error"
+    assert result["error"]["details"]["field"] == "sensitivity_hint"
+
+
+@pytest.mark.asyncio
 async def test_ingest_memory_accepts_metadata_and_replays_idempotency(
     test_engine,
     monkeypatch: pytest.MonkeyPatch,
