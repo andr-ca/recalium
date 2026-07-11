@@ -71,6 +71,16 @@ jobs:
       - name: Eval metric unit tests
         run: uv run --project backend python -m pytest evals/test_metrics.py -q
 
+      # GPT5.6 #16: requirements traceability is the single status authority.
+      # Fails if a claimed-done requirement has no test, or the committed matrix
+      # is stale relative to the current requirements/tests.
+      - name: Requirements traceability (tests + gate + freshness)
+        run: |
+          uv run --project backend python -m pytest scripts/test_traceability.py -q
+          uv run --project backend python scripts/traceability.py --check
+          uv run --project backend python scripts/traceability.py --write
+          git diff --exit-code docs/operational/traceability-matrix.md
+
       # Static gates are informational until the debt is cleared (GPT5.6 #26).
       - name: Ruff (informational)
         working-directory: backend
