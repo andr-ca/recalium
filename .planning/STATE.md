@@ -134,15 +134,18 @@ _(none)_
 
 ### Quick Tasks Completed
 
-| # | Description | Date | Commit | Directory |
-|---|-------------|------|--------|-----------|
-| 260707-jlg | In-depth project analysis, recommendations doc (docs/recommendations.md), and eval suite (evals/) with first live baseline | 2026-07-07 | e4dd775 | [260707-jlg-in-depth-project-analysis-recommendation](./quick/260707-jlg-in-depth-project-analysis-recommendation/) |
-| 260707-krr | Eval embeddings/provider validation + Ollama run; fixed F19-F21 pipeline bugs; found F22 gate over-blocking (P0) | 2026-07-08 | ee80112, 835d0df | [260707-krr-extend-eval-suite-to-validate-embeddings](./quick/260707-krr-extend-eval-suite-to-validate-embeddings/) |
-| 260707-tt8 | Gate observability (F15) + calibration (F22): audit events + embedding-prototype classifier; all 5 eval checks live, sensitivity audit-verified PASS | 2026-07-08 | 13d188a, 0a8c89f | [260707-tt8-gate-observability-f15-sensitivity-gate-](./quick/260707-tt8-gate-observability-f15-sensitivity-gate-/) |
-| 260708-0kx | Chunked per-turn extraction (F3) — first fully green eval: 5/5 checks, extraction 62.5%/76.7%, span+provenance 100% | 2026-07-08 | 35f5b89 | [260708-0kx-chunked-per-turn-fact-extraction-f3-to-c](./quick/260708-0kx-chunked-per-turn-fact-extraction-f3-to-c/) |
-| 260708-7q6 | F13: committed all pending RR work in 3 reviewable slices (backend/frontend/docs); working tree clean | 2026-07-08 | 2adf843, 986eb01, 5616cdf | [260708-7q6-commit-pending-rr-release-readiness-work](./quick/260708-7q6-commit-pending-rr-release-readiness-work/) |
-| 260708-a7m | Connected Recalium to Claude Code (user-scope MCP over SSE); clean compose start verified; e2e ingest→retrieve proven | 2026-07-08 | — | [260708-a7m-connect-recalium-mcp-to-claude-code-user](./quick/260708-a7m-connect-recalium-mcp-to-claude-code-user/) |
-| 260708-prs | Claude Code ↔ Recalium integration: stdlib-only client + SessionStart/UserPromptSubmit/SessionEnd hooks + CLI (recall/remember) in integrations/claude-code/; fail-soft, idempotent, .env-config; live round-trip verified; fixed [unknown]-label + cwd bugs | 2026-07-08 | e6d1172, eabae86, 9655f6a | [260708-prs-build-claude-code-hooks-and-scripts-to-u](./quick/260708-prs-build-claude-code-hooks-and-scripts-to-u/) |
+| # | Description | Date | Commit | Status | Directory |
+|---|-------------|------|--------|--------|-----------|
+| 260707-jlg | In-depth project analysis, recommendations doc (docs/recommendations.md), and eval suite (evals/) with first live baseline | 2026-07-07 | e4dd775 |  | [260707-jlg-in-depth-project-analysis-recommendation](./quick/260707-jlg-in-depth-project-analysis-recommendation/) |
+| 260707-krr | Eval embeddings/provider validation + Ollama run; fixed F19-F21 pipeline bugs; found F22 gate over-blocking (P0) | 2026-07-08 | ee80112, 835d0df |  | [260707-krr-extend-eval-suite-to-validate-embeddings](./quick/260707-krr-extend-eval-suite-to-validate-embeddings/) |
+| 260707-tt8 | Gate observability (F15) + calibration (F22): audit events + embedding-prototype classifier; all 5 eval checks live, sensitivity audit-verified PASS | 2026-07-08 | 13d188a, 0a8c89f |  | [260707-tt8-gate-observability-f15-sensitivity-gate-](./quick/260707-tt8-gate-observability-f15-sensitivity-gate-/) |
+| 260708-0kx | Chunked per-turn extraction (F3) — first fully green eval: 5/5 checks, extraction 62.5%/76.7%, span+provenance 100% | 2026-07-08 | 35f5b89 |  | [260708-0kx-chunked-per-turn-fact-extraction-f3-to-c](./quick/260708-0kx-chunked-per-turn-fact-extraction-f3-to-c/) |
+| 260708-7q6 | F13: committed all pending RR work in 3 reviewable slices (backend/frontend/docs); working tree clean | 2026-07-08 | 2adf843, 986eb01, 5616cdf |  | [260708-7q6-commit-pending-rr-release-readiness-work](./quick/260708-7q6-commit-pending-rr-release-readiness-work/) |
+| 260708-a7m | Connected Recalium to Claude Code (user-scope MCP over SSE); clean compose start verified; e2e ingest→retrieve proven | 2026-07-08 | — |  | [260708-a7m-connect-recalium-mcp-to-claude-code-user](./quick/260708-a7m-connect-recalium-mcp-to-claude-code-user/) |
+| 260708-prs | Claude Code ↔ Recalium integration: stdlib-only client + SessionStart/UserPromptSubmit/SessionEnd hooks + CLI (recall/remember) in integrations/claude-code/; fail-soft, idempotent, .env-config; live round-trip verified; fixed [unknown]-label + cwd bugs | 2026-07-08 | e6d1172, eabae86, 9655f6a |  | [260708-prs-build-claude-code-hooks-and-scripts-to-u](./quick/260708-prs-build-claude-code-hooks-and-scripts-to-u/) |
+| 260711-ik1 | Update frozen GPT-5.6 solution review through ba7f686, rank all findings, and recompute the 1–100 score | 2026-07-11 | 9eeecc5 | Verified | [260711-ik1-update-the-frozen-gpt-5-6-solution-revie](./quick/260711-ik1-update-the-frozen-gpt-5-6-solution-revie/) |
+
+Last activity: 2026-07-11 - Completed quick task 260711-ik1: Update the frozen GPT-5.6 solution review through ba7f686, rank all findings, and recompute the 1–100 score
 
 ---
 
