@@ -5,6 +5,7 @@ conversation (with provenance), not stored as a single multi-conversation blob.
 """
 from __future__ import annotations
 
+import pytest_asyncio
 from sqlalchemy import text
 
 from app.domain.imports.adapters import (
@@ -17,6 +18,35 @@ from app.domain.imports.adapters import (
     render_conversation_text,
 )
 from app.domain.imports.service import import_conversations
+
+
+@pytest_asyncio.fixture
+async def cleanup_imports(db_session):
+    """Import tests commit rows; purge them before and after so later tests
+    (e.g. the worker-loop suite, which runs after tests/domain) don't inherit
+    stray ``pending_pipeline`` jobs. Also self-heals leftovers from prior runs.
+    """
+
+    async def _purge():
+        await db_session.execute(
+            text(
+                "DELETE FROM jobs WHERE raw_archive_id IN "
+                "(SELECT id FROM raw_archive WHERE source_type IN "
+                "('chatgpt_import', 'claude_import'))"
+            )
+        )
+        await db_session.execute(text("DELETE FROM audit_events WHERE event_type = 'import'"))
+        await db_session.execute(
+            text(
+                "DELETE FROM raw_archive WHERE source_type IN "
+                "('chatgpt_import', 'claude_import')"
+            )
+        )
+        await db_session.commit()
+
+    await _purge()
+    yield
+    await _purge()
 
 # ── Fixtures: representative export payloads ────────────────────────────────
 
@@ -138,7 +168,7 @@ async def _count_archive(session, source_type: str) -> int:
     return int(row.scalar_one())
 
 
-async def test_import_creates_one_item_per_conversation(db_session):
+async def test_import_creates_one_item_per_conversation(db_session, cleanup_imports):
     import json
 
     result = await import_conversations(db_session, json.dumps(CHATGPT_EXPORT))
@@ -172,7 +202,7 @@ async def test_import_creates_one_item_per_conversation(db_session):
     assert int(jobs.scalar_one()) == 1
 
 
-async def test_import_is_idempotent(db_session):
+async def test_import_is_idempotent(db_session, cleanup_imports):
     import json
 
     payload = json.dumps(CLAUDE_EXPORT)
