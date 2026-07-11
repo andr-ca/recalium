@@ -32,6 +32,12 @@ jobs:
     env:
       TEST_DATABASE_URL: postgresql+asyncpg://recalium:recalium@localhost:5432/recalium_test
       DATABASE_URL: postgresql+asyncpg://recalium:recalium@localhost:5432/recalium_test
+      # So the backup service (pg_dump) targets the test DB, not the default "recalium".
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: recalium
+      POSTGRES_PASSWORD: recalium
+      POSTGRES_DB: recalium_test
     steps:
       - uses: actions/checkout@v4
 
@@ -46,6 +52,10 @@ jobs:
       - name: Install backend dependencies
         working-directory: backend
         run: uv sync --frozen
+
+      # Backup/restore tests shell out to pg_dump and write to /backups.
+      - name: Prepare backup directory
+        run: sudo mkdir -p /backups && sudo chmod 777 /backups
 
       # Non-e2e suite. The 3 stale phase-5 MCP tests assert the pre-RR-009 error
       # format and omit source_metadata; they are allow-listed here (owner: backend,
