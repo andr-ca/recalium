@@ -82,13 +82,55 @@ async def test_mark_canonical_disputed(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_promote_fact_no_source_span_requires_confirmed(client: AsyncClient):
-    """CANM-04: promote without source_span requires confirmed=true."""
+async def test_promote_fact_no_source_span_requires_confirmed(client: AsyncClient, db_session):
+    """CANM-04: promote of a spanless fact requires confirmed=true.
+
+    GPT5.6 #9: the gate is keyed off the fact's real stored span; the client-supplied
+    has_source_span=True below is ignored by the server.
+    """
+    import hashlib
+
+    from app.domain.archive.models import RawArchiveItem
+    from app.domain.derived_memory.models import Fact
+
+    content = "conversation with no extractable span"
+    raw = RawArchiveItem(
+        id=uuid.uuid4(),
+        source_type="test",
+        raw_content=content,
+        content_hash=hashlib.sha256(content.encode()).hexdigest(),
+    )
+    db_session.add(raw)
+    await db_session.flush()
+    fact = Fact(
+        id=uuid.uuid4(),
+        raw_archive_id=raw.id,
+        fact_text="a spanless fact",
+        source_span="",
+        confidence_tier="low",
+        derivation_method="llm_extraction",
+        derivation_model="test-model",
+    )
+    db_session.add(fact)
+    await db_session.flush()
+
     resp = await client.post("/api/canonical/promote", json={
-        "fact_id": str(uuid.uuid4()),
-        "raw_archive_id": str(uuid.uuid4()),
+        "fact_id": str(fact.id),
+        "raw_archive_id": str(raw.id),
         "content": "fact without span",
-        "has_source_span": False,
+        "has_source_span": True,  # forged — ignored server-side
         "confirmed": False,
     })
     assert resp.status_code == 409  # Conflict — requires explicit confirmation
+
+
+@pytest.mark.asyncio
+async def test_promote_nonexistent_fact_returns_404(client: AsyncClient):
+    """GPT5.6 #9: promoting a fact that does not exist is a 404, not a silent create."""
+    resp = await client.post("/api/canonical/promote", json={
+        "fact_id": str(uuid.uuid4()),
+        "raw_archive_id": str(uuid.uuid4()),
+        "content": "forged content",
+        "confirmed": True,
+    })
+    assert resp.status_code == 404

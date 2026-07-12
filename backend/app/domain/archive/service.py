@@ -128,7 +128,7 @@ async def cascade_delete_archive_item(
         select(RawArchiveItem).where(
             RawArchiveItem.id == archive_id,
             RawArchiveItem.deleted_at.is_(None),
-        )
+        ).with_for_update()
     )
     item = result.scalar_one_or_none()
     if item is None:
@@ -193,6 +193,66 @@ async def cascade_delete_archive_item(
         logger.warning("Could not invalidate retrieval cache after deletion: %s", e)
 
     logger.info("Cascade delete complete for archive_id=%s actor=%s", archive_id_str, actor)
+
+
+async def suppress_new_derivations_if_deleted(
+    session: AsyncSession,
+    raw_archive_id: uuid.UUID,
+) -> bool:
+    """Reconcile derivations against a concurrent deletion (GPT5.6 #9).
+
+    The processing pipeline checks ``deleted_at`` when it loads a source, then makes
+    slow external calls, then writes derived rows much later. A deletion in that
+    window only suppresses the rows that existed *when it ran*, so derivations
+    written afterwards would stay ``active`` and resurrect the deleted content.
+
+    Called at the end of the pipeline: takes a ``FOR UPDATE`` row lock on the source
+    and, if it has since been deleted, re-runs the same suppression + crypto-erase
+    over *all* its derived rows (including any just written). The matching row lock
+    in ``cascade_delete_archive_item`` serializes the two paths, so both interleavings
+    converge on "all derivations suppressed". Returns True if a deletion was
+    reconciled, False otherwise.
+    """
+    row = (
+        await session.execute(
+            select(RawArchiveItem.deleted_at)
+            .where(RawArchiveItem.id == raw_archive_id)
+            .with_for_update()
+        )
+    ).one_or_none()
+    if row is None or row[0] is None:
+        # Source still live (or gone entirely) — nothing to reconcile. Release lock.
+        await session.commit()
+        return False
+
+    archive_id_str = str(raw_archive_id)
+    await _suppress_derived(session, archive_id_str)
+    await _erase_plaintext(session, archive_id_str)
+    session.add(
+        AuditEvent(
+            event_type="deletion_race_reconciled",
+            raw_archive_id=raw_archive_id,
+            actor="pipeline_worker",
+            operation_metadata={
+                "archive_id": archive_id_str,
+                "note": "derivations written during processing suppressed post-deletion",
+            },
+        )
+    )
+    await session.commit()
+
+    try:
+        from app.domain.retrieval.service import invalidate_cache  # noqa: PLC0415
+        invalidate_cache()
+    except Exception as e:
+        logger.warning("Cache invalidation after deletion-race reconcile failed: %s", e)
+
+    logger.warning(
+        "Deletion-race reconciled for archive_id=%s: derivations written during "
+        "processing were suppressed post-deletion.",
+        archive_id_str,
+    )
+    return True
 
 
 async def reapply_tombstones(

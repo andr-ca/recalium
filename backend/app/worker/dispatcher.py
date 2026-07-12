@@ -948,5 +948,23 @@ async def dispatch_job(session: AsyncSession, job: Job) -> None:
         await session.rollback()  # aborted tx would wedge every later step
         await session.refresh(job)  # rollback expired the instance
 
+    # ── Step 8: Deletion-race reconcile (GPT5.6 #9) ──────────────────────────
+    # The source may have been deleted while this job ran its (slow, external)
+    # pipeline. Any derivations written after that deletion would still be active
+    # and resurrect the removed content. Under a FOR UPDATE lock that serializes
+    # with cascade_delete_archive_item, re-suppress + crypto-erase all derivations
+    # if the source is now deleted. Non-fatal: the job still completes.
+    try:
+        from app.domain.archive.service import (  # noqa: PLC0415
+            suppress_new_derivations_if_deleted,
+        )
+        await suppress_new_derivations_if_deleted(session, job.raw_archive_id)
+    except Exception as e:
+        logger.warning(
+            "Deletion-race reconcile failed for job %s (non-fatal): %s", job.id, e
+        )
+        await session.rollback()
+        await session.refresh(job)
+
     await complete_job(session, job)
     logger.info("Completed job %s", job.id)

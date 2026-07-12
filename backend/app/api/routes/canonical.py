@@ -15,7 +15,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.canonical_memory.service import (
     CanonicalItemNotFoundError,
+    FactNotFoundError,
     PromotionNotConfirmedError,
+    SourceMismatchError,
+    SourceRemovedError,
     create_manual_canonical,
     delete_canonical_item,
     get_canonical_item,
@@ -91,7 +94,11 @@ async def promote_fact_endpoint(
     body: PromoteBody,
     session: AsyncSession = Depends(get_session),
 ) -> dict:
-    """Promote a fact to canonical memory (CANM-03/CANM-04)."""
+    """Promote a fact to canonical memory (CANM-03/CANM-04).
+
+    GPT5.6 #9: source linkage and the source-span attestation are derived from the
+    stored fact server-side; the client-supplied ``has_source_span`` is ignored.
+    """
     try:
         item = await promote_fact_to_canonical(
             session,
@@ -99,9 +106,14 @@ async def promote_fact_endpoint(
             raw_archive_id=body.raw_archive_id,
             content=body.content,
             promoted_by=body.promoted_by,
-            has_source_span=body.has_source_span,
             confirmed=body.confirmed,
         )
+    except FactNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except SourceMismatchError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except SourceRemovedError as e:
+        raise HTTPException(status_code=409, detail=str(e))
     except PromotionNotConfirmedError as e:
         raise HTTPException(status_code=409, detail=str(e))
     return _item_to_dict(item)
