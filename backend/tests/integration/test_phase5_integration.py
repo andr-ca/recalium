@@ -231,10 +231,13 @@ async def test_port01_export_bundle_format(
     assert resp.status_code == 200
     data = resp.json()
     assert data["format"] == "recalium-memory-bundle"
-    assert data["version"] == "1"
+    assert data["version"] == "2"
     assert "exported_at" in data
     assert "items" in data
     assert isinstance(data["items"], list)
+    # GPT5.6 #8/#17: the bundle now carries canonical memory and the deletion ledger.
+    assert isinstance(data["canonical_memory"], list)
+    assert isinstance(data["tombstones"], list)
 
 
 @pytest.mark.asyncio
@@ -372,6 +375,80 @@ async def test_port01_import_bundle_invalid_version(client: AsyncClient):
     }
     resp = await client.post("/api/import/bundle", json=bundle)
     assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_port_bundle_tombstone_prevents_resurrection(client: AsyncClient):
+    """GPT5.6 #8: a bundle tombstone stops deleted content being re-imported."""
+    content = _unique_content("tombstone_port")
+    chash = _content_hash(content)
+    bundle = {
+        "format": "recalium-memory-bundle",
+        "version": "2",
+        "exported_at": "2026-03-24T00:00:00Z",
+        "items": [
+            {
+                "id": str(uuid.uuid4()),
+                "source_type": "test",
+                "source_name": "x",
+                "ingested_at": "2026-03-24T00:00:00Z",
+                "raw_content": content,
+                "content_hash": chash,
+                "conversation_count": 1,
+                "metadata": None,
+            }
+        ],
+        "canonical_memory": [],
+        "tombstones": [
+            {
+                "source_id": str(uuid.uuid4()),
+                "content_hash": chash,
+                "removal_type": "delete",
+                "removed_at": "2026-03-24T00:00:00Z",
+                "actor": "user_ui",
+                "reason": "deleted elsewhere",
+            }
+        ],
+    }
+    resp = await client.post("/api/import/bundle", json=bundle)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["tombstones_applied"] == 1
+    assert data["imported"] == 0, "tombstoned content must not be resurrected"
+    assert data["skipped"] == 1
+
+
+@pytest.mark.asyncio
+async def test_port_bundle_imports_canonical_memory(client: AsyncClient):
+    """GPT5.6 #8/#17: user-curated canonical memory travels in the bundle."""
+    unique = f"canonical portability note {uuid.uuid4()}"
+    bundle = {
+        "format": "recalium-memory-bundle",
+        "version": "2",
+        "exported_at": "2026-03-24T00:00:00Z",
+        "items": [],
+        "canonical_memory": [
+            {
+                "id": str(uuid.uuid4()),
+                "content": unique,
+                "status": "active",
+                "promoted_from": "fact",
+                "promoted_by": "user_ui",
+                "provenance_note": '{"source_span": "kept"}',
+                "raw_archive_id": str(uuid.uuid4()),
+                "fact_id": str(uuid.uuid4()),
+                "created_at": "2026-03-24T00:00:00Z",
+            }
+        ],
+        "tombstones": [],
+    }
+    resp = await client.post("/api/import/bundle", json=bundle)
+    assert resp.status_code == 200
+    assert resp.json()["canonical_imported"] == 1
+
+    listing = await client.get("/api/canonical")
+    contents = [c["content"] for c in listing.json()["items"]]
+    assert unique in contents
 
 
 @pytest.mark.asyncio
