@@ -11,7 +11,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-from sqlalchemy import String, Text, TIMESTAMP, ForeignKey, Enum as SAEnum
+from sqlalchemy import String, Text, TIMESTAMP, ForeignKey, Enum as SAEnum, Computed, Index
 from sqlalchemy.dialects.postgresql import UUID, TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column
 from pgvector.sqlalchemy import Vector
@@ -110,6 +110,18 @@ class Fact(Base):
     # "active" | "disputed" | "stale" | "archived" | "deleted"
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)
+    )
+    # GPT5.6 #4: direct fact retrieval. DB-generated FTS vector over fact_text so a
+    # query can match a fact directly (not only via link traversal). Immutable
+    # to_tsvector('english', ...) is required for a STORED generated column.
+    search_vector: Mapped[str | None] = mapped_column(
+        TSVECTOR,
+        Computed("to_tsvector('english', fact_text)", persisted=True),
+        nullable=True,
+    )
+
+    __table_args__ = (
+        Index("ix_facts_fts", "search_vector", postgresql_using="gin"),
     )
 
 

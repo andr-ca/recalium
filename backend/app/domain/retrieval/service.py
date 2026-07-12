@@ -186,6 +186,10 @@ def _fusion_key(candidate: dict) -> str:
     """
     if candidate.get("type") == "canonical":
         return f"canonical:{candidate['id']}"
+    if candidate.get("type") == "fact":
+        # Each fact is its own atomic retrievable unit — do not collapse multiple
+        # distinct facts of one conversation into a single archive-level result.
+        return f"fact:{candidate['id']}"
     return f"archive:{candidate.get('source_id') or candidate['id']}"
 
 
@@ -446,6 +450,35 @@ async def _keyword_candidates(
         )
         canon_rows = canon_result.mappings().all()
 
+    # GPT5.6 #4: direct fact retrieval — match facts by their own FTS vector so a
+    # relevant fact surfaces on its own, not only via link traversal.
+    fact_rows = []
+    if not f.canonical_only:
+        fact_result = await session.execute(
+            text(f"""
+                SELECT
+                    f.id::text AS id,
+                    'fact' AS type,
+                    f.fact_text AS content,
+                    ts_rank_cd(f.search_vector, websearch_to_tsquery('english', :q)) AS score,
+                    f.raw_archive_id::text AS source_id,
+                    COALESCE(ra.source_type, 'unknown') AS source_system,
+                    ra.ingested_at::text AS captured_at,
+                    f.source_span AS source_span
+                FROM facts f
+                JOIN raw_archive ra ON ra.id = f.raw_archive_id
+                WHERE f.source_status = 'active'
+                  AND f.review_status = 'active'
+                  AND ra.deleted_at IS NULL
+                  AND f.search_vector @@ websearch_to_tsquery('english', :q)
+                  {archive_filter_sql}
+                ORDER BY score DESC
+                LIMIT :limit
+            """),
+            {"q": query, "limit": limit, **archive_filter_params},
+        )
+        fact_rows = fact_result.mappings().all()
+
     candidates = []
     for row in list(canon_rows) + list(fts_rows):
         candidates.append({
@@ -464,6 +497,26 @@ async def _keyword_candidates(
             },
         })
 
+    for row in fact_rows:
+        candidates.append({
+            "id": row["id"],
+            "type": "fact",
+            "content": row["content"] or "",
+            "score": float(row["score"] or 0),
+            "source_id": row["source_id"] or "",
+            "source_system": row["source_system"] or "unknown",
+            "captured_at": str(row["captured_at"] or ""),
+            "conflict_label": None,
+            "provenance": {
+                "derivation_method": "fact_fts_retrieval",
+                "derivation_model": "postgresql_fts",
+                "source_excerpt": (row["source_span"] or row["content"] or "")[:200],
+            },
+        })
+
+    # Rank the combined candidates (canonical + excerpts + facts) by FTS relevance so
+    # the per-mode LIMIT keeps the most relevant across all three, not insertion order.
+    candidates.sort(key=lambda c: c["score"], reverse=True)
     return candidates[:limit]
 
 

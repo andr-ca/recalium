@@ -101,3 +101,39 @@ async def test_time_range_filter_applied_in_sql(db_session):
     src_ids = {i.source_id for i in resp.items}
     assert str(recent.id) in src_ids
     assert str(old.id) not in src_ids
+
+
+async def test_direct_fact_retrieval_matches_fact_text(db_session):
+    """GPT5.6 #4: a fact is retrievable directly by its own text, not only via links."""
+    from app.domain.derived_memory.models import Fact
+
+    invalidate_cache()
+    content = "a source conversation"
+    archive = RawArchiveItem(
+        id=uuid.uuid4(),
+        source_type="test",
+        raw_content=content,
+        content_hash=hashlib.sha256(b"direct-fact-source").hexdigest(),
+        ingested_at=_NOW,
+    )
+    db_session.add(archive)
+    await db_session.flush()
+    fact = Fact(
+        id=uuid.uuid4(),
+        raw_archive_id=archive.id,
+        fact_text="The user deploys services on zephyrium clusters.",
+        source_span="zephyrium clusters",
+        confidence_tier="high",
+        derivation_method="llm_extraction",
+        derivation_model="test-model",
+    )
+    db_session.add(fact)
+    await db_session.commit()  # Computed search_vector populates on write.
+
+    req = RetrievalRequest(query="zephyrium", mode="keyword")
+    resp = await retrieve(db_session, req)
+
+    fact_items = [i for i in resp.items if i.type == "fact"]
+    assert str(fact.id) in {i.id for i in fact_items}
+    assert any("zephyrium" in i.content.lower() for i in fact_items)
+
