@@ -727,6 +727,12 @@ async def dispatch_job(session: AsyncSession, job: Job) -> None:
                 "method": sensitivity_decision.method,
             },
         ))
+        # GPT5.6 #4: persist the gate data_class onto the item so retrieval can
+        # filter by category at the SQL layer (the category filter was ignored).
+        archive_item.metadata_json = {
+            **(archive_item.metadata_json or {}),
+            "data_class": sensitivity_decision.category,
+        }
         await session.commit()
     except Exception as e:
         logger.warning("Failed to write sensitivity_gate audit event (non-fatal): %s", e)
