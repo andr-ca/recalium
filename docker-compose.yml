@@ -57,7 +57,7 @@ services:
       # Bind to localhost only — prevents accidental LAN exposure
       - "127.0.0.1:${APP_PORT:-8000}:8000"
     volumes:
-      - ./backups:/app/backups
+      - ./backups:/backups
       - ./import:/app/import
     networks:
       - recalium-net

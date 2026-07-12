@@ -180,7 +180,9 @@ async def create_backup(backup_dir: str = DEFAULT_BACKUP_DIR) -> dict:
     """
     os.makedirs(backup_dir, exist_ok=True)
 
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    # Microsecond resolution so two backups triggered in the same second do not
+    # collide and overwrite each other (GPT5.6 #2 backup drill finding).
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S_%f")
     filename = f"recalium_{timestamp}.dump"
     filepath = Path(backup_dir) / filename
 

@@ -23,7 +23,7 @@ services:
       EMBED_BACKEND: ${EMBED_BACKEND:-none}
     volumes:
       - ./backend:/app/backend
-      - ./backups:/app/backups
+      - ./backups:/backups
       - ./import:/app/import
     # Use the dev entrypoint: waits for PG, runs migrations, then starts
     # uvicorn with --reload so code changes are picked up immediately.
