@@ -107,6 +107,25 @@ async def run_all_checks(
     return checks
 
 
+def determine_overall_status(
+    checks: List[CheckResult],
+    *,
+    strict: bool,
+) -> tuple[bool, List[CheckResult]]:
+    """Compute (overall_passed, skipped_checks) for a run (GPT5.6 #3).
+
+    A run with no executed (non-skipped) checks never passes — an all-skipped or
+    all-errored suite cannot report success. In strict (release) mode, ANY skipped or
+    errored check fails the run, so a green eval can never hide omitted coverage.
+    """
+    non_skipped = [c for c in checks if not c.skipped]
+    skipped = [c for c in checks if c.skipped]
+    overall_passed = bool(non_skipped) and all(c.passed for c in non_skipped)
+    if strict and skipped:
+        overall_passed = False
+    return overall_passed, skipped
+
+
 async def main():
     """Main entry point for eval runner."""
     parser = argparse.ArgumentParser(
@@ -184,15 +203,10 @@ Examples:
         # Run all checks
         checks = await run_all_checks(client, golden, settings)
 
-    # Determine overall status
-    non_skipped_checks = [c for c in checks if not c.skipped]
-    overall_passed = all(c.passed for c in non_skipped_checks) if non_skipped_checks else False
-
-    # GPT5.6 #3: release/strict mode refuses to pass on any skipped or errored
-    # check (the default run stays fail-open for local development smoke signals).
-    skipped_checks = [c for c in checks if c.skipped]
+    # Determine overall status (GPT5.6 #3): no executed checks never passes, and
+    # strict/release mode fails on any skipped or errored check.
+    overall_passed, skipped_checks = determine_overall_status(checks, strict=args.strict)
     if args.strict and skipped_checks:
-        overall_passed = False
         print("STRICT: failing because checks were skipped or errored:")
         for c in skipped_checks:
             print(f"  - {c.name}: {c.skip_reason}")

@@ -56,3 +56,59 @@ def test_ndcg_full_qrels_penalizes_omitted_relevant():
     assert ndcg_at_k(returned, k=10) == 1.0  # legacy (no qrels) -> perfect
     ndcg = ndcg_at_k(returned, k=10, total_relevant=3)  # but 3 relevant exist
     assert 0.0 < ndcg < 1.0
+
+
+# ── Eval overall-status determination (GPT5.6 #3) ──────────────────────────
+
+
+def _check(name, passed, skipped=False):
+    from evals.checks import CheckResult
+
+    return CheckResult(
+        name=name, passed=passed, metrics={}, details="", skipped=skipped,
+        skip_reason=("skip" if skipped else ""),
+    )
+
+
+def test_status_all_executed_pass_is_pass():
+    from evals.runner import determine_overall_status
+
+    checks = [_check("a", True), _check("b", True)]
+    passed, skipped = determine_overall_status(checks, strict=False)
+    assert passed is True and skipped == []
+
+
+def test_status_any_executed_failure_is_fail():
+    from evals.runner import determine_overall_status
+
+    checks = [_check("a", True), _check("b", False)]
+    passed, _ = determine_overall_status(checks, strict=False)
+    assert passed is False
+
+
+def test_status_all_skipped_never_passes():
+    from evals.runner import determine_overall_status
+
+    checks = [_check("a", False, skipped=True), _check("b", False, skipped=True)]
+    passed, skipped = determine_overall_status(checks, strict=False)
+    assert passed is False
+    assert len(skipped) == 2
+
+
+def test_status_non_strict_is_fail_open_on_skips():
+    """Default (dev) mode passes if executed checks pass, even with skips."""
+    from evals.runner import determine_overall_status
+
+    checks = [_check("a", True), _check("b", False, skipped=True)]
+    passed, _ = determine_overall_status(checks, strict=False)
+    assert passed is True
+
+
+def test_status_strict_fails_on_any_skip():
+    """Release mode refuses to pass when any check was skipped or errored."""
+    from evals.runner import determine_overall_status
+
+    checks = [_check("a", True), _check("b", False, skipped=True)]
+    passed, skipped = determine_overall_status(checks, strict=True)
+    assert passed is False
+    assert len(skipped) == 1
