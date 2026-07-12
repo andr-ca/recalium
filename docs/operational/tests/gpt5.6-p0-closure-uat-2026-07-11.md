@@ -39,6 +39,21 @@ tracker: [../../gpt5.6-sol-recommendations-status.md](../../gpt5.6-sol-recommend
 The single skipped E2E test is `test_semantic_search_graceful_degraded` (expected without an
 embedding model configured).
 
+## Frontend UAT
+
+The backend API changes in this branch (bundle v2, review-queue `action`, server-side
+promotion, retrieval filters) are backward-compatible with the existing UI. Validated
+against the live stack:
+
+| Check | Command | Result |
+| --- | --- | --- |
+| TypeScript + production build | `pnpm build` | ✅ built (1644 modules) |
+| Vitest components/pages | `pnpm test` | ✅ **9 passed** (incl. `ReviewQueuePage resolves with a note` — #10 compatible) |
+| Playwright keyboard-nav (a11y) | `E2E_BASE_URL=http://localhost:8000 pnpm exec playwright test` | ✅ **8 passed** — main landmark, Tab focus to labelled control, and routes `/`, `/search`, `/ingest`, `/archive`, `/facts`, `/canonical` load without crash |
+
+Note: the running container serves the image-baked SPA; the frontend working tree has
+separate in-progress edits unrelated to this branch's backend work.
+
 ## Live E2E coverage of the delivered waves
 
 The live-stack suite exercises the running app (this branch's code + migrations applied):
