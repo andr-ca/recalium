@@ -84,6 +84,68 @@ def test_rrf_minimum_threshold():
     assert abs(RRF_MIN_THRESHOLD - expected) < 1e-6
 
 
+# ── GPT5.6 #4: stable-identity RRF fusion ──────────────────────────────────
+
+
+def test_rrf_fuses_same_source_across_modes():
+    """A keyword excerpt and a semantic summary of the SAME archive fuse into one
+    result whose score is the sum of both modes' RRF votes (was: never fused
+    because the two modes key rows differently)."""
+    from app.domain.retrieval.service import _merge_rrf, rrf_score
+
+    kw = [{"id": "fts-1", "type": "excerpt", "source_id": "arch-A", "score": 0.9, "content": "kw"}]
+    sem = [{"id": "emb-1", "type": "summary", "source_id": "arch-A", "score": 0.8, "content": "sem"}]
+
+    fused = _merge_rrf(kw, sem)
+    assert len(fused) == 1
+    assert abs(fused[0]["score"] - (rrf_score(1) + rrf_score(1))) < 1e-9
+    # Representative is the higher-priority type (summary outranks excerpt).
+    assert fused[0]["type"] == "summary"
+    assert fused[0]["source_id"] == "arch-A"
+
+
+def test_rrf_keeps_distinct_sources_separate():
+    """Different source archives never collapse together."""
+    from app.domain.retrieval.service import _merge_rrf
+
+    kw = [{"id": "fts-1", "type": "excerpt", "source_id": "arch-A", "score": 0.9, "content": "a"}]
+    sem = [{"id": "emb-2", "type": "summary", "source_id": "arch-B", "score": 0.8, "content": "b"}]
+
+    fused = _merge_rrf(kw, sem)
+    assert {c["source_id"] for c in fused} == {"arch-A", "arch-B"}
+
+
+def test_rrf_canonical_stays_distinct_from_its_archive():
+    """A canonical item and a summary of the same archive are distinct retrievable
+    units and must not be fused away."""
+    from app.domain.retrieval.service import _merge_rrf
+
+    kw = [{"id": "canon-1", "type": "canonical", "source_id": "arch-A", "score": 0.9, "content": "c"}]
+    sem = [{"id": "emb-1", "type": "summary", "source_id": "arch-A", "score": 0.8, "content": "s"}]
+
+    fused = _merge_rrf(kw, sem)
+    assert len(fused) == 2
+    types = {c["type"] for c in fused}
+    assert types == {"canonical", "summary"}
+
+
+def test_rrf_agreement_outranks_single_mode_hit():
+    """An item found by both modes outranks an item found by only one mode."""
+    from app.domain.retrieval.service import _merge_rrf
+
+    kw = [
+        {"id": "fts-A", "type": "excerpt", "source_id": "arch-A", "score": 0.9, "content": "a"},
+        {"id": "fts-B", "type": "excerpt", "source_id": "arch-B", "score": 0.8, "content": "b"},
+    ]
+    sem = [
+        {"id": "emb-A", "type": "summary", "source_id": "arch-A", "score": 0.7, "content": "a2"},
+    ]
+    fused = _merge_rrf(kw, sem)
+    # arch-A (both modes) must rank first over arch-B (keyword only).
+    assert fused[0]["source_id"] == "arch-A"
+    assert fused[0]["score"] > fused[1]["score"]
+
+
 # ── SRCH-04: Budget trimming ───────────────────────────────────────────────
 
 def test_budget_trimming_respects_priority_order():

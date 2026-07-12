@@ -172,24 +172,56 @@ def rrf_score(rank: int, k: int = RRF_K) -> float:
     return 1.0 / (k + rank)
 
 
+def _fusion_key(candidate: dict) -> str:
+    """Stable cross-modal identity for RRF (GPT5.6 #4).
+
+    Keyword and semantic modes key their rows differently (``fts_entries.id`` vs
+    ``embeddings.id``), so fusing on the raw row id never combines the two modes'
+    votes for the same conversation — the same item appears twice and the cross-modal
+    agreement that RRF exists to reward is lost. Fuse instead on the underlying
+    retrievable unit: canonical items by their own id, everything else by its source
+    archive item, so a keyword excerpt and a semantic summary of the same
+    conversation collapse into one ranked result.
+    """
+    if candidate.get("type") == "canonical":
+        return f"canonical:{candidate['id']}"
+    return f"archive:{candidate.get('source_id') or candidate['id']}"
+
+
 def _merge_rrf(
-    keyword_ids: list[str],
-    semantic_ids: list[str],
-) -> list[tuple[str, float]]:
-    """Merge two ranked lists using RRF. Returns (id, rrf_score) sorted desc."""
+    keyword_candidates: list[dict],
+    semantic_candidates: list[dict],
+) -> list[dict]:
+    """Fuse two ranked candidate lists with RRF on a stable identity (GPT5.6 #4).
+
+    Each mode's list is assumed already ranked best-first. Votes are accumulated per
+    stable fusion key; the representative shown for a fused unit is its highest-priority
+    type (canonical → fact → summary → excerpt). Returns representative candidate dicts
+    with their combined RRF score, sorted desc and capped at ``RRF_FINAL_TOP_N``.
+    """
+    priority = {t: i for i, t in enumerate(_PRIORITY_ORDER)}
     scores: dict[str, float] = {}
+    representative: dict[str, dict] = {}
 
-    for rank, item_id in enumerate(keyword_ids, start=1):
-        scores[item_id] = scores.get(item_id, 0.0) + rrf_score(rank)
+    for ranked in (keyword_candidates, semantic_candidates):
+        for rank, candidate in enumerate(ranked, start=1):
+            key = _fusion_key(candidate)
+            scores[key] = scores.get(key, 0.0) + rrf_score(rank)
+            current = representative.get(key)
+            if current is None or priority.get(candidate.get("type"), 99) < priority.get(
+                current.get("type"), 99
+            ):
+                representative[key] = candidate
 
-    for rank, item_id in enumerate(semantic_ids, start=1):
-        scores[item_id] = scores.get(item_id, 0.0) + rrf_score(rank)
+    fused = [(key, score) for key, score in scores.items() if score >= RRF_MIN_THRESHOLD]
+    fused.sort(key=lambda kv: kv[1], reverse=True)
 
-    # Filter by minimum threshold
-    filtered = {k: v for k, v in scores.items() if v >= RRF_MIN_THRESHOLD}
-
-    # Sort by score descending, take top N
-    return sorted(filtered.items(), key=lambda x: x[1], reverse=True)[:RRF_FINAL_TOP_N]
+    result: list[dict] = []
+    for key, score in fused[:RRF_FINAL_TOP_N]:
+        candidate = dict(representative[key])
+        candidate["score"] = score
+        result.append(candidate)
+    return result
 
 
 # ── Budget trimming ───────────────────────────────────────────────────────────
@@ -598,17 +630,10 @@ async def retrieve(
             effective_mode = "keyword"
             candidates = kw_candidates
         else:
-            kw_ids = [c["id"] for c in kw_candidates]
-            sem_ids = [c["id"] for c in sem_candidates]
-            merged_scored = _merge_rrf(kw_ids, sem_ids)
-
-            all_by_id: dict[str, dict] = {c["id"]: c for c in kw_candidates + sem_candidates}
-            candidates = []
-            for item_id, rrf_s in merged_scored:
-                if item_id in all_by_id:
-                    c = dict(all_by_id[item_id])
-                    c["score"] = rrf_s
-                    candidates.append(c)
+            # GPT5.6 #4: fuse on a stable cross-modal identity so the same
+            # conversation ranked by both modes combines its votes (was fused on
+            # per-mode row ids that can never match across modes).
+            candidates = _merge_rrf(kw_candidates, sem_candidates)
 
     # ── Link traversal — fetch linked facts for direct candidates ────────────
     direct_archive_ids = list({c["source_id"] for c in candidates if c.get("source_id")})
