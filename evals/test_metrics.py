@@ -112,3 +112,56 @@ def test_status_strict_fails_on_any_skip():
     passed, skipped = determine_overall_status(checks, strict=True)
     assert passed is False
     assert len(skipped) == 1
+
+
+# ── Diverse scale corpus generator (GPT5.6 #20) ────────────────────────────
+
+
+def test_generate_corpus_size_and_shape():
+    from evals.datasets.generate_corpus import generate_corpus
+
+    corpus = generate_corpus(120, seed=1)
+    assert corpus["size"] == 120
+    assert len(corpus["conversations"]) == 120
+    for conv in corpus["conversations"]:
+        assert conv["query"] == conv["token"]
+        assert conv["token"] in conv["text"]  # the unique token is retrievable
+
+
+def test_generate_corpus_is_deterministic():
+    from evals.datasets.generate_corpus import generate_corpus
+
+    a = generate_corpus(50, seed=7)
+    b = generate_corpus(50, seed=7)
+    assert a == b
+
+
+def test_generate_corpus_tokens_are_unique():
+    from evals.datasets.generate_corpus import generate_corpus
+
+    convs = generate_corpus(200, seed=2)["conversations"]
+    tokens = [c["token"] for c in convs]
+    assert len(set(tokens)) == len(tokens)  # every conversation is separable
+
+
+def test_generate_corpus_is_topically_diverse():
+    from evals.datasets.generate_corpus import generate_corpus
+
+    convs = generate_corpus(60, seed=3)["conversations"]
+    # A tiny tuned fixture is the problem being fixed — require real breadth.
+    assert len({c["topic"] for c in convs}) >= 10
+
+
+def test_generate_corpus_rejects_negative_size():
+    import pytest
+
+    from evals.datasets.generate_corpus import generate_corpus
+
+    with pytest.raises(ValueError):
+        generate_corpus(-1)
+
+
+def test_scale_check_is_importable():
+    """Structural guard: the scale check and its runner wiring import cleanly."""
+    from evals.checks.eval_scale import run_check  # noqa: F401
+    from evals.runner import run_scale_check  # noqa: F401

@@ -29,6 +29,7 @@ from evals.checks.eval_extraction import run_check as run_extraction_check
 from evals.checks.eval_retrieval import run_check as run_retrieval_check
 from evals.checks.eval_sensitivity import run_check as run_sensitivity_check
 from evals.checks.eval_mcp import run_check as run_mcp_check
+from evals.checks.eval_scale import run_check as run_scale_check
 from evals.report import ReportWriter
 
 
@@ -78,6 +79,9 @@ async def run_all_checks(
         ("sensitivity", run_sensitivity_check),
         ("mcp", run_mcp_check),
     ]
+    # GPT5.6 #20: the scale/concurrency check is opt-in (it ingests a volume corpus).
+    if settings.get("scale"):
+        check_functions.append(("scale", run_scale_check))
 
     for check_name, check_fn in check_functions:
         print(f"  Running {check_name} check...", end=" ", flush=True)
@@ -172,6 +176,19 @@ Examples:
         help="Release mode: fail on ANY skipped or errored check (no fail-open).",
     )
 
+    parser.add_argument(
+        "--scale",
+        action="store_true",
+        help="Also run the scale/concurrency check (ingests a volume corpus; GPT5.6 #20).",
+    )
+
+    parser.add_argument(
+        "--scale-size",
+        type=int,
+        default=150,
+        help="Number of synthetic conversations for the scale check (default: 150).",
+    )
+
     args = parser.parse_args()
 
     print(f"Recalium Evaluation Suite")
@@ -185,6 +202,8 @@ Examples:
     settings = {
         "base_url": args.base_url,
         "output_dir": args.output_dir,
+        "scale": args.scale,
+        "scale_size": args.scale_size,
     }
 
     # Health check
