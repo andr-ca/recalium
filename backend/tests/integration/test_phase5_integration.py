@@ -164,7 +164,10 @@ async def test_mcp02_ingest_memory_success(db_session_phase5: AsyncSession):
 
     factory = _make_session_factory(db_session_phase5)
     with patch("app.mcp_server.server.get_session_factory", return_value=factory):
-        result = await ingest_memory(content=content, source_name="mcp-test-session")
+        result = await ingest_memory(
+            content=content,
+            source_metadata={"source_type": "mcp", "source_name": "mcp-test-session"},
+        )
 
     assert result.get("status") == "accepted", f"Expected accepted, got: {result}"
     assert result.get("item_count", 0) >= 1
@@ -176,8 +179,9 @@ async def test_mcp02_ingest_memory_empty_content():
     """MCP-02: ingest_memory with empty content returns descriptive error."""
     result = await ingest_memory(content="")
 
-    assert "error" in result, f"Expected error key, got: {result}"
-    assert "content" in result["error"].lower(), (
+    # RR-009: stable error envelope {status, error: {code, message, details, retryable}}
+    assert result.get("status") == "error", f"Expected error status, got: {result}"
+    assert "content" in result["error"]["message"].lower(), (
         f"Error should mention 'content': {result['error']}"
     )
 
@@ -195,8 +199,9 @@ async def test_mcp02_ingest_memory_too_short():
     """MCP-02: ingest_memory with content < 10 chars returns descriptive error."""
     result = await ingest_memory(content="short")
 
-    assert "error" in result, f"Expected error key, got: {result}"
-    error_msg = result["error"].lower()
+    # RR-009: stable error envelope {status, error: {code, message, details, retryable}}
+    assert result.get("status") == "error", f"Expected error status, got: {result}"
+    error_msg = result["error"]["message"].lower()
     assert "short" in error_msg or "10" in error_msg or "minimum" in error_msg, (
         f"Error should mention short content or minimum: {result['error']}"
     )

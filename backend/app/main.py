@@ -267,14 +267,27 @@ class SPAStaticFiles(StaticFiles):
     """StaticFiles that falls back to index.html for unmatched routes (GPT5.6 #7).
 
     Enables client-side routing: deep links like /facts or /search return the SPA
-    shell instead of 404. API (/api) and MCP (/mcp) are mounted first, so their
-    404s remain correct JSON responses and never reach this fallback.
+    shell instead of 404. Unknown backend routes must NOT receive the HTML shell:
+    a request to an unmatched ``/api/*`` or ``/mcp/*`` path returns a JSON 404 so
+    clients get an honest API error instead of a 200 HTML page (GPT5.6 #7 remainder).
     """
+
+    # Path prefixes that are backend contracts, never client-side SPA routes.
+    # StaticFiles normalizes the request path relative to the mount, so these are
+    # compared without a leading slash.
+    _BACKEND_PREFIXES = ("api/", "mcp/")
+    _BACKEND_EXACT = ("api", "mcp")
+
     async def get_response(self, path: str, scope):  # type: ignore[override]
         try:
             return await super().get_response(path, scope)
         except _StarletteHTTPException as exc:
             if exc.status_code == 404:
+                normalized = path.lstrip("/")
+                if normalized.startswith(self._BACKEND_PREFIXES) or normalized in self._BACKEND_EXACT:
+                    # Unknown backend route: return an honest JSON 404 rather than
+                    # masking it as a 200 SPA shell.
+                    return _JSONResponse({"detail": "Not Found"}, status_code=404)
                 index = os.path.join(str(self.directory), "index.html")
                 if os.path.isfile(index):
                     return _FileResponse(index)

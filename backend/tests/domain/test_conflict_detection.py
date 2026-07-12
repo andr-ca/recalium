@@ -18,6 +18,7 @@ pytest.importorskip(
 from app.domain.conflict_detection import find_duplicate_candidates, create_conflict_group  # noqa: E402
 
 
+
 async def _make_archive_item(session):
     """Helper: insert a minimal RawArchiveItem to satisfy FK constraint on embeddings."""
     from app.domain.archive.models import RawArchiveItem

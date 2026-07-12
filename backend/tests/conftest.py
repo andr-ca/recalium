@@ -75,6 +75,31 @@ async def test_engine():
 
     await eng.dispose()
 
+@pytest_asyncio.fixture(autouse=True)
+async def _clean_db_between_tests(test_engine):
+    """Truncate every data table before each test for order-independence.
+
+    GPT5.6 #26 (test hygiene): many tests call ``session.commit()``, and those rows
+    survive the per-session rollback. Without cleanup a committed row leaks into a
+    later test's empty-table assumption (e.g. the conflict/facts/worker suites),
+    which ``pytest-randomly`` surfaces as an order-dependent failure. Truncating
+    before each test makes the whole suite random-order-safe. Tables are discovered
+    dynamically so the fixture stays correct as the schema evolves.
+    """
+    async with test_engine.begin() as conn:
+        rows = await conn.execute(
+            text(
+                "SELECT tablename FROM pg_tables "
+                "WHERE schemaname = 'public' AND tablename <> 'alembic_version'"
+            )
+        )
+        tables = [r[0] for r in rows]
+        if tables:
+            quoted = ", ".join(f'"{t}"' for t in tables)
+            await conn.execute(
+                text(f"TRUNCATE {quoted} RESTART IDENTITY CASCADE")
+            )
+    yield
 
 @pytest_asyncio.fixture
 async def db_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
