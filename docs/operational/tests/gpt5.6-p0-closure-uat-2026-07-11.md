@@ -54,6 +54,34 @@ against the live stack:
 Note: the running container serves the image-baked SPA; the frontend working tree has
 separate in-progress edits unrelated to this branch's backend work.
 
+## Live backup/restore drill (#2)
+
+Executed against the live stack via the HTTP API:
+
+| Step | Result |
+| --- | --- |
+| Ingest a unique secret, back up (pre-deletion), delete, back up (post-deletion) | ✅ |
+| Post-deletion backup contains the secret? | ✅ **No** (crypto-erased) |
+| Tombstone ledger recorded the deletion | ✅ (`tombstones.ndjson`, 21 entries) |
+| Live keyword search for the secret | ✅ 0 items |
+| `POST /api/backup/restore` with `../../etc/passwd` | ✅ **HTTP 400** (path-traversal rejected) |
+| Restore the post-deletion backup (= current state) | ✅ `status: success`, health check passed, no rollback, secret stays absent |
+
+The pre-deletion-restore → tombstone-reapply property is proven in-container in Wave B
+(the destructive full-DB restore of a pre-deletion backup was not run against the live dev DB).
+
+### Two defects surfaced and fixed (`cce9bd6`)
+
+1. **Backups + tombstone ledger were not persisted.** The app writes to `/backups`, but
+   compose mounted `./backups:/app/backups` (unused by the app) — so backups and the
+   deletion ledger lived only in the container's ephemeral filesystem and would be lost on
+   container recreation, defeating the tombstone-survives-restore guarantee. Both compose
+   files now mount `./backups:/backups`; the existing container backups + ledger were
+   preserved to the host `./backups` first. **Apply with a stack restart** (`docker compose up -d`).
+2. **Sub-second backup filename collision.** `create_backup` used second-resolution
+   timestamps, so two backups in the same second overwrote each other. Now microsecond
+   resolution.
+
 ## Live E2E coverage of the delivered waves
 
 The live-stack suite exercises the running app (this branch's code + migrations applied):
