@@ -28,10 +28,20 @@ FROM python:3.12-slim AS base
 
 ARG EMBED_BACKEND=cpu
 
-# Install system dependencies (pg_isready for entrypoint health check)
+# Install system dependencies (pg_isready for entrypoint health check).
+# Pin the PostgreSQL client to the SAME major as the server (pgvector/pgvector:pg16)
+# via the PGDG apt repo. A newer client (Debian trixie ships client 17) makes
+# pg_dump emit SET commands (e.g. transaction_timeout) that a pg16 server rejects on
+# restore — see GPT5.6 #2 backup/restore version-skew hardening.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    postgresql-client \
-    curl \
+        curl ca-certificates gnupg \
+    && install -d /usr/share/postgresql-common/pgdg \
+    && curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+        -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+    && echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(. /etc/os-release && echo "$VERSION_CODENAME")-pgdg main" \
+        > /etc/apt/sources.list.d/pgdg.list \
+    && apt-get update && apt-get install -y --no-install-recommends \
+        postgresql-client-16 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv (Python package manager)

@@ -86,6 +86,9 @@ async def restore_backup_route(body: RestoreRequest) -> dict:
             filename=body.filename,
             backup_dir=DEFAULT_BACKUP_DIR,
         )
+    except ValueError as exc:
+        # Path traversal / containment violation (GPT5.6 #2).
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except Exception as exc:

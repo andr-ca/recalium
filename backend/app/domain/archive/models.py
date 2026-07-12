@@ -34,3 +34,34 @@ class RawArchiveItem(Base):
         TIMESTAMP(timezone=True), nullable=True, default=None
     )
     metadata_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+
+class Tombstone(Base):
+    """Append-only deletion/redaction ledger (deletion-and-tombstones.md; GPT5.6 #2).
+
+    Records every source removal so deleted content cannot silently reappear after
+    a restore, reindex, or import. ``content_hash`` lets a restore reapply
+    suppression to a restored pre-deletion copy of the same content. This table is
+    included in backups; it is *mirrored* to an append-only ledger file that lives
+    outside the database dump (see ``archive.tombstones``) so it also survives the
+    restore of a backup that was taken *before* the deletion.
+
+    No FK to ``raw_archive`` on purpose: a tombstone must outlive the raw row and
+    remain valid across restore boundaries where ids may not yet exist.
+    """
+    __tablename__ = "tombstones"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    source_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    removal_type: Mapped[str] = mapped_column(String(16), nullable=False, default="delete")
+    removed_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)
+    )
+    actor: Mapped[str] = mapped_column(String(128), nullable=False, default="user_ui")
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    suppression_scope: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="source_item"
+    )
