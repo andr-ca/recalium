@@ -25,7 +25,7 @@ Legend: ✅ Done · 🟡 Partial · ⛔ Not started · ⏭️ Deferred (by desig
 | Memory-bundle JSON schema | Positioning | ✅ Done | [memory-bundle-schema.md](architecture/memory-bundle-schema.md) |
 | Flagship quality claim | Positioning | ✅ Done | [v1.1-quality-baseline.md](operational/validations/v1.1-quality-baseline.md) |
 | Performance SLA evidence | Testing | 🟡 Partial | ingest/search P95 measured in evals; restore SLA (RR-007) ⏭️ deferred |
-| Accessibility (RR-011) | Testing | 🟡 Partial | Playwright starter added ([frontend/e2e/](../frontend/e2e/)); full keyboard/axe suite pending |
+| Accessibility (RR-011) | Testing | ✅ Done | [rr011-keyboard-axe-evidence.md](operational/tests/2026-07-17-rr011-keyboard-axe-evidence.md) — all 9 v1 routes WCAG 2.2 AA, per-workflow keyboard coverage, 28 E2E + 9 unit passing |
 | MCP error envelope (RR-009) | Testing | ✅ Done (pre-existing) | Stable envelope; note stale unit tests below |
 
 ## Detail by recommendation section
@@ -48,8 +48,9 @@ Legend: ✅ Done · 🟡 Partial · ⛔ Not started · ⏭️ Deferred (by desig
 - **Phase C (perf SLA)** — 🟡 ingest P95 (~18 ms) and hybrid search P95 (~175 ms)
   measured and well under thresholds; **restore SLA (RR-007) ⏭️ deferred** (no
   timed restore evidence yet).
-- **Phase D (accessibility / RR-011)** — 🟡 Playwright scaffold + a keyboard
-  smoke test added; the exhaustive per-workflow keyboard + axe suite remains.
+- **Phase D (accessibility / RR-011)** — ✅ Done. Exhaustive per-workflow
+  keyboard operability + per-route WCAG 2.2 AA axe scans landed 2026-07-17;
+  see [rr011-keyboard-axe-evidence.md](operational/tests/2026-07-17-rr011-keyboard-axe-evidence.md).
 - **Phase E (MCP v2 spike / F11)** — ✅ Decision recorded as [ADR 0001](architecture/decisions/0001-mcp-transport.md).
 - **Backlog 999.x** — ⏭️ Still gated behind extraction quality (≥0.75/≥0.8).
   2026-07-17 update: prompt iteration (11 measured runs, see
@@ -116,7 +117,7 @@ existing worker/retrieval suites.
 ## Remaining / deferred
 
 - **RR-007 restore SLA (≤15 min)** — ⏭️ needs a timed backup→restore run with saved evidence.
-- **RR-011 full a11y suite** — 🟡 exhaustive keyboard + axe coverage for every core workflow (starter added).
+- ~~RR-011 full a11y suite~~ — ✅ Done 2026-07-17 (see above).
 - **Stale phase-5 MCP tests** — align 3 assertions to the RR-009 envelope + isolate.
 - **F11 Streamable-HTTP spike** — v1.2, per ADR 0001.
 - **Backlog 999.x** — gated on extraction ≥0.75 recall / ≥0.8 precision.
