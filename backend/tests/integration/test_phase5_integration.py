@@ -419,6 +419,59 @@ async def test_port_bundle_tombstone_prevents_resurrection(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_port_bundle_tombstone_erases_existing_local_content(
+    client: AsyncClient,
+    db_session_phase5: AsyncSession,
+):
+    """Copilot review finding on PR #5: a bundle tombstone matching an existing
+    LOCAL active item must crypto-erase its plaintext (like cascade_delete_archive_item()),
+    not just set deleted_at — otherwise the content survives in pg_dump backups."""
+    content = _unique_content("tombstone_erase")
+    chash = _content_hash(content)
+    item = RawArchiveItem(
+        id=uuid.uuid4(),
+        source_type="test",
+        source_name="pre-existing",
+        raw_content=content,
+        content_hash=chash,
+    )
+    db_session_phase5.add(item)
+    await db_session_phase5.flush()
+    await db_session_phase5.commit()
+
+    bundle = {
+        "format": "recalium-memory-bundle",
+        "version": "2",
+        "exported_at": "2026-03-24T00:00:00Z",
+        "items": [],
+        "canonical_memory": [],
+        "tombstones": [
+            {
+                "source_id": str(uuid.uuid4()),
+                "content_hash": chash,
+                "removal_type": "delete",
+                "removed_at": "2026-03-24T00:00:00Z",
+                "actor": "user_ui",
+                "reason": "deleted elsewhere",
+            }
+        ],
+    }
+    resp = await client.post("/api/import/bundle", json=bundle)
+    assert resp.status_code == 200
+    assert resp.json()["tombstones_applied"] == 1
+
+    result = await db_session_phase5.execute(
+        text("SELECT deleted_at, raw_content FROM raw_archive WHERE id = :id"),
+        {"id": str(item.id)},
+    )
+    row = result.fetchone()
+    assert row.deleted_at is not None, "tombstoned local item must be suppressed"
+    assert row.raw_content != content, (
+        "tombstoned local item's plaintext must be crypto-erased, not just suppressed"
+    )
+
+
+@pytest.mark.asyncio
 async def test_port_bundle_imports_canonical_memory(client: AsyncClient):
     """GPT5.6 #8/#17: user-curated canonical memory travels in the bundle."""
     unique = f"canonical portability note {uuid.uuid4()}"

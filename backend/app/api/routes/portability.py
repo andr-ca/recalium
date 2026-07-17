@@ -33,6 +33,7 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.archive.models import RawArchiveItem, Tombstone
+from app.domain.archive.service import _erase_plaintext, _suppress_derived
 from app.domain.archive.tombstones import DEFAULT_BACKUP_DIR, append_tombstone_ledger
 from app.domain.canonical_memory.models import CanonicalMemoryItem
 from app.domain.ingest.service import ingest_text_content
@@ -183,15 +184,15 @@ async def import_bundle(
                 continue
 
         try:
-            await ingest_text_content(
-                session=session,
-                content=raw_content,
-                source_name=source_name,
-            )
-            await session.flush()
+            async with session.begin_nested():
+                await ingest_text_content(
+                    session=session,
+                    content=raw_content,
+                    source_name=source_name,
+                )
+                await session.flush()
             imported += 1
         except Exception as exc:
-            await session.rollback()
             errors.append(f"Item {i} ({source_name!r}): {exc}")
 
     canonical_imported = await _import_canonical(
@@ -268,14 +269,23 @@ async def _apply_bundle_tombstones(
             )
             applied += 1
 
-        # Suppress any already-present local content matching this deletion.
-        await session.execute(
-            text(
-                "UPDATE raw_archive SET deleted_at = COALESCE(deleted_at, :now) "
-                "WHERE content_hash = :hash"
-            ),
-            {"now": datetime.now(timezone.utc), "hash": content_hash},
-        )
+        # Suppress AND crypto-erase any already-present local content matching
+        # this deletion — the same treatment cascade_delete_archive_item() /
+        # reapply_tombstones() give a direct delete, so a tombstoned bundle
+        # import can't leave plaintext recoverable via pg_dump.
+        rows = (
+            await session.execute(
+                select(RawArchiveItem).where(
+                    RawArchiveItem.content_hash == content_hash,
+                    RawArchiveItem.deleted_at.is_(None),
+                )
+            )
+        ).scalars().all()
+        for row in rows:
+            archive_id_str = str(row.id)
+            row.deleted_at = datetime.now(timezone.utc)
+            await _suppress_derived(session, archive_id_str)
+            await _erase_plaintext(session, archive_id_str)
     return applied
 
 
@@ -309,20 +319,20 @@ async def _import_canonical(
         if existing is not None:
             continue
         try:
-            session.add(
-                CanonicalMemoryItem(
-                    id=uuid.uuid4(),
-                    content=content,
-                    status=str(c.get("status") or "active"),
-                    source_status="active",
-                    promoted_from=str(c.get("promoted_from") or "manual"),
-                    promoted_by=str(c.get("promoted_by") or "bundle_import"),
-                    provenance_note=c.get("provenance_note"),
+            async with session.begin_nested():
+                session.add(
+                    CanonicalMemoryItem(
+                        id=uuid.uuid4(),
+                        content=content,
+                        status=str(c.get("status") or "active"),
+                        source_status="active",
+                        promoted_from=str(c.get("promoted_from") or "manual"),
+                        promoted_by=str(c.get("promoted_by") or "bundle_import"),
+                        provenance_note=c.get("provenance_note"),
+                    )
                 )
-            )
-            await session.flush()
+                await session.flush()
             count += 1
         except Exception as exc:  # noqa: BLE001
-            await session.rollback()
             errors.append(f"Canonical {i}: {exc}")
     return count

@@ -45,7 +45,7 @@ def _resolve_backup_path(filename: str, backup_dir: str) -> Path:
     """
     base = Path(backup_dir).resolve()
     candidate = (base / filename).resolve()
-    if candidate != base and not candidate.is_relative_to(base):
+    if candidate == base or not candidate.is_relative_to(base):
         raise ValueError(
             f"Refusing backup path outside {backup_dir!r}: {filename!r}"
         )
