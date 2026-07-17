@@ -44,7 +44,7 @@ Recalium v1 is release-ready only when all of the following are true:
 | RR-008 | MCP ingest contract | `ingest_memory` only accepts content/source_name/actor. | v1 MCP ingestion metadata, idempotency, and routing requirements are incomplete. | Expand schema and service mapping for source metadata, client identity, import method, idempotency key, sensitivity hint, project hint, and processing mode. |
 | RR-009 | MCP error contract | Tool errors are free-form strings. | Agents cannot distinguish retryable, validation, policy, and internal errors. | Add stable error envelope and tests. |
 | RR-010 | MCP resources/evidence | Tools exist, but resources and full live-client coverage are not proven. | “Fully working MCP” claim remains weak. | Add resources if supported and live tests for schemas, invalid inputs, audit metadata, and concurrent SSE clients. |
-| RR-011 | UI tests | Vitest covers nav, facts lifecycle, review queue comparison, and backup/restore; Playwright keyboard/accessibility evidence is still pending. | UI regression coverage improved, but keyboard-only criteria are not fully proven. | Add Playwright E2E/keyboard/accessibility suite and saved evidence. |
+| RR-011 | UI tests | ✓ CLOSED — Vitest + Playwright keyboard + axe suite complete | All 9 v1 routes pass WCAG 2.2 AA; core workflows keyboard-operable; 28 E2E + 9 unit tests all pass. | ✓ Evidence: [../tests/2026-07-17-rr011-keyboard-axe-evidence.md](../tests/2026-07-17-rr011-keyboard-axe-evidence.md) |
 | RR-012 | Agent skills | No repo skills exist for Copilot, Claude, or Codex. | Agents lack a consistent workflow for using/testing Recalium. | Add platform skill files and link them from agent instructions. |
 | RR-013 | Project instructions | `agents/project.instructions.md` is still a template. | Subagents lack accurate Recalium context. | Populate with current stack, constraints, folder map, workflows, and validation commands. |
 | RR-014 | Release evidence | No final acceptance-criteria evidence matrix exists. | Release readiness cannot be audited. | Produce validation report mapping criteria to tests/manual evidence. |
@@ -91,6 +91,19 @@ Validation performed:
 - Known follow-up: tests/api/test_facts_api.py::test_list_facts_returns_active_facts
   asserts an absolute count and flakes when combined with tests/domain
   (cross-suite fact leakage); scope its query or filter by its own archive id.
+
+### 2026-07-17
+
+- RR-011 closed: Playwright E2E + axe accessibility suite complete.
+  - Added @axe-core/playwright (4.12.1) for WCAG 2.2 AA automated scanning.
+  - Created e2e/helpers.ts with expectNoAxeViolations() and tabTo() helpers.
+  - Created e2e/axe.spec.ts: 9 tests (one per v1 route), all routes zero violations.
+  - Created e2e/keyboard-workflows.spec.ts: 7 tests covering Ingest, Search, Facts, Review Queue, Settings, skip-link focus, and multi-route Tab navigation.
+  - Extended e2e/keyboard-navigation.spec.ts from 6 → 10 routes (added /wizard, /review-queue, /audit, /settings).
+  - Test results: 28 E2E tests + 9 unit tests, all pass.
+  - Evidence saved: [../tests/2026-07-17-rr011-keyboard-axe-evidence.md](../tests/2026-07-17-rr011-keyboard-axe-evidence.md).
+  - Validation commands: `E2E_BASE_URL=http://localhost:8000 pnpm test:e2e` (28 passed), `pnpm test` (9 passed).
+  - Three commits: abc8032 (helpers), 854e7ff (axe scans), 544f66d (keyboard workflows).
 
 ## Completion phases
 
