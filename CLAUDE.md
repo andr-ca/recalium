@@ -174,3 +174,23 @@ Use the Recalium use/test skill when starting the app, testing, validating MCP, 
 Current local usage and testing guide: `docs/guides/local-use-and-test.md`.
 
 Current release-readiness tracker: `docs/operational/validations/recalium-v1-release-readiness-gap-register.md`.
+
+## Harness Feedback Loop
+
+This repo runs `agentharness-toolkit` (installed 2026-07-16, npm mode,
+`--with-hook`). Its router file (`.agentharness-pkg/CLAUDE.md`) carries
+mandates that override default push/PR/merge behavior — re-read it before
+any push, PR, or merge action, not just once at session start; its content
+is easy to skim past days after installation and the mandates matter most
+exactly when you're moving fast.
+
+Whenever a session hits a gap, ambiguity, or near-miss involving the
+harness — a hook that doesn't fire where you'd expect, router guidance
+that's unclear or hard to find in the moment, a bootstrap/doctor step whose
+output didn't match reality — add a dated entry to
+`docs/operational/harness-feedback.md` **before** ending the session. Don't
+wait to be asked. Use the existing entries there as the template: what
+happened → root cause → impact → what agentharness should do → corrective
+action taken. If a pattern repeats across sessions or looks structural
+rather than a one-off, that's the signal to also file it upstream in the
+agentharness repo.
