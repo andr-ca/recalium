@@ -6,6 +6,7 @@
 services:
   recalium-postgres:
     image: pgvector/pgvector:pg16
+    container_name: recalium-postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
@@ -32,6 +33,7 @@ services:
         # gpu  → sentence-transformers with CUDA torch    (~4 GB image delta)
         # none → skip local ML; use OpenAI / Anthropic / Ollama only
         EMBED_BACKEND: ${EMBED_BACKEND:-cpu}
+    container_name: recalium-app
     restart: unless-stopped
     depends_on:
       recalium-postgres:
@@ -55,7 +57,7 @@ services:
       # Bind to localhost only — prevents accidental LAN exposure
       - "127.0.0.1:${APP_PORT:-8000}:8000"
     volumes:
-      - ./backups:/app/backups
+      - ./backups:/backups
       - ./import:/app/import
     networks:
       - recalium-net
