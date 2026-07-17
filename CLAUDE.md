@@ -187,10 +187,19 @@ exactly when you're moving fast.
 Whenever a session hits a gap, ambiguity, or near-miss involving the
 harness — a hook that doesn't fire where you'd expect, router guidance
 that's unclear or hard to find in the moment, a bootstrap/doctor step whose
-output didn't match reality — add a dated entry to
-`docs/operational/harness-feedback.md` **before** ending the session. Don't
-wait to be asked. Use the existing entries there as the template: what
-happened → root cause → impact → what agentharness should do → corrective
-action taken. If a pattern repeats across sessions or looks structural
-rather than a one-off, that's the signal to also file it upstream in the
-agentharness repo.
+output didn't match reality — do **both** of the following, together, not
+as separate optional steps, **before** ending the session. Don't wait to be
+asked, and don't do only one:
+
+1. Add a dated entry to `docs/operational/harness-feedback.md`, using the
+   existing entries there as the template: what happened → root cause →
+   impact → what agentharness should do → corrective action taken.
+2. File the same finding as a GitHub issue on
+   [andr-ca/agentharness](https://github.com/andr-ca/agentharness/issues),
+   linking back to this repo/commit/PR and the doc entry — then record the
+   resulting issue number back in the doc entry (see that file's "Upstream
+   issues filed from this log" list) so the two stay linked.
+
+A doc entry with no upstream issue never reaches the harness maintainers;
+an issue with no local entry loses this repo's specific context. Both,
+every time.

@@ -15,6 +15,7 @@ once filed, so the two stay linked.
 **Upstream issues filed from this log:**
 - [andr-ca/agentharness#76](https://github.com/andr-ca/agentharness/issues/76) — trunk-protection hook doesn't fire on merge commits (first entry below)
 - [andr-ca/agentharness#77](https://github.com/andr-ca/agentharness/issues/77) — "give review time to post" mandate has no concrete threshold (second + third entries below)
+- [andr-ca/agentharness#78](https://github.com/andr-ca/agentharness/issues/78) — no mechanism surfaces stale unaddressed review comments on pre-existing open PRs (fifth entry below)
 
 ---
 
@@ -224,13 +225,70 @@ a small addendum to the same discussion rather than a standalone bug.
 
 ---
 
-## Standing instruction (added 2026-07-17)
+## 2026-07-17: A pre-existing PR sat 5 days with unaddressed, security-relevant review comments — nothing surfaced it
+
+**What happened:** while auditing PR #5 (`fix/gpt5.6-p0-backlog-closure`, a
+large pre-existing 21-commit PR, open since 2026-07-12) before merging it,
+`gh api repos/<owner>/<repo>/pulls/5/comments` turned up 8 inline Copilot
+review comments dated 2026-07-12/13 — several substantive, including a real
+gap in the PR's own flagship deletion-safety fix (the bundle-tombstone path
+doesn't crypto-erase plaintext the way the regular delete path does,
+undermining the PR's stated guarantee) and a transaction-scoping bug. None
+of these had been read, replied to, or acted on in the five days the PR sat
+open. Nothing about the harness, CI, or GitHub surfaced this proactively —
+it was found only because a session happened to audit the PR for an
+unrelated reason (chasing down why two *other* PRs' code assumed a bundle
+format this PR was the one actually implementing).
+
+**Root cause:** the completion-gate mandate ("never merge on CI alone —
+check review comments") only fires at the moment of merging a PR *you just
+opened*. There is no mechanism — hook, doctor check, or otherwise — that
+periodically surfaces PRs with stale unaddressed review comments sitting on
+the repo, especially ones opened days or weeks earlier by a previous
+session. An agent that never happens to revisit an old PR has no signal
+that security-relevant findings are waiting on it.
+
+**Impact:** a real gap in deletion-safety guarantees sat undiscovered and
+unfixed for 5 days on a PR whose entire purpose was closing deletion-safety
+findings — the opposite of what the PR was for.
+
+**What agentharness should do:**
+1. `harness-link.sh doctor` (or a new `harness-link.sh audit-prs`) could
+   list open PRs with review comments newer than the PR's last commit —
+   a simple, mechanical staleness signal independent of remembering to
+   check any individual PR.
+2. More generally: the router's "never merge on CI alone" mandate is framed
+   entirely around PRs an agent is actively finishing. It should also say
+   that starting or resuming work in a repo is a good trigger to check
+   `gh pr list` for any open PR with unaddressed review comments older than
+   a day or two, not just the PR currently being merged.
+
+**Corrective action taken this session:** the 3 substantive findings (crypto-erase gap, transaction scoping, backup-path edge case) are being triaged before merging PR #5, per the user's direction — see the PR itself for the resolution. Filed upstream as
+[andr-ca/agentharness#78](https://github.com/andr-ca/agentharness/issues/78).
+
+---
+
+## Standing instruction (updated 2026-07-17)
 
 Per user request, this repo's `CLAUDE.md` now includes a standing instruction
-to treat harness friction as a first-class finding: whenever a session hits a
-gap, ambiguity, or near-miss involving `agentharness` (hooks not firing as
-expected, unclear router guidance, a mandate that was hard to find or apply,
-a bootstrap step that didn't do what its output claimed), add a dated entry
-here **before** ending the session, using the two entries above as the
-template (what happened → root cause → impact → what agentharness should do
-→ corrective action taken). Do not wait to be asked.
+to treat harness friction as a first-class finding, **and to always do both
+of the following, together, not as separate optional steps**:
+
+1. Add a dated entry to this file **before** ending the session, using the
+   entries above as the template (what happened → root cause → impact →
+   what agentharness should do → corrective action taken).
+2. File the same finding as a GitHub issue on
+   [andr-ca/agentharness](https://github.com/andr-ca/agentharness/issues),
+   linking back to this file's entry, the consuming repo, and the relevant
+   commit/PR — and record the resulting issue number back in this file's
+   entry so the two stay linked (see the "Upstream issues filed from this
+   log" list at the top of this file).
+
+Do not wait to be asked, and do not do only one of the two — a doc entry
+with no upstream issue never reaches the harness maintainers; an issue with
+no local entry loses the project-specific context of what happened here.
+This applies whenever a session hits a gap, ambiguity, or near-miss
+involving `agentharness` (hooks not firing as expected, unclear router
+guidance, a mandate that was hard to find or apply, a bootstrap step that
+didn't do what its output claimed, or a process gap like the one just above
+this section).
