@@ -17,6 +17,7 @@ once filed, so the two stay linked.
 - [andr-ca/agentharness#77](https://github.com/andr-ca/agentharness/issues/77) — "give review time to post" mandate has no concrete threshold (second + third entries below)
 - [andr-ca/agentharness#78](https://github.com/andr-ca/agentharness/issues/78) — no mechanism surfaces stale unaddressed review comments on pre-existing open PRs (fifth entry below)
 - [andr-ca/agentharness#79](https://github.com/andr-ca/agentharness/issues/79) — feature request: an optional harness mechanism that *enforces* this exact monitor-log-file loop, instead of it happening only when a user asks (sixth entry below)
+- [andr-ca/agentharness#88](https://github.com/andr-ca/agentharness/issues/88) — npm-mode installer leaves 32+ skill files and `.agentharness-pkg/` uncommitted with no signal (seventh entry below)
 
 ---
 
@@ -307,6 +308,57 @@ directions.
 [andr-ca/agentharness#79](https://github.com/andr-ca/agentharness/issues/79)
 per the user's explicit request, since the earlier informal mention inside
 #77 wasn't enough — it needed to be its own tracked, standalone item.
+
+---
+
+## 2026-07-17: npm-mode installer left 32+ skill files and `.agentharness-pkg/` uncommitted, with no signal anything was wrong
+
+**What happened:** while auditing `.claude/skills/` in an unrelated session, `git ls-files
+.claude/skills/` returned only 2 tracked files (`recalium-memory`, `recalium-use-and-test` —
+this project's own hand-authored skills, added separately). All 32 of the skills the harness
+installer wrote (`accessibility`, `agentic-loops`, `api-design`, ... `testing`,
+`typescript-conventions`) exist on disk — real, substantial content, not stubs — but were
+never committed. `git log --all -- .claude/skills/` shows no commit ever added them.
+`.gitignore` does not exclude the directory; this isn't an intentional exclusion, the files
+are just sitting untracked. The harness's own bootstrap package, `.agentharness-pkg/`
+(`AGENTS.md`, `bin/`), is in the identical state — completely untracked, zero files in
+`git ls-files .agentharness-pkg/`.
+
+`.agentharness-state.json` confirms the install ran in npm mode on 2026-07-17T03:57:51Z. This
+went unnoticed through multiple sessions of actively using several of the installed skills —
+discovered only by accident, running `git ls-files` for an unrelated reason.
+
+**Root cause:** the npm-mode installer writes its skill bundle and package directory directly
+to the working tree, but nothing in the install flow stages, commits, or warns that a fresh
+install leaves 30+ new files outside version control. Unlike `node_modules/`-style installed
+content (expected and gitignored), these files are meant to be part of the consuming repo —
+they're read and used by agents working in it — so leaving them untracked means they're
+invisible to any other contributor, invisible in PR/blame history, and at risk of silent loss
+if the local checkout is ever wiped, with nothing marking them as repo content worth
+protecting.
+
+**Impact:** 32 real, working skill files existed only on one machine's local disk — not in
+repository history, not visible to any other contributor or CI run, not part of any
+reviewable PR — for the entire life of the install until this session found it by chance.
+
+**What agentharness should do:**
+1. After a fresh npm-mode install, either auto-stage the new files and print a clear "N new
+   files staged — commit these to make the skills part of your repo" message, or explicitly
+   prompt to commit.
+2. Decide and document the intended status of `.agentharness-pkg/` — if it's meant to behave
+   like a local-only cache, the installer should gitignore it automatically so the untracked
+   state reads as intentional rather than indistinguishable from "forgot to commit." If it's
+   meant to travel with the repo (so the pinned harness revision is reproducible), include it
+   in the same staging/prompt step as the skills.
+3. `harness-link.sh doctor` could detect this class of drift directly: for each skill listed
+   in `.agentharness-state.json`, check `git ls-files --error-unmatch <path>` and warn if an
+   installed skill exists only in the working tree.
+
+**Corrective action taken this session:** filed upstream as
+[andr-ca/agentharness#88](https://github.com/andr-ca/agentharness/issues/88). Not yet
+decided/committed: whether to commit the 32 skill directories as-is in this repo, and how to
+handle `.agentharness-pkg/` — deferred pending that issue's resolution, since committing
+`.agentharness-pkg/` without knowing its intended status could itself be wrong.
 
 ---
 
