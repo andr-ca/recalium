@@ -7,11 +7,15 @@ import { test, expect } from "@playwright/test";
 
 const CORE_ROUTES = [
   "/",
+  "/wizard",
   "/ingest",
   "/archive",
   "/search",
   "/facts",
   "/canonical",
+  "/review-queue",
+  "/audit",
+  "/settings",
 ];
 
 test.describe("keyboard navigation (RR-011 starter)", () => {
@@ -35,7 +39,12 @@ test.describe("keyboard navigation (RR-011 starter)", () => {
     test(`route ${route} loads without a crash`, async ({ page }) => {
       const resp = await page.goto(route);
       expect(resp?.ok() ?? true).toBeTruthy();
-      await expect(page.locator("body")).toBeVisible();
+
+      // Wait for main landmark or dialog to be visible
+      const landmarkSelector = route === "/wizard" ? "[role='dialog']" : "main, [role='main']";
+      await expect(page.locator(landmarkSelector).first()).toBeVisible({
+        timeout: 10_000,
+      });
     });
   }
 });
