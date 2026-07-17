@@ -258,6 +258,15 @@ Use Settings → Backup and Restore to:
 
 Restore testing still needs saved timing evidence before the 15-minute restore SLA can be closed.
 
+### 11. Export / import your memory bundle
+
+Use Settings → Memory Portability to export your memory as a portable JSON bundle or import a previously exported bundle:
+
+- **Export:** Click "Export bundle" to download a JSON file named `recalium-memory-bundle-YYYY-MM-DD.json`. The file contains all items, canonical memory, and tombstones. Use this to transfer your memory to another Recalium instance or for backup.
+- **Import:** Select a `.json` bundle file via the file input. After parsing (errors shown inline), review the confirmation step, then click "Confirm" to import. The result summary shows counts of imported/skipped items and any errors that occurred during partial import.
+
+The bundle format is documented in [docs/architecture/memory-bundle-schema.md](../architecture/memory-bundle-schema.md).
+
 ## MCP usage path
 
 Recalium mounts MCP SSE at `http://localhost:8000/mcp/sse`.

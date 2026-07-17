@@ -441,6 +441,36 @@ export async function restoreBackup(filename: string): Promise<{ status: string;
   });
 }
 
+// ── Portability (Memory Bundle) ────────────────────────────────────────────
+
+export interface MemoryBundle {
+  format: string; // "recalium-memory-bundle"
+  version: string; // "2"
+  exported_at: string;
+  items: unknown[];
+  canonical_memory?: unknown[];
+  tombstones?: unknown[];
+}
+
+export interface BundleImportResponse {
+  imported: number;
+  skipped: number;
+  canonical_imported: number;
+  tombstones_applied: number;
+  errors: string[];
+}
+
+export async function exportBundle(): Promise<MemoryBundle> {
+  return request<MemoryBundle>("/export/bundle");
+}
+
+export async function importBundle(bundle: unknown): Promise<BundleImportResponse> {
+  return request<BundleImportResponse>("/import/bundle", {
+    method: "POST",
+    body: JSON.stringify(bundle),
+  });
+}
+
 // ── Telemetry ─────────────────────────────────────────────────────────────────
 
 export interface TelemetryDay {
