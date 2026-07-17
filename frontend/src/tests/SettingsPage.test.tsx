@@ -114,10 +114,6 @@ describe("SettingsPage memory portability (export/import)", () => {
       tombstones_applied: 1,
       errors: [],
     });
-
-    // Mock URL.createObjectURL and document.createElement for download
-    global.URL.createObjectURL = vi.fn(() => "blob:mock-url");
-    global.URL.revokeObjectURL = vi.fn();
   });
 
   it("renders portability section", async () => {
