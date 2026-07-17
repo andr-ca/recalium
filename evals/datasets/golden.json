@@ -172,6 +172,46 @@
             "postgresql",
             "performance"
           ]
+        },
+        {
+          "id": "fact-109",
+          "text": "For large tables, index WHERE clause columns first",
+          "source_span": "Index your WHERE clause columns first",
+          "confidence": 0.95,
+          "tags": [
+            "postgresql",
+            "indexing"
+          ]
+        },
+        {
+          "id": "fact-110",
+          "text": "For large tables, index ORDER BY columns after WHERE clause columns",
+          "source_span": "Then ORDER BY columns",
+          "confidence": 0.95,
+          "tags": [
+            "postgresql",
+            "indexing"
+          ]
+        },
+        {
+          "id": "fact-111",
+          "text": "PostgreSQL 11+ supports covering indexes via the INCLUDE clause",
+          "source_span": "covering indexes (INCLUDE in PostgreSQL 11+)",
+          "confidence": 0.95,
+          "tags": [
+            "postgresql",
+            "indexing"
+          ]
+        },
+        {
+          "id": "fact-112",
+          "text": "Use EXPLAIN ANALYZE to verify index usage in PostgreSQL",
+          "source_span": "Use EXPLAIN ANALYZE to verify index usage",
+          "confidence": 0.9,
+          "tags": [
+            "postgresql",
+            "indexing"
+          ]
         }
       ],
       "metadata": {
