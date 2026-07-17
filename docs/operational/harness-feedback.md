@@ -16,6 +16,7 @@ once filed, so the two stay linked.
 - [andr-ca/agentharness#76](https://github.com/andr-ca/agentharness/issues/76) — trunk-protection hook doesn't fire on merge commits (first entry below)
 - [andr-ca/agentharness#77](https://github.com/andr-ca/agentharness/issues/77) — "give review time to post" mandate has no concrete threshold (second + third entries below)
 - [andr-ca/agentharness#78](https://github.com/andr-ca/agentharness/issues/78) — no mechanism surfaces stale unaddressed review comments on pre-existing open PRs (fifth entry below)
+- [andr-ca/agentharness#79](https://github.com/andr-ca/agentharness/issues/79) — feature request: an optional harness mechanism that *enforces* this exact monitor-log-file loop, instead of it happening only when a user asks (sixth entry below)
 
 ---
 
@@ -266,6 +267,46 @@ findings — the opposite of what the PR was for.
 
 **Corrective action taken this session:** the 3 substantive findings (crypto-erase gap, transaction scoping, backup-path edge case) are being triaged before merging PR #5, per the user's direction — see the PR itself for the resolution. Filed upstream as
 [andr-ca/agentharness#78](https://github.com/andr-ca/agentharness/issues/78).
+
+---
+
+## 2026-07-17: Request — an optional harness mechanism that *enforces* this monitor-log-file loop
+
+**What happened:** this file's own "Standing instruction" section (below) tells
+future sessions to log harness friction locally *and* file it upstream, every
+time, without being asked. But that instruction only exists in this repo's
+`CLAUDE.md` because the user asked for it explicitly, after already having to
+ask twice: once for the local doc (after the trunk-hook/merge-on-CI incidents),
+and again as a correction when the doc-only version missed the "also file it
+upstream" half of the loop. Nothing in the harness itself required or
+scaffolded any of this — every step so far has been reactive to a direct user
+ask, not something the harness made happen on its own.
+
+**Root cause:** the harness currently treats "give agents the right
+instructions" as sufficient. It isn't, on its own — an instruction living in a
+CLAUDE.md router competes with everything else the agent is doing under time
+pressure (see the entries above: an agent can read the exact right mandate and
+still not apply it in the moment). There is no *mechanism* — hook, completion
+check, or skill — that enforces the monitor→log→file loop the way, say,
+`prevent-trunk-commit` enforces trunk protection or `check-completion.sh`
+enforces the lint/test/coverage gate. Feedback-about-the-harness is currently
+the one category of "important standing behavior" left entirely to prose.
+
+**What agentharness should do:** filed as a standalone feature request,
+[andr-ca/agentharness#79](https://github.com/andr-ca/agentharness/issues/79)
+(a fuller version of the smaller suggestion already in #77) — an **opt-in**
+mechanism that: (1) makes noticing harness friction the default behavior for
+qualifying events rather than something only a direct ask triggers, (2) logs
+it locally with a standard template, (3) files it upstream with the
+originating repo/project, full context, and a concrete recommendation always
+included structurally (not left to the filing agent's judgment each time),
+and (4) keeps the local entry and the upstream issue linked in both
+directions.
+
+**Corrective action taken this session:** filed
+[andr-ca/agentharness#79](https://github.com/andr-ca/agentharness/issues/79)
+per the user's explicit request, since the earlier informal mention inside
+#77 wasn't enough — it needed to be its own tracked, standalone item.
 
 ---
 
