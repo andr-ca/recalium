@@ -51,8 +51,16 @@ Legend: ✅ Done · 🟡 Partial · ⛔ Not started · ⏭️ Deferred (by desig
 - **Phase D (accessibility / RR-011)** — 🟡 Playwright scaffold + a keyboard
   smoke test added; the exhaustive per-workflow keyboard + axe suite remains.
 - **Phase E (MCP v2 spike / F11)** — ✅ Decision recorded as [ADR 0001](architecture/decisions/0001-mcp-transport.md).
-- **Backlog 999.x** — ⏭️ Correctly gated behind extraction quality (≥0.75/≥0.8);
-  current extraction is 0.625/0.767, so these stay deferred.
+- **Backlog 999.x** — ⏭️ Still gated behind extraction quality (≥0.75/≥0.8).
+  2026-07-17 update: prompt iteration (11 measured runs, see
+  [2026-07-17-extraction-failure-analysis.md](operational/tests/2026-07-17-extraction-failure-analysis.md))
+  raised recall to 0.774 (recall gate ✅) with span fidelity/provenance held at
+  1.0, but precision plateaued at 0.617 (precision gate ⛔). Remaining precision
+  loss is assessed as architectural (chunks lack conversation context →
+  cross-conversation contamination), not prompt-fixable; next levers are
+  chunk-level conversation metadata, a larger golden set (currently 2
+  conversations), or a closed-model `EXTRACT_PROVIDER` experiment. 999.x stays
+  deferred until the precision gate is met.
 
 ### §4 Architecture
 
