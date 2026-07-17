@@ -174,6 +174,12 @@ async def detect_and_group_duplicates(
     group = await create_conflict_group(session, group_type="duplicate")
     involved = [raw_archive_id, *dup_archive_ids]
     linked = await link_facts_to_group(session, group.id, involved)
+    # GPT5.6 #10: materialize a review item so the conflict actually surfaces in the
+    # review queue (previously the group was created and linked but never queued, so
+    # the user could never act on it).
+    from app.domain.review_queue.service import materialize_review_item  # noqa: PLC0415
+    await materialize_review_item(session, group.id, item_type="duplicate")
+    await session.commit()
     return DuplicateDetection(
         group=group,
         duplicate_archive_ids=dup_archive_ids,

@@ -1,4 +1,4 @@
-.PHONY: setup-env up up-prod down logs build frontend-dev frontend-build frontend-test test-backend test-backend-e2e test-frontend lint typecheck validate smoke eval shell-app shell-db migrate reset-dev
+.PHONY: setup-env up up-prod down logs build frontend-dev frontend-build frontend-test test-backend test-backend-e2e test-frontend lint typecheck validate smoke eval eval-strict eval-scale shell-app shell-db migrate reset-dev
 
 ## Create .env from .env.sample if it does not already exist
 setup-env:
@@ -65,6 +65,14 @@ typecheck:
 ## Run evaluation suite against live stack; requires docker compose up
 eval:
 	cd backend && uv run --project . python ../evals/runner.py --base-url http://localhost:8000 --output-dir ../evals/results
+
+## Release eval gate: fails on ANY skipped or errored check (GPT5.6 #3)
+eval-strict:
+	cd backend && uv run --project . python ../evals/runner.py --base-url http://localhost:8000 --output-dir ../evals/results --strict
+
+## Scale/concurrency eval: ingests a volume corpus, measures latency + concurrency (GPT5.6 #20)
+eval-scale:
+	cd backend && uv run --project . python ../evals/runner.py --base-url http://localhost:8000 --output-dir ../evals/results --scale --scale-size 150
 
 ## Smoke-check local API; requires docker compose up
 smoke:

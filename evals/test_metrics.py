@@ -56,3 +56,112 @@ def test_ndcg_full_qrels_penalizes_omitted_relevant():
     assert ndcg_at_k(returned, k=10) == 1.0  # legacy (no qrels) -> perfect
     ndcg = ndcg_at_k(returned, k=10, total_relevant=3)  # but 3 relevant exist
     assert 0.0 < ndcg < 1.0
+
+
+# ── Eval overall-status determination (GPT5.6 #3) ──────────────────────────
+
+
+def _check(name, passed, skipped=False):
+    from evals.checks import CheckResult
+
+    return CheckResult(
+        name=name, passed=passed, metrics={}, details="", skipped=skipped,
+        skip_reason=("skip" if skipped else ""),
+    )
+
+
+def test_status_all_executed_pass_is_pass():
+    from evals.runner import determine_overall_status
+
+    checks = [_check("a", True), _check("b", True)]
+    passed, skipped = determine_overall_status(checks, strict=False)
+    assert passed is True and skipped == []
+
+
+def test_status_any_executed_failure_is_fail():
+    from evals.runner import determine_overall_status
+
+    checks = [_check("a", True), _check("b", False)]
+    passed, _ = determine_overall_status(checks, strict=False)
+    assert passed is False
+
+
+def test_status_all_skipped_never_passes():
+    from evals.runner import determine_overall_status
+
+    checks = [_check("a", False, skipped=True), _check("b", False, skipped=True)]
+    passed, skipped = determine_overall_status(checks, strict=False)
+    assert passed is False
+    assert len(skipped) == 2
+
+
+def test_status_non_strict_is_fail_open_on_skips():
+    """Default (dev) mode passes if executed checks pass, even with skips."""
+    from evals.runner import determine_overall_status
+
+    checks = [_check("a", True), _check("b", False, skipped=True)]
+    passed, _ = determine_overall_status(checks, strict=False)
+    assert passed is True
+
+
+def test_status_strict_fails_on_any_skip():
+    """Release mode refuses to pass when any check was skipped or errored."""
+    from evals.runner import determine_overall_status
+
+    checks = [_check("a", True), _check("b", False, skipped=True)]
+    passed, skipped = determine_overall_status(checks, strict=True)
+    assert passed is False
+    assert len(skipped) == 1
+
+
+# ── Diverse scale corpus generator (GPT5.6 #20) ────────────────────────────
+
+
+def test_generate_corpus_size_and_shape():
+    from evals.datasets.generate_corpus import generate_corpus
+
+    corpus = generate_corpus(120, seed=1)
+    assert corpus["size"] == 120
+    assert len(corpus["conversations"]) == 120
+    for conv in corpus["conversations"]:
+        assert conv["query"] == conv["token"]
+        assert conv["token"] in conv["text"]  # the unique token is retrievable
+
+
+def test_generate_corpus_is_deterministic():
+    from evals.datasets.generate_corpus import generate_corpus
+
+    a = generate_corpus(50, seed=7)
+    b = generate_corpus(50, seed=7)
+    assert a == b
+
+
+def test_generate_corpus_tokens_are_unique():
+    from evals.datasets.generate_corpus import generate_corpus
+
+    convs = generate_corpus(200, seed=2)["conversations"]
+    tokens = [c["token"] for c in convs]
+    assert len(set(tokens)) == len(tokens)  # every conversation is separable
+
+
+def test_generate_corpus_is_topically_diverse():
+    from evals.datasets.generate_corpus import generate_corpus
+
+    convs = generate_corpus(60, seed=3)["conversations"]
+    # A tiny tuned fixture is the problem being fixed — require real breadth.
+    assert len({c["topic"] for c in convs}) >= 10
+
+
+def test_generate_corpus_rejects_negative_size():
+    import pytest
+
+    from evals.datasets.generate_corpus import generate_corpus
+
+    with pytest.raises(ValueError):
+        generate_corpus(-1)
+
+
+def test_scale_check_is_importable():
+    """Structural guard: the scale check and its runner wiring import cleanly."""
+    from evals.checks.eval_scale import run_check  # noqa: F401
+    from evals.runner import run_scale_check  # noqa: F401

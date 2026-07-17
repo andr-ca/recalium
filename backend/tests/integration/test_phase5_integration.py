@@ -164,7 +164,10 @@ async def test_mcp02_ingest_memory_success(db_session_phase5: AsyncSession):
 
     factory = _make_session_factory(db_session_phase5)
     with patch("app.mcp_server.server.get_session_factory", return_value=factory):
-        result = await ingest_memory(content=content, source_name="mcp-test-session")
+        result = await ingest_memory(
+            content=content,
+            source_metadata={"source_type": "mcp", "source_name": "mcp-test-session"},
+        )
 
     assert result.get("status") == "accepted", f"Expected accepted, got: {result}"
     assert result.get("item_count", 0) >= 1
@@ -176,8 +179,9 @@ async def test_mcp02_ingest_memory_empty_content():
     """MCP-02: ingest_memory with empty content returns descriptive error."""
     result = await ingest_memory(content="")
 
-    assert "error" in result, f"Expected error key, got: {result}"
-    assert "content" in result["error"].lower(), (
+    # RR-009: stable error envelope {status, error: {code, message, details, retryable}}
+    assert result.get("status") == "error", f"Expected error status, got: {result}"
+    assert "content" in result["error"]["message"].lower(), (
         f"Error should mention 'content': {result['error']}"
     )
 
@@ -195,8 +199,9 @@ async def test_mcp02_ingest_memory_too_short():
     """MCP-02: ingest_memory with content < 10 chars returns descriptive error."""
     result = await ingest_memory(content="short")
 
-    assert "error" in result, f"Expected error key, got: {result}"
-    error_msg = result["error"].lower()
+    # RR-009: stable error envelope {status, error: {code, message, details, retryable}}
+    assert result.get("status") == "error", f"Expected error status, got: {result}"
+    error_msg = result["error"]["message"].lower()
     assert "short" in error_msg or "10" in error_msg or "minimum" in error_msg, (
         f"Error should mention short content or minimum: {result['error']}"
     )
@@ -226,10 +231,13 @@ async def test_port01_export_bundle_format(
     assert resp.status_code == 200
     data = resp.json()
     assert data["format"] == "recalium-memory-bundle"
-    assert data["version"] == "1"
+    assert data["version"] == "2"
     assert "exported_at" in data
     assert "items" in data
     assert isinstance(data["items"], list)
+    # GPT5.6 #8/#17: the bundle now carries canonical memory and the deletion ledger.
+    assert isinstance(data["canonical_memory"], list)
+    assert isinstance(data["tombstones"], list)
 
 
 @pytest.mark.asyncio
@@ -367,6 +375,133 @@ async def test_port01_import_bundle_invalid_version(client: AsyncClient):
     }
     resp = await client.post("/api/import/bundle", json=bundle)
     assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_port_bundle_tombstone_prevents_resurrection(client: AsyncClient):
+    """GPT5.6 #8: a bundle tombstone stops deleted content being re-imported."""
+    content = _unique_content("tombstone_port")
+    chash = _content_hash(content)
+    bundle = {
+        "format": "recalium-memory-bundle",
+        "version": "2",
+        "exported_at": "2026-03-24T00:00:00Z",
+        "items": [
+            {
+                "id": str(uuid.uuid4()),
+                "source_type": "test",
+                "source_name": "x",
+                "ingested_at": "2026-03-24T00:00:00Z",
+                "raw_content": content,
+                "content_hash": chash,
+                "conversation_count": 1,
+                "metadata": None,
+            }
+        ],
+        "canonical_memory": [],
+        "tombstones": [
+            {
+                "source_id": str(uuid.uuid4()),
+                "content_hash": chash,
+                "removal_type": "delete",
+                "removed_at": "2026-03-24T00:00:00Z",
+                "actor": "user_ui",
+                "reason": "deleted elsewhere",
+            }
+        ],
+    }
+    resp = await client.post("/api/import/bundle", json=bundle)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["tombstones_applied"] == 1
+    assert data["imported"] == 0, "tombstoned content must not be resurrected"
+    assert data["skipped"] == 1
+
+
+@pytest.mark.asyncio
+async def test_port_bundle_tombstone_erases_existing_local_content(
+    client: AsyncClient,
+    db_session_phase5: AsyncSession,
+):
+    """Copilot review finding on PR #5: a bundle tombstone matching an existing
+    LOCAL active item must crypto-erase its plaintext (like cascade_delete_archive_item()),
+    not just set deleted_at — otherwise the content survives in pg_dump backups."""
+    content = _unique_content("tombstone_erase")
+    chash = _content_hash(content)
+    item = RawArchiveItem(
+        id=uuid.uuid4(),
+        source_type="test",
+        source_name="pre-existing",
+        raw_content=content,
+        content_hash=chash,
+    )
+    db_session_phase5.add(item)
+    await db_session_phase5.flush()
+    await db_session_phase5.commit()
+
+    bundle = {
+        "format": "recalium-memory-bundle",
+        "version": "2",
+        "exported_at": "2026-03-24T00:00:00Z",
+        "items": [],
+        "canonical_memory": [],
+        "tombstones": [
+            {
+                "source_id": str(uuid.uuid4()),
+                "content_hash": chash,
+                "removal_type": "delete",
+                "removed_at": "2026-03-24T00:00:00Z",
+                "actor": "user_ui",
+                "reason": "deleted elsewhere",
+            }
+        ],
+    }
+    resp = await client.post("/api/import/bundle", json=bundle)
+    assert resp.status_code == 200
+    assert resp.json()["tombstones_applied"] == 1
+
+    result = await db_session_phase5.execute(
+        text("SELECT deleted_at, raw_content FROM raw_archive WHERE id = :id"),
+        {"id": str(item.id)},
+    )
+    row = result.fetchone()
+    assert row.deleted_at is not None, "tombstoned local item must be suppressed"
+    assert row.raw_content != content, (
+        "tombstoned local item's plaintext must be crypto-erased, not just suppressed"
+    )
+
+
+@pytest.mark.asyncio
+async def test_port_bundle_imports_canonical_memory(client: AsyncClient):
+    """GPT5.6 #8/#17: user-curated canonical memory travels in the bundle."""
+    unique = f"canonical portability note {uuid.uuid4()}"
+    bundle = {
+        "format": "recalium-memory-bundle",
+        "version": "2",
+        "exported_at": "2026-03-24T00:00:00Z",
+        "items": [],
+        "canonical_memory": [
+            {
+                "id": str(uuid.uuid4()),
+                "content": unique,
+                "status": "active",
+                "promoted_from": "fact",
+                "promoted_by": "user_ui",
+                "provenance_note": '{"source_span": "kept"}',
+                "raw_archive_id": str(uuid.uuid4()),
+                "fact_id": str(uuid.uuid4()),
+                "created_at": "2026-03-24T00:00:00Z",
+            }
+        ],
+        "tombstones": [],
+    }
+    resp = await client.post("/api/import/bundle", json=bundle)
+    assert resp.status_code == 200
+    assert resp.json()["canonical_imported"] == 1
+
+    listing = await client.get("/api/canonical")
+    contents = [c["content"] for c in listing.json()["items"]]
+    assert unique in contents
 
 
 @pytest.mark.asyncio

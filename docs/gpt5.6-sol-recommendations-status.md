@@ -16,33 +16,56 @@ Most P0s are **multi-day architectural builds**, not one-pass fixes; those are a
 
 | #   | P   | Finding (short)                                | Decision                                       | Evidence           |
 | --- | --- | ---------------------------------------------- | ---------------------------------------------- | ------------------ |
-| 1   | P0  | Cold-start vendor import not implemented       | � Import domain built (per-conversation)       | `feat(import)`     |
-| 2   | P0  | Deletion/backup/restore safety                 | 📋 Planned                                      | design below       |
-| 3   | P0  | Eval can go green after skips/errors           | 🟡 Implemented (strict mode)                    | `b285da8`          |
-| 4   | P0  | Retrieval filters + hybrid fusion              | 🟡 Filters+mode done; fusion planned            | `9d216b3`          |
+| 1   | P0  | Cold-start vendor import not implemented       | ✅ Import domain built (per-conversation)       | `feat(import)`     |
+| 2   | P0  | Deletion/backup/restore safety                 | ✅ Implemented (crypto-erase + tombstone ledger + safe restore) | `4849828`     |
+| 3   | P0  | Eval can go green after skips/errors           | ✅ Implemented (testable strict gate)           | `15267e4`          |
+| 4   | P0  | Retrieval filters + hybrid fusion              | ✅ Implemented (stable-identity RRF + SQL filters + fact FTS) | `9bce2ef`,`1ead3f7`,`787ad29` |
 | 5   | P0  | BYOK wizard claims config it doesn't do        | ✅ Implemented                                  | `6788d91`          |
-| 6   | P0  | MCP processing/sensitivity not enforced        | � Effective policy enforced at provider gate   | `feat(policy)`     |
+| 6   | P0  | MCP processing/sensitivity not enforced        | ✅ Implemented (all external egress gated; fail-closed audit) | `4a657cc` |
 | 7   | P0  | Clean build fails; deep links 404              | ✅ SPA fallback + multi-stage build             | `6788d91`, Dockerfile |
-| 8   | P0  | "Memory bundle" is a raw archive               | 🟡 Scope corrected; graph bundle planned        | this commit        |
-| 9   | P0  | Concurrency: deletion vs promotion races       | 📋 Planned                                      | design below       |
-| 10  | P0  | Conflict detection empty; resolve is a no-op   | � Duplicate groups linked to facts + audited    | `feat(conflict)`   |
+| 8   | P0  | "Memory bundle" is a raw archive               | ✅ v2 bundle (canonical memory + deletion ledger) | `f0bd9bc`        |
+| 9   | P0  | Concurrency: deletion vs promotion races       | ✅ Implemented (serialized + server-side promotion) | `b830279`      |
+| 10  | P0  | Conflict detection empty; resolve is a no-op   | ✅ Implemented (queue materialization + keep/suppress effects) | `1da5f3a` |
 | 11  | P1  | MCP reads not durably audited; error contracts | ✅ Implemented                                  | `9d216b3`          |
-| 12  | P1  | Extraction/ranking metric defects              | � Implemented (matching/span/nDCG + tests)     | `evals/metrics.py` |
+| 12  | P1  | Extraction/ranking metric defects              | ✅ Implemented (matching/span/nDCG + tests)     | `evals/metrics.py` |
 | 13  | P1  | Red/skipped gates; no app CI                   | ✅ CI workflow (backend/frontend/docker build)  | `.github/workflows/ci.yml` |
 | 14  | P1  | Keyboard a11y + curation incomplete            | 🟡 Ingest tabs/upload keyboard-operable; suite planned | `500542f`, IngestPage |
 | 15  | P1  | Website/repo claims inaccurate; no LICENSE     | 🟡 LICENSE added; website copy planned          | `500542f`          |
-| 16  | P1  | Requirements/plans not traceable               | � Requirement→test matrix + CI gate (50/52)     | `feat(traceability)` |
-| 17  | P1  | Provenance/canonical integrity below promise   | 🟡 Claim corrected; envelope planned            | this commit        |
+| 16  | P1  | Requirements/plans not traceable               | ✅ Requirement→test matrix + CI gate (50/52)     | `feat(traceability)` |
+| 17  | P1  | Provenance/canonical integrity below promise   | ✅ Server-derived promotion provenance + carried in bundle | `b830279`,`f0bd9bc` |
 | 18  | P1  | `memory/` credential & path-traversal hazards  | 📋 Planned (quarantine)                         | —                  |
 | 19  | P1  | "Exposed mode" not fully wired/secure          | 📋 Planned (declare unsupported)                | —                  |
-| 20  | P1  | Eval not representative/isolated/at-scale      | 📋 Planned                                      | —                  |
-| 21  | P1  | Embedding provider routing partial             | � Canonical model + stale-embedding guard      | `feat(embeddings)` |
+| 20  | P1  | Eval not representative/isolated/at-scale      | ✅ Diverse corpus + scale/concurrency check; real vendor data TBD | `ed98bb2`  |
+| 21  | P1  | Embedding provider routing partial             | ✅ Canonical model + stale-embedding guard      | `feat(embeddings)` |
 | 22  | P1  | Frontend error/deleted-item states mislead     | ✅ deleted_at + Canonical error/empty states    | `6788d91`, CanonicalPage |
 | 23  | P1  | Differentiation/market evidence stale          | 💬 Accepted (docs)                              | 📋                  |
 | 24  | P1  | Initial customer/packaging unresolved          | 💬 Accepted (product)                           | 📋                  |
 | 25  | P2  | Move MCP to Streamable-HTTP                    | 🔵 ADR exists; spike planned                    | ADR 0001           |
 | 26  | P2  | Static debt / oversized modules                | 📋 Planned                                      | —                  |
 | 27  | P2  | "Local-first" wording too strong               | ✅ Clarified (README privacy model)             | `README.md`        |
+
+## Implementation pass — 2026-07-11 (P0 backlog closure)
+
+A focused pass that implemented and validated the remaining top-ranked P0s as eleven
+atomic, individually-reverting commits. The backend non-e2e suite went from 233 pass
+(+3 failing) to **273 pass / 13 skip**, random-order-safe throughout; eval metric
+tests **18 pass**; migrations `0007`+`0008` were applied over the full chain on real
+Postgres; and the #2 safety loop and #20 scale/concurrency check were both proven
+**end-to-end against the live stack**.
+
+| Finding | Commit | What landed |
+| --- | --- | --- |
+| #2 (rank 1) | `4849828` | Crypto-erase of raw+derived plaintext on delete; durable tombstone ledger (DB table + external NDJSON, outside the dump); restore hardened with path-containment, archive validation, pre-restore snapshot + rollback, **post-restore health check** (not exit-code), and tombstone reapply. Root-caused & fixed a real **pg17-client → pg16-server** dump/restore skew (pinned `postgresql-client-16`). |
+| #9 (rank 3) | `b830279` | Deletion takes a `FOR UPDATE` row lock; the pipeline ends with `suppress_new_derivations_if_deleted()` under the same lock so derivations written mid-flight can't resurrect deleted content. Promotion is server-authoritative: loads the fact under lock, refuses removed facts/sources, derives source linkage + source-span attestation from the stored fact (ignores client `has_source_span`), rejects a mismatched `raw_archive_id`, records server-computed provenance. |
+| #6 (rank 2) | `4a657cc` | Link-detection **Pass B** (external LLM) now gated on the resolved policy; `policy_decision` audit is **fail-closed** (no egress without a durable record); audit records the real provider (not a model label). |
+| #4 (rank 6) | `9bce2ef`, `1ead3f7`, `787ad29` | **Stable-identity RRF** (fuse the same conversation across modes, not incompatible row ids); **SQL-level** source/time/category filters (applied before the per-mode LIMIT); `chatgpt`≡`chatgpt_import` aliasing; the category filter made real (gate `data_class` persisted to `metadata_json`); **direct fact retrieval** via a generated `facts.search_vector` FTS column + GIN index (migration `0008`). |
+| #8 / #17 | `f0bd9bc` | Portable bundle **v2** carries user-curated **canonical memory** and the **deletion ledger**; import applies bundle tombstones first (deleted content can't be resurrected) and restores canonical memory with its provenance. |
+| #10 (rank 7) | `1da5f3a` | Detected conflicts now **materialize a review item** (previously never queued); resolve/dismiss have real domain effects — `keep` clears the conflict flag, `suppress` keeps the best fact and removes the duplicates — and reindex. |
+| #3 (rank 4) | `15267e4` | Extracted `determine_overall_status()` (no executed checks never passes; strict fails on any skip/error) with unit tests + a `make eval-strict` release gate. |
+| #20 (rank 5) | `ed98bb2` | Deterministic, topically-diverse `generate_corpus()` (replaces the tiny tuned fixture) and an opt-in **scale/concurrency check** (`make eval-scale`) measuring retrieval latency percentiles + precision at volume and proving concurrent retrieval/deletion stays correct. Real vendor-export corpus remains out of scope for a code change. |
+| #7 / #13 / #26 | `099add4` | Unknown `/api/*` routes return a JSON 404 (not SPA HTML); the 3 stale phase-5 MCP tests fixed to the RR-009 envelope and un-deselected in CI; a global truncation fixture makes the whole suite **random-order-safe**. |
+
+**Remaining:** #16 (traceability matrix — process/docs) and the real-vendor-export half of #20 (needs real data, not code).
 
 ## Implemented this pass
 

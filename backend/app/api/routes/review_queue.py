@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.domain.archive.models import RawArchiveItem
 from app.domain.derived_memory.models import ConflictGroup, Fact
 from app.domain.review_queue.service import (
+    InvalidResolutionActionError,
     ReviewItemNotFoundError,
     dismiss_review_item,
     list_pending_review_items,
@@ -27,6 +28,8 @@ router = APIRouter(prefix="/api/review-queue", tags=["review-queue"])
 class ResolveBody(BaseModel):
     resolved_by: str = "user_ui"
     resolution_note: str = ""
+    # GPT5.6 #10: 'keep' (facts coexist) or 'suppress' (keep the best, drop the rest).
+    action: str = "keep"
 
 
 def _fact_to_dict(fact: Fact, archive: RawArchiveItem | None) -> dict:
@@ -108,9 +111,12 @@ async def resolve(
             session, item_id,
             resolution_note=body.resolution_note,
             resolved_by=body.resolved_by,
+            action=body.action,
         )
     except ReviewItemNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except InvalidResolutionActionError as e:
+        raise HTTPException(status_code=422, detail=str(e))
     return await _item_to_dict(item, session)
 
 

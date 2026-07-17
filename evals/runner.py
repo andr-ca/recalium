@@ -29,6 +29,7 @@ from evals.checks.eval_extraction import run_check as run_extraction_check
 from evals.checks.eval_retrieval import run_check as run_retrieval_check
 from evals.checks.eval_sensitivity import run_check as run_sensitivity_check
 from evals.checks.eval_mcp import run_check as run_mcp_check
+from evals.checks.eval_scale import run_check as run_scale_check
 from evals.report import ReportWriter
 
 
@@ -78,6 +79,9 @@ async def run_all_checks(
         ("sensitivity", run_sensitivity_check),
         ("mcp", run_mcp_check),
     ]
+    # GPT5.6 #20: the scale/concurrency check is opt-in (it ingests a volume corpus).
+    if settings.get("scale"):
+        check_functions.append(("scale", run_scale_check))
 
     for check_name, check_fn in check_functions:
         print(f"  Running {check_name} check...", end=" ", flush=True)
@@ -105,6 +109,25 @@ async def run_all_checks(
             ))
 
     return checks
+
+
+def determine_overall_status(
+    checks: List[CheckResult],
+    *,
+    strict: bool,
+) -> tuple[bool, List[CheckResult]]:
+    """Compute (overall_passed, skipped_checks) for a run (GPT5.6 #3).
+
+    A run with no executed (non-skipped) checks never passes — an all-skipped or
+    all-errored suite cannot report success. In strict (release) mode, ANY skipped or
+    errored check fails the run, so a green eval can never hide omitted coverage.
+    """
+    non_skipped = [c for c in checks if not c.skipped]
+    skipped = [c for c in checks if c.skipped]
+    overall_passed = bool(non_skipped) and all(c.passed for c in non_skipped)
+    if strict and skipped:
+        overall_passed = False
+    return overall_passed, skipped
 
 
 async def main():
@@ -153,6 +176,19 @@ Examples:
         help="Release mode: fail on ANY skipped or errored check (no fail-open).",
     )
 
+    parser.add_argument(
+        "--scale",
+        action="store_true",
+        help="Also run the scale/concurrency check (ingests a volume corpus; GPT5.6 #20).",
+    )
+
+    parser.add_argument(
+        "--scale-size",
+        type=int,
+        default=150,
+        help="Number of synthetic conversations for the scale check (default: 150).",
+    )
+
     args = parser.parse_args()
 
     print(f"Recalium Evaluation Suite")
@@ -166,6 +202,8 @@ Examples:
     settings = {
         "base_url": args.base_url,
         "output_dir": args.output_dir,
+        "scale": args.scale,
+        "scale_size": args.scale_size,
     }
 
     # Health check
@@ -184,15 +222,10 @@ Examples:
         # Run all checks
         checks = await run_all_checks(client, golden, settings)
 
-    # Determine overall status
-    non_skipped_checks = [c for c in checks if not c.skipped]
-    overall_passed = all(c.passed for c in non_skipped_checks) if non_skipped_checks else False
-
-    # GPT5.6 #3: release/strict mode refuses to pass on any skipped or errored
-    # check (the default run stays fail-open for local development smoke signals).
-    skipped_checks = [c for c in checks if c.skipped]
+    # Determine overall status (GPT5.6 #3): no executed checks never passes, and
+    # strict/release mode fails on any skipped or errored check.
+    overall_passed, skipped_checks = determine_overall_status(checks, strict=args.strict)
     if args.strict and skipped_checks:
-        overall_passed = False
         print("STRICT: failing because checks were skipped or errored:")
         for c in skipped_checks:
             print(f"  - {c.name}: {c.skip_reason}")

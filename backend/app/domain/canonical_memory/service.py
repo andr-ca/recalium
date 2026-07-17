@@ -4,9 +4,15 @@ Implements CANM-01 (inspect/edit/delete/promote), CANM-02 (retrieval priority),
 CANM-03 (explicit action only), CANM-04 (source_span confirmation).
 
 All read queries filter source_status='active' per cascade contract.
+
+GPT5.6 #9: promotion integrity is server-authoritative. Source linkage and the
+source-span attestation that drives the CANM-04 gate are derived from the stored
+fact under a row lock — never from client-supplied fields — so a caller cannot
+forge ``has_source_span``, mis-link a source, or promote removed content.
 """
 from __future__ import annotations
 
+import json
 import uuid
 from datetime import datetime, timezone
 
@@ -24,34 +30,112 @@ class CanonicalItemNotFoundError(Exception):
     """Raised when a canonical item cannot be found."""
 
 
+class FactNotFoundError(Exception):
+    """Raised when the fact to promote does not exist (GPT5.6 #9)."""
+
+
+class SourceMismatchError(Exception):
+    """Raised when a client-supplied raw_archive_id contradicts the fact's source (GPT5.6 #9)."""
+
+
+class SourceRemovedError(Exception):
+    """Raised when promoting a fact whose source has been removed/suppressed (GPT5.6 #9)."""
+
+
 async def promote_fact_to_canonical(
     session: AsyncSession,
     fact_id: uuid.UUID,
-    raw_archive_id: uuid.UUID,
     content: str,
     promoted_by: str,
-    has_source_span: bool = True,
+    raw_archive_id: uuid.UUID | None = None,
+    has_source_span: bool | None = None,  # deprecated/ignored — server derives it
     confirmed: bool = False,
 ) -> CanonicalMemoryItem:
     """Promote a derived-memory fact into canonical memory (CANM-03/CANM-04).
 
-    If the fact has no source span, the user must explicitly confirm (confirmed=True)
-    before promotion is allowed.
+    GPT5.6 #9 — promotion integrity is server-authoritative:
+
+    * The fact is loaded under a ``FOR UPDATE`` row lock, which serializes with
+      deletion so a fact cannot be promoted while it is being removed.
+    * Source linkage (``raw_archive_id``) and the source-span attestation that
+      drives the CANM-04 confirmation gate are taken from the **stored fact**, never
+      from the client. A client cannot set ``has_source_span=True`` to bypass the
+      gate for a fact that has no real span. The legacy ``has_source_span`` argument
+      is accepted for wire compatibility but ignored.
+    * A removed/suppressed fact (or one whose source is deleted) cannot be promoted,
+      so promotion can never resurrect deleted content into the highest-trust tier.
+    * Server-computed provenance (verbatim source span + source ``content_hash``) is
+      recorded, giving canonical memory a verifiable derivation chain.
+
+    Client ``content`` remains user-editable curation (CANM-01).
     """
-    if not has_source_span and not confirmed:
+    from app.domain.archive.models import RawArchiveItem  # noqa: PLC0415
+    from app.domain.derived_memory.models import Fact  # noqa: PLC0415
+
+    fact = (
+        await session.execute(
+            select(Fact).where(Fact.id == fact_id).with_for_update()
+        )
+    ).scalar_one_or_none()
+    if fact is None:
+        raise FactNotFoundError(f"Fact {fact_id} not found.")
+
+    # A removed fact must not be promotable — that would resurrect deleted content.
+    if fact.source_status != "active":
+        raise SourceRemovedError(
+            f"Fact {fact_id} is not active (source_status={fact.source_status}); "
+            "it cannot be promoted."
+        )
+
+    # Source linkage is server-authoritative. Reject a contradicting client value
+    # rather than silently trusting it.
+    if raw_archive_id is not None and raw_archive_id != fact.raw_archive_id:
+        raise SourceMismatchError(
+            "raw_archive_id does not match the fact's source; promotion refused."
+        )
+    source_id = fact.raw_archive_id
+
+    # The underlying source item must itself be live.
+    source = (
+        await session.execute(
+            select(RawArchiveItem)
+            .where(RawArchiveItem.id == source_id)
+            .with_for_update()
+        )
+    ).scalar_one_or_none()
+    if source is None or source.deleted_at is not None:
+        raise SourceRemovedError(
+            "Source archive item is missing or deleted; promotion refused."
+        )
+
+    # CANM-04 gate keyed off the REAL stored span, not the client's claim.
+    server_has_source_span = bool((fact.source_span or "").strip())
+    if not server_has_source_span and not confirmed:
         raise PromotionNotConfirmedError(
             "Facts without a source span require confirmed=True to promote to canonical memory."
         )
 
+    provenance = {
+        "fact_id": str(fact.id),
+        "raw_archive_id": str(source_id),
+        "source_span": fact.source_span or "",
+        "source_content_hash": source.content_hash,
+        "confidence_tier": fact.confidence_tier,
+        "derivation_method": fact.derivation_method,
+        "derivation_model": fact.derivation_model,
+        "promoted_without_source_span": not server_has_source_span,
+    }
+
     item = CanonicalMemoryItem(
         id=uuid.uuid4(),
-        fact_id=fact_id,
-        raw_archive_id=raw_archive_id,
+        fact_id=fact.id,
+        raw_archive_id=source_id,
         content=content,
         promoted_from="fact",
         promoted_by=promoted_by,
         status="active",
         source_status="active",
+        provenance_note=json.dumps(provenance, sort_keys=True),
     )
     session.add(item)
     await session.flush()

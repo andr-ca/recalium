@@ -574,16 +574,37 @@ async def test_canm03_promote_fact_explicit(
 # ─────────────────────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_canm04_empty_source_span_requires_confirm(db_session_phase3: AsyncSession):
-    """CANM-04: promoting with has_source_span=False, confirmed=False raises PromotionNotConfirmedError."""
+async def test_canm04_empty_source_span_requires_confirm(
+    db_session_phase3: AsyncSession, raw_archive_row
+):
+    """CANM-04: a fact whose stored source_span is empty requires confirmed=True.
+
+    GPT5.6 #9: keyed off the real stored span; a forged has_source_span is ignored.
+    """
+    import uuid as _uuid
+
+    from app.domain.derived_memory.models import Fact
+
+    spanless = Fact(
+        id=_uuid.uuid4(),
+        raw_archive_id=raw_archive_row.id,
+        fact_text="fact without span",
+        source_span="",
+        confidence_tier="low",
+        derivation_method="llm_extraction",
+        derivation_model="test-model",
+    )
+    db_session_phase3.add(spanless)
+    await db_session_phase3.flush()
+
     with pytest.raises(PromotionNotConfirmedError):
         await promote_fact_to_canonical(
             session=db_session_phase3,
-            fact_id=uuid.uuid4(),
-            raw_archive_id=uuid.uuid4(),
+            fact_id=spanless.id,
+            raw_archive_id=raw_archive_row.id,
             content="fact without span",
             promoted_by="test",
-            has_source_span=False,
+            has_source_span=True,  # forged claim — ignored server-side
             confirmed=False,
         )
 

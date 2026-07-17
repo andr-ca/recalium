@@ -17,6 +17,7 @@ import json
 import logging
 import uuid
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Literal
 
 from cachetools import TTLCache
@@ -172,24 +173,60 @@ def rrf_score(rank: int, k: int = RRF_K) -> float:
     return 1.0 / (k + rank)
 
 
+def _fusion_key(candidate: dict) -> str:
+    """Stable cross-modal identity for RRF (GPT5.6 #4).
+
+    Keyword and semantic modes key their rows differently (``fts_entries.id`` vs
+    ``embeddings.id``), so fusing on the raw row id never combines the two modes'
+    votes for the same conversation — the same item appears twice and the cross-modal
+    agreement that RRF exists to reward is lost. Fuse instead on the underlying
+    retrievable unit: canonical items by their own id, everything else by its source
+    archive item, so a keyword excerpt and a semantic summary of the same
+    conversation collapse into one ranked result.
+    """
+    if candidate.get("type") == "canonical":
+        return f"canonical:{candidate['id']}"
+    if candidate.get("type") == "fact":
+        # Each fact is its own atomic retrievable unit — do not collapse multiple
+        # distinct facts of one conversation into a single archive-level result.
+        return f"fact:{candidate['id']}"
+    return f"archive:{candidate.get('source_id') or candidate['id']}"
+
+
 def _merge_rrf(
-    keyword_ids: list[str],
-    semantic_ids: list[str],
-) -> list[tuple[str, float]]:
-    """Merge two ranked lists using RRF. Returns (id, rrf_score) sorted desc."""
+    keyword_candidates: list[dict],
+    semantic_candidates: list[dict],
+) -> list[dict]:
+    """Fuse two ranked candidate lists with RRF on a stable identity (GPT5.6 #4).
+
+    Each mode's list is assumed already ranked best-first. Votes are accumulated per
+    stable fusion key; the representative shown for a fused unit is its highest-priority
+    type (canonical → fact → summary → excerpt). Returns representative candidate dicts
+    with their combined RRF score, sorted desc and capped at ``RRF_FINAL_TOP_N``.
+    """
+    priority = {t: i for i, t in enumerate(_PRIORITY_ORDER)}
     scores: dict[str, float] = {}
+    representative: dict[str, dict] = {}
 
-    for rank, item_id in enumerate(keyword_ids, start=1):
-        scores[item_id] = scores.get(item_id, 0.0) + rrf_score(rank)
+    for ranked in (keyword_candidates, semantic_candidates):
+        for rank, candidate in enumerate(ranked, start=1):
+            key = _fusion_key(candidate)
+            scores[key] = scores.get(key, 0.0) + rrf_score(rank)
+            current = representative.get(key)
+            if current is None or priority.get(candidate.get("type"), 99) < priority.get(
+                current.get("type"), 99
+            ):
+                representative[key] = candidate
 
-    for rank, item_id in enumerate(semantic_ids, start=1):
-        scores[item_id] = scores.get(item_id, 0.0) + rrf_score(rank)
+    fused = [(key, score) for key, score in scores.items() if score >= RRF_MIN_THRESHOLD]
+    fused.sort(key=lambda kv: kv[1], reverse=True)
 
-    # Filter by minimum threshold
-    filtered = {k: v for k, v in scores.items() if v >= RRF_MIN_THRESHOLD}
-
-    # Sort by score descending, take top N
-    return sorted(filtered.items(), key=lambda x: x[1], reverse=True)[:RRF_FINAL_TOP_N]
+    result: list[dict] = []
+    for key, score in fused[:RRF_FINAL_TOP_N]:
+        candidate = dict(representative[key])
+        candidate["score"] = score
+        result.append(candidate)
+    return result
 
 
 # ── Budget trimming ───────────────────────────────────────────────────────────
@@ -228,13 +265,113 @@ def apply_budget_trimming(
 
 # ── Candidate retrieval ───────────────────────────────────────────────────────
 
+# Imports store 'chatgpt_import'/'claude_import' but the documented/MCP filter value
+# is 'chatgpt'/'claude'. Accept both so the advertised filter works (GPT5.6 #4).
+_SOURCE_ALIASES: dict[str, list[str]] = {
+    "chatgpt": ["chatgpt", "chatgpt_import"],
+    "claude": ["claude", "claude_import"],
+}
+
+
+def _normalize_source_filter(value: str | None) -> list[str]:
+    """Map an advertised source name to the stored ``source_type`` values (GPT5.6 #4)."""
+    v = (value or "").strip().lower()
+    if not v:
+        return []
+    if v in _SOURCE_ALIASES:
+        return list(_SOURCE_ALIASES[v])
+    # Generic: also accept the "<v>_import" variant so future importers work.
+    return list(dict.fromkeys([v, f"{v}_import"]))
+
+
+def _parse_iso_dt(value: str | None) -> datetime | None:
+    """Parse an ISO-8601 filter bound to an aware datetime (GPT5.6 #4).
+
+    asyncpg binds a timestamptz parameter from a ``datetime``, not a string, so time
+    filters are parsed here. A naive value is assumed UTC. Returns None on garbage so
+    a malformed bound is ignored rather than crashing retrieval.
+    """
+    if not value:
+        return None
+    try:
+        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except (ValueError, TypeError):
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
+def _archive_filter_sql(f: "RetrievalFilters", alias: str = "ra") -> tuple[str, dict]:
+    """SQL WHERE fragments + params for archive-backed candidates (GPT5.6 #4).
+
+    Pushes source_system, time range, and category into the candidate query so they
+    apply BEFORE the per-mode LIMIT. Post-filtering (the previous behaviour) silently
+    dropped matches ranked past the top-50 per mode.
+    """
+    clauses: list[str] = []
+    params: dict = {}
+    sources = _normalize_source_filter(f.source_system)
+    if sources:
+        params["f_sources"] = sources
+        clauses.append(f"AND {alias}.source_type = ANY(:f_sources)")
+    start = _parse_iso_dt(f.time_range_start)
+    if start is not None:
+        params["f_time_start"] = start
+        clauses.append(f"AND {alias}.ingested_at >= :f_time_start")
+    end = _parse_iso_dt(f.time_range_end)
+    if end is not None:
+        params["f_time_end"] = end
+        clauses.append(f"AND {alias}.ingested_at <= :f_time_end")
+    if f.category:
+        params["f_category"] = f.category.strip().lower()
+        clauses.append(f"AND lower({alias}.metadata_json->>'data_class') = :f_category")
+    return "\n".join(clauses), params
+
+
+def _canonical_included(f: "RetrievalFilters") -> bool:
+    """Whether canonical items pass the declared source/category filters (GPT5.6 #4).
+
+    Canonical items surface as source_system='canonical' and are user-curated (not
+    gate-classified), so a category filter or a non-canonical source filter excludes
+    them.
+    """
+    if f.category:
+        return False
+    sources = _normalize_source_filter(f.source_system)
+    if sources and "canonical" not in sources:
+        return False
+    return True
+
+
+def _canonical_time_sql(f: "RetrievalFilters") -> tuple[str, dict]:
+    """Time-range WHERE fragments + params for the canonical query (GPT5.6 #4)."""
+    clauses: list[str] = []
+    params: dict = {}
+    start = _parse_iso_dt(f.time_range_start)
+    if start is not None:
+        params["f_time_start"] = start
+        clauses.append("AND cm.created_at >= :f_time_start")
+    end = _parse_iso_dt(f.time_range_end)
+    if end is not None:
+        params["f_time_end"] = end
+        clauses.append("AND cm.created_at <= :f_time_end")
+    return "\n".join(clauses), params
+
+
 async def _keyword_candidates(
     session: AsyncSession,
     query: str,
     limit: int = RRF_CANDIDATES_PER_MODE,
     tags: list[str] | None = None,
+    filters: "RetrievalFilters | None" = None,
 ) -> list[dict]:
-    """Retrieve keyword candidates using PostgreSQL FTS."""
+    """Retrieve keyword candidates using PostgreSQL FTS.
+
+    Declared filters (source_system, time range, category, canonical_only) are pushed
+    into SQL so they apply before the LIMIT (GPT5.6 #4).
+    """
+    f = filters or RetrievalFilters()
     # Build optional tag filter clause — restricts to archive items whose facts carry ALL requested tags
     tag_filter_sql = ""
     tag_params: dict = {}
@@ -256,53 +393,91 @@ async def _keyword_candidates(
             """
             tag_params = {"tag_names": normalised, "tag_count": len(normalised)}
 
-    fts_result = await session.execute(
-        text(f"""
-            SELECT
-                fe.id::text AS id,
-                'excerpt' AS type,
-                LEFT(fe.text_content, 500) AS content,
-                ts_rank_cd(fe.search_vector, websearch_to_tsquery('english', :q)) AS score,
-                fe.raw_archive_id::text AS source_id,
-                COALESCE(ra.source_type, 'unknown') AS source_system,
-                ra.ingested_at::text AS captured_at,
-                NULL::text AS conflict_label,
-                fe.raw_archive_id::text AS archive_id
-            FROM fts_entries fe
-            JOIN raw_archive ra ON ra.id = fe.raw_archive_id
-            WHERE fe.source_status = 'active'
-              AND ra.deleted_at IS NULL
-              AND fe.search_vector @@ websearch_to_tsquery('english', :q)
-              {tag_filter_sql}
-            ORDER BY score DESC
-            LIMIT :limit
-        """),
-        {"q": query, "limit": limit, **tag_params},
-    )
-    fts_rows = fts_result.mappings().all()
+    archive_filter_sql, archive_filter_params = _archive_filter_sql(f, alias="ra")
 
-    canon_result = await session.execute(
-        text("""
-            SELECT
-                cm.id::text AS id,
-                'canonical' AS type,
-                cm.content AS content,
-                ts_rank_cd(cm.search_vector, websearch_to_tsquery('english', :q)) AS score,
-                COALESCE(cm.raw_archive_id::text, cm.id::text) AS source_id,
-                'canonical' AS source_system,
-                cm.created_at::text AS captured_at,
-                NULL::text AS conflict_label,
-                cm.raw_archive_id::text AS archive_id
-            FROM canonical_memory cm
-            WHERE cm.source_status = 'active'
-              AND cm.status = 'active'
-              AND cm.search_vector @@ websearch_to_tsquery('english', :q)
-            ORDER BY score DESC
-            LIMIT :limit
-        """),
-        {"q": query, "limit": limit},
-    )
-    canon_rows = canon_result.mappings().all()
+    fts_rows = []
+    if not f.canonical_only:
+        fts_result = await session.execute(
+            text(f"""
+                SELECT
+                    fe.id::text AS id,
+                    'excerpt' AS type,
+                    LEFT(fe.text_content, 500) AS content,
+                    ts_rank_cd(fe.search_vector, websearch_to_tsquery('english', :q)) AS score,
+                    fe.raw_archive_id::text AS source_id,
+                    COALESCE(ra.source_type, 'unknown') AS source_system,
+                    ra.ingested_at::text AS captured_at,
+                    NULL::text AS conflict_label,
+                    fe.raw_archive_id::text AS archive_id
+                FROM fts_entries fe
+                JOIN raw_archive ra ON ra.id = fe.raw_archive_id
+                WHERE fe.source_status = 'active'
+                  AND ra.deleted_at IS NULL
+                  AND fe.search_vector @@ websearch_to_tsquery('english', :q)
+                  {tag_filter_sql}
+                  {archive_filter_sql}
+                ORDER BY score DESC
+                LIMIT :limit
+            """),
+            {"q": query, "limit": limit, **tag_params, **archive_filter_params},
+        )
+        fts_rows = fts_result.mappings().all()
+
+    canon_rows = []
+    if _canonical_included(f):
+        canon_time_sql, canon_time_params = _canonical_time_sql(f)
+        canon_result = await session.execute(
+            text(f"""
+                SELECT
+                    cm.id::text AS id,
+                    'canonical' AS type,
+                    cm.content AS content,
+                    ts_rank_cd(cm.search_vector, websearch_to_tsquery('english', :q)) AS score,
+                    COALESCE(cm.raw_archive_id::text, cm.id::text) AS source_id,
+                    'canonical' AS source_system,
+                    cm.created_at::text AS captured_at,
+                    NULL::text AS conflict_label,
+                    cm.raw_archive_id::text AS archive_id
+                FROM canonical_memory cm
+                WHERE cm.source_status = 'active'
+                  AND cm.status = 'active'
+                  AND cm.search_vector @@ websearch_to_tsquery('english', :q)
+                  {canon_time_sql}
+                ORDER BY score DESC
+                LIMIT :limit
+            """),
+            {"q": query, "limit": limit, **canon_time_params},
+        )
+        canon_rows = canon_result.mappings().all()
+
+    # GPT5.6 #4: direct fact retrieval — match facts by their own FTS vector so a
+    # relevant fact surfaces on its own, not only via link traversal.
+    fact_rows = []
+    if not f.canonical_only:
+        fact_result = await session.execute(
+            text(f"""
+                SELECT
+                    f.id::text AS id,
+                    'fact' AS type,
+                    f.fact_text AS content,
+                    ts_rank_cd(f.search_vector, websearch_to_tsquery('english', :q)) AS score,
+                    f.raw_archive_id::text AS source_id,
+                    COALESCE(ra.source_type, 'unknown') AS source_system,
+                    ra.ingested_at::text AS captured_at,
+                    f.source_span AS source_span
+                FROM facts f
+                JOIN raw_archive ra ON ra.id = f.raw_archive_id
+                WHERE f.source_status = 'active'
+                  AND f.review_status = 'active'
+                  AND ra.deleted_at IS NULL
+                  AND f.search_vector @@ websearch_to_tsquery('english', :q)
+                  {archive_filter_sql}
+                ORDER BY score DESC
+                LIMIT :limit
+            """),
+            {"q": query, "limit": limit, **archive_filter_params},
+        )
+        fact_rows = fact_result.mappings().all()
 
     candidates = []
     for row in list(canon_rows) + list(fts_rows):
@@ -322,6 +497,26 @@ async def _keyword_candidates(
             },
         })
 
+    for row in fact_rows:
+        candidates.append({
+            "id": row["id"],
+            "type": "fact",
+            "content": row["content"] or "",
+            "score": float(row["score"] or 0),
+            "source_id": row["source_id"] or "",
+            "source_system": row["source_system"] or "unknown",
+            "captured_at": str(row["captured_at"] or ""),
+            "conflict_label": None,
+            "provenance": {
+                "derivation_method": "fact_fts_retrieval",
+                "derivation_model": "postgresql_fts",
+                "source_excerpt": (row["source_span"] or row["content"] or "")[:200],
+            },
+        })
+
+    # Rank the combined candidates (canonical + excerpts + facts) by FTS relevance so
+    # the per-mode LIMIT keeps the most relevant across all three, not insertion order.
+    candidates.sort(key=lambda c: c["score"], reverse=True)
     return candidates[:limit]
 
 
@@ -330,11 +525,18 @@ async def _semantic_candidates(
     query: str,
     limit: int = RRF_CANDIDATES_PER_MODE,
     tags: list[str] | None = None,
+    filters: "RetrievalFilters | None" = None,
 ) -> tuple[list[dict], bool]:
     """Retrieve semantic candidates using pgvector cosine similarity.
 
     Returns (candidates, degraded) where degraded=True if no embeddings exist.
+    Declared source/time/category filters are pushed into SQL (GPT5.6 #4).
     """
+    f = filters or RetrievalFilters()
+    # Semantic candidates are all archive-backed (summary/excerpt); canonical_only
+    # therefore yields nothing from this mode.
+    if f.canonical_only:
+        return [], False
     try:
         from app.domain.derived_memory.service import embed_text
         query_vector = await embed_text(query)
@@ -363,6 +565,8 @@ async def _semantic_candidates(
             """
             tag_params = {"tag_names": normalised, "tag_count": len(normalised)}
 
+    archive_filter_sql, archive_filter_params = _archive_filter_sql(f, alias="ra")
+
     result = await session.execute(
         text(f"""
             SELECT
@@ -377,6 +581,7 @@ async def _semantic_candidates(
               AND ra.deleted_at IS NULL
               AND e.embedding_model = :model
               {tag_filter_sql}
+              {archive_filter_sql}
             ORDER BY e.embedding <=> :vec
             LIMIT :limit
         """),
@@ -385,6 +590,7 @@ async def _semantic_candidates(
             "model": ACTIVE_EMBEDDING_MODEL,
             "limit": limit,
             **tag_params,
+            **archive_filter_params,
         },
     )
     rows = result.mappings().all()
@@ -464,7 +670,8 @@ async def _traverse_links(
                 tf.fact_text AS target_fact_text,
                 tf.raw_archive_id::text AS target_archive_id,
                 ra.source_type AS source_system,
-                ra.ingested_at::text AS captured_at
+                ra.ingested_at::text AS captured_at,
+                lower(ra.metadata_json->>'data_class') AS category
             FROM memory_links ml
             JOIN facts sf ON sf.id = ml.source_fact_id
             JOIN facts tf ON tf.id = ml.target_fact_id
@@ -497,6 +704,7 @@ async def _traverse_links(
             "source_id": row["target_archive_id"] or "",
             "source_system": row["source_system"] or "unknown",
             "captured_at": str(row["captured_at"] or ""),
+            "category": row["category"] or "",
             "conflict_label": None,
             "source_fact_id": row["source_fact_id"],
             "link_type": row["link_type"],
@@ -530,22 +738,31 @@ def _sanitize_fts_query(q: str) -> str:
 
 
 def _apply_candidate_filters(candidates: list[dict], f: RetrievalFilters) -> list[dict]:
-    """Enforce declared filters on the candidate set (GPT5.6 #4 — filters were ignored).
+    """Safety-net filter over the final candidate set (GPT5.6 #4).
 
-    canonical_only, source_system, and the time range are applied to the returned
-    set so retrieval/MCP clients can rely on them. (category needs source-level
-    fields not present on the candidate row — tracked as an SQL-layer follow-up.)
+    source_system, time range, category, and canonical_only are enforced at the SQL
+    layer (before the per-mode LIMIT). This post-filter still runs because link
+    traversal appends linked facts *after* the SQL queries; it re-applies the same
+    source/time/category/canonical filters to those appended candidates so they
+    can't bypass a declared filter. Source matching uses the same normalization as
+    SQL so the advertised ``chatgpt`` matches stored ``chatgpt_import``. Category
+    matching only applies to candidates that carry a ``category`` key (currently:
+    linked facts from ``_traverse_links``); other candidate types were already
+    filtered by category at the SQL layer before reaching here.
     """
     out = candidates
     if f.canonical_only:
         out = [c for c in out if c.get("type") == "canonical"]
     if f.source_system:
-        want = f.source_system.strip().lower()
-        out = [c for c in out if (c.get("source_system") or "").strip().lower() == want]
+        accepted = set(_normalize_source_filter(f.source_system))
+        out = [c for c in out if (c.get("source_system") or "").strip().lower() in accepted]
     if f.time_range_start:
         out = [c for c in out if (c.get("captured_at") or "") >= f.time_range_start]
     if f.time_range_end:
         out = [c for c in out if (c.get("captured_at") or "") <= f.time_range_end]
+    if f.category:
+        wanted = f.category.strip().lower()
+        out = [c for c in out if "category" not in c or c.get("category") == wanted]
     return out
 
 
@@ -577,20 +794,24 @@ async def retrieve(
 
     if req.mode == "keyword":
         candidates = await _keyword_candidates(
-            session, req.query, RRF_CANDIDATES_PER_MODE, tags=req.filters.tags or None
+            session, req.query, RRF_CANDIDATES_PER_MODE,
+            tags=req.filters.tags or None, filters=req.filters,
         )
 
     elif req.mode == "semantic":
         candidates, degraded = await _semantic_candidates(
-            session, req.query, RRF_CANDIDATES_PER_MODE, tags=req.filters.tags or None
+            session, req.query, RRF_CANDIDATES_PER_MODE,
+            tags=req.filters.tags or None, filters=req.filters,
         )
 
     else:  # hybrid
         kw_candidates = await _keyword_candidates(
-            session, req.query, RRF_CANDIDATES_PER_MODE, tags=req.filters.tags or None
+            session, req.query, RRF_CANDIDATES_PER_MODE,
+            tags=req.filters.tags or None, filters=req.filters,
         )
         sem_candidates, sem_degraded = await _semantic_candidates(
-            session, req.query, RRF_CANDIDATES_PER_MODE, tags=req.filters.tags or None
+            session, req.query, RRF_CANDIDATES_PER_MODE,
+            tags=req.filters.tags or None, filters=req.filters,
         )
 
         if sem_degraded or not sem_candidates:
@@ -598,17 +819,10 @@ async def retrieve(
             effective_mode = "keyword"
             candidates = kw_candidates
         else:
-            kw_ids = [c["id"] for c in kw_candidates]
-            sem_ids = [c["id"] for c in sem_candidates]
-            merged_scored = _merge_rrf(kw_ids, sem_ids)
-
-            all_by_id: dict[str, dict] = {c["id"]: c for c in kw_candidates + sem_candidates}
-            candidates = []
-            for item_id, rrf_s in merged_scored:
-                if item_id in all_by_id:
-                    c = dict(all_by_id[item_id])
-                    c["score"] = rrf_s
-                    candidates.append(c)
+            # GPT5.6 #4: fuse on a stable cross-modal identity so the same
+            # conversation ranked by both modes combines its votes (was fused on
+            # per-mode row ids that can never match across modes).
+            candidates = _merge_rrf(kw_candidates, sem_candidates)
 
     # ── Link traversal — fetch linked facts for direct candidates ────────────
     direct_archive_ids = list({c["source_id"] for c in candidates if c.get("source_id")})

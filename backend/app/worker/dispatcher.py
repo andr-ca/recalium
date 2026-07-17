@@ -330,7 +330,11 @@ async def _extract_chunk(text: str) -> list[dict[str, Any]]:
         return []
 
 
-async def _run_link_detection_job(session: AsyncSession, raw_archive_id: "uuid.UUID") -> None:
+async def _run_link_detection_job(
+    session: AsyncSession,
+    raw_archive_id: "uuid.UUID",
+    allow_external: bool = True,
+) -> None:
     """Build memory links for all facts derived from raw_archive_id.
 
     Three passes — each non-fatal:
@@ -339,7 +343,8 @@ async def _run_link_detection_job(session: AsyncSession, raw_archive_id: "uuid.U
                           create link_type='related'.
       Pass B (LLM typed) — ask LLM to classify the top-5 pairs as
                           supports|elaborates|contradicts|unrelated.
-                          Only runs if an LLM provider is configured.
+                          Only runs if an LLM provider is configured AND the
+                          resolved policy allows external calls (GPT5.6 #6).
       Pass C (entity)   — for each entity in the extracted tags, find other
                           active facts that contain the same entity string,
                           create link_type='entity'.
@@ -416,7 +421,9 @@ async def _run_link_detection_job(session: AsyncSession, raw_archive_id: "uuid.U
         links_to_write = []
 
     # ── Pass B: LLM typed classification of top-5 semantic pairs ─────────────
-    if semantic_fact_ids and _has_llm_provider():
+    # GPT5.6 #6: Pass B egresses fact text to an external LLM, so it is gated on the
+    # resolved policy — a local_only mode or a sensitive-content decision blocks it.
+    if allow_external and semantic_fact_ids and _has_llm_provider():
         # Load target fact texts for the LLM prompt
         tgt_facts = (await session.execute(
             select(Fact)
@@ -630,6 +637,21 @@ def _provider_name() -> str:
     return _resolve_model(provider, settings.extract_model)
 
 
+def _active_provider_label() -> str | None:
+    """The external provider (openai|anthropic|ollama) that would service LLM calls.
+
+    Distinct from ``_provider_name()``, which returns the MODEL label stored in
+    ``fact.derivation_model``. The policy-decision audit records the *provider*, not
+    the model (GPT5.6 #6). Reports the extraction provider (which also drives link
+    Pass B), falling back to the summarization provider.
+    """
+    settings = get_settings()
+    return (
+        _resolve_provider(settings.extract_provider)
+        or _resolve_provider(settings.summarize_provider)
+    )
+
+
 def _has_llm_provider() -> bool:
     """True if any LLM provider key is configured."""
     settings = get_settings()
@@ -714,6 +736,12 @@ async def dispatch_job(session: AsyncSession, job: Job) -> None:
                 "method": sensitivity_decision.method,
             },
         ))
+        # GPT5.6 #4: persist the gate data_class onto the item so retrieval can
+        # filter by category at the SQL layer (the category filter was ignored).
+        archive_item.metadata_json = {
+            **(archive_item.metadata_json or {}),
+            "data_class": sensitivity_decision.category,
+        }
         await session.commit()
     except Exception as e:
         logger.warning("Failed to write sensitivity_gate audit event (non-fatal): %s", e)
@@ -751,7 +779,7 @@ async def dispatch_job(session: AsyncSession, job: Job) -> None:
                 "sensitivity_hint": effective_policy.sensitivity_hint,
                 "data_class": effective_policy.data_class,
                 "provider": (
-                    _provider_name()
+                    _active_provider_label()
                     if effective_policy.allow_external and _has_llm_provider()
                     else None
                 ),
@@ -759,10 +787,23 @@ async def dispatch_job(session: AsyncSession, job: Job) -> None:
             },
         ))
         await session.commit()
+        policy_audit_recorded = True
     except Exception as e:
-        logger.warning("Failed to write policy_decision audit event (non-fatal): %s", e)
+        logger.error("Failed to write policy_decision audit event: %s", e)
         await session.rollback()
         await session.refresh(job)
+        policy_audit_recorded = False
+
+    # GPT5.6 #6: fail closed. External egress must never happen without a durable
+    # policy-decision record. If policy would allow external processing but the
+    # decision could not be recorded, block and retry instead of egressing silently.
+    if effective_policy.allow_external and not policy_audit_recorded:
+        await fail_job(
+            session, job,
+            error="Policy decision could not be recorded; external processing blocked (fail-closed).",
+            retryable=True,
+        )
+        return
 
     # ── Step 3: LLM summarize + extract (only if policy allows AND provider configured) ──
     if effective_policy.allow_external:
@@ -950,12 +991,34 @@ async def dispatch_job(session: AsyncSession, job: Job) -> None:
 
     # ── Step 7: Link detection (passes A/B/C) ────────────────────────────────
     try:
-        await _run_link_detection_job(session, job.raw_archive_id)
+        await _run_link_detection_job(
+            session,
+            job.raw_archive_id,
+            allow_external=effective_policy.allow_external,
+        )
         logger.debug("Link detection complete for job %s", job.id)
     except Exception as e:
         logger.warning("Link detection failed for job %s (non-fatal): %s", job.id, e)
         await session.rollback()  # aborted tx would wedge every later step
         await session.refresh(job)  # rollback expired the instance
+
+    # ── Step 8: Deletion-race reconcile (GPT5.6 #9) ──────────────────────────
+    # The source may have been deleted while this job ran its (slow, external)
+    # pipeline. Any derivations written after that deletion would still be active
+    # and resurrect the removed content. Under a FOR UPDATE lock that serializes
+    # with cascade_delete_archive_item, re-suppress + crypto-erase all derivations
+    # if the source is now deleted. Non-fatal: the job still completes.
+    try:
+        from app.domain.archive.service import (  # noqa: PLC0415
+            suppress_new_derivations_if_deleted,
+        )
+        await suppress_new_derivations_if_deleted(session, job.raw_archive_id)
+    except Exception as e:
+        logger.warning(
+            "Deletion-race reconcile failed for job %s (non-fatal): %s", job.id, e
+        )
+        await session.rollback()
+        await session.refresh(job)
 
     await complete_job(session, job)
     logger.info("Completed job %s", job.id)

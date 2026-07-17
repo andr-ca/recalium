@@ -313,10 +313,13 @@ async def test_export_bundle_format(live_client: httpx.AsyncClient) -> None:
     assert resp.status_code == 200
     body = resp.json()
     assert body["format"] == "recalium-memory-bundle"
-    assert body["version"] == "1"
+    assert body["version"] == "2"
     assert "exported_at" in body
     assert "items" in body
     assert isinstance(body["items"], list)
+    # GPT5.6 #8/#17: v2 bundle carries canonical memory + the deletion ledger.
+    assert isinstance(body["canonical_memory"], list)
+    assert isinstance(body["tombstones"], list)
 
 
 async def test_import_bundle_dedup(live_client: httpx.AsyncClient) -> None:
