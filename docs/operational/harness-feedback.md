@@ -149,16 +149,17 @@ because you didn't give enough time for reviewer."
 don't merge the instant CI turns green") names the right principle but gives
 no concrete threshold — no wait duration, no poll loop, no signal to check
 for *whether a reviewer is even configured* before deciding how long "enough
-time" is. Checking `gh pr view --json comments` once, immediately, satisfies
-the letter of "fetch both comment types" (step 2) while completely missing
-the intent of step 1. The two steps read as sequential in the mandate but
+time" is. Checking `gh pr view --json comments` (issue-level) plus
+`gh api repos/<owner>/<repo>/pulls/<n>/comments` (inline) once, immediately,
+satisfies the letter of "fetch both comment types" (step 2) while
+completely missing the intent of step 1. The two steps read as sequential in the mandate but
 nothing enforces that step 1 actually elapsed before step 2 runs — an agent
 under time pressure will naturally collapse them into one check.
 
 **What agentharness should do:**
 1. Give step 1 a concrete default (e.g. "poll for new checks/comments every
    30s for up to 5 minutes after CI goes green, or until a bot/reviewer
-   check-run appears in the PR's check suite — whichever first") instead of
+   check-run appears in the PR's check suite — whichever comes first") instead of
    the qualitative "give it time." A number an agent can literally implement
    closes this gap; a principle it can rationalize around does not.
 2. Distinguish two cases the router currently conflates: "no automated
