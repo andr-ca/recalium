@@ -218,7 +218,7 @@ Per `/backend/app/domain/backup/service.py`:
 
 **Evidence:**
 - Restore completes within 3.11 seconds (0.35% of SLA window)
-- Two independent cycles confirm consistent sub-second-scale behavior
+- Two independent cycles confirm consistent low-single-digit-second behavior (3.11s, 1.65s)
 - Data integrity verified at backup point after restore
 - All safety mechanisms (path validation, archive validation, health check) passed
 
@@ -228,32 +228,30 @@ Per `/backend/app/domain/backup/service.py`:
 
 ## Reproducibility
 
-To reproduce this drill independently:
+To reproduce this drill independently, from a fresh git worktree checked out from `main`:
 
 ```bash
-cd /home/andrey/projects/recalium/.claude/worktrees/agent-a9c72026b4b6ece73
-
-# Prepare isolated stack
-cp /home/andrey/projects/recalium/.env .env
+# From your drill worktree's root
+cp <repo-root>/.env .env
 sed -i 's/APP_PORT=8000/APP_PORT=8020/' .env
-sed 's/container_name: recalium-postgres/# container_name: recalium-postgres/g; s/container_name: recalium-app/# container_name: recalium-app/g' ../../../docker-compose.yml > docker-compose.drill-isolated.yml
+# docker-compose.yml no longer sets fixed container_name (see recalium-postgres/-app
+# comments in that file), so a distinct COMPOSE_PROJECT_NAME is enough for isolation —
+# no override file needed.
 
 # Bring up stack
-export COMPOSE_FILE=docker-compose.drill-isolated.yml COMPOSE_PROJECT_NAME=recalium-drill
-docker compose up -d
+export COMPOSE_PROJECT_NAME=recalium-drill
+docker compose up -d --build
 sleep 15
 
 # Run drill (requires httpx, evals/ in path)
-cd /home/andrey/projects/recalium
-python3 /path/to/run_restore_sla_drill.py
+python3 run_restore_sla_drill.py
 
 # Teardown
-export COMPOSE_FILE=docker-compose.drill-isolated.yml COMPOSE_PROJECT_NAME=recalium-drill
 docker compose down -v
-cd /home/andrey/projects/recalium/.claude/worktrees/agent-a9c72026b4b6ece73 && rm -rf data/postgres backups/*
+rm -rf data/postgres backups/*
 ```
 
-See `.claude/worktrees/agent-a9c72026b4b6ece73/` for the active drill code and artifacts.
+See the drill worktree used to produce this evidence for the exact code and artifacts (worktree paths are local and not portable across machines/contributors).
 
 ---
 
