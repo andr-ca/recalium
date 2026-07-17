@@ -40,7 +40,7 @@ Recalium v1 is release-ready only when all of the following are true:
 | RR-004 | Fact lifecycle | Extracted facts lack full user-facing statuses and mutation flows required by v1. | Acceptance criteria for correcting, deleting, disputed, and stale facts remain incomplete. | Add status model, service methods, audit events, UI actions, and retrieval filtering. |
 | RR-005 | Review queue UI/API | Grouped fact comparison is implemented, but keyboard/E2E evidence is still pending. | Duplicate/overlap cleanup is usable but not fully release-evidenced. | Keep group details, candidate facts, resolution notes, and resolve/dismiss coverage passing. |
 | RR-006 | Backup/restore UI | ✓ CLOSED — Backup/restore UI complete | Settings page includes backup inventory (with file listing, sizes, creation times), deletion warnings, manual backup trigger, restore confirmation with privacy review, and user-facing success/error states. All backup/restore UI flows are operable. | ✓ Evidence: frontend/src/pages/SettingsPage.tsx:403-534 (BackupRestoreSection complete implementation). |
-| RR-007 | Restore SLA | Restore within 15 minutes has not been measured. | Acceptance criterion 26 cannot be closed. | Add representative restore validation and saved timing evidence. |
+| RR-007 | Restore SLA | ✓ CLOSED — Restore completes in 3.11s max (0.35% of SLA) | Acceptance criterion 26 is met with 289× margin. | ✓ Evidence: [../tests/2026-07-17-rr007-restore-sla-evidence.md](../tests/2026-07-17-rr007-restore-sla-evidence.md) |
 | RR-008 | MCP ingest contract | ✓ CLOSED — Full v1 metadata contract implemented | `ingest_memory` accepts and persists source_metadata, client_identity, import_method, idempotency_key, sensitivity_hint, project_hint, processing_mode; idempotent replay working; validation + internal error envelopes working. | ✓ Evidence: backend/app/mcp_server/server.py:288-413, backend/tests/mcp/test_mcp_server.py:46-62 (contract verification), 122-171 (integration test). |
 | RR-009 | MCP error contract | ✓ CLOSED — Stable error envelope implemented | Handled/returned errors use the stable `{status: "error", error: {code, message, details, retryable}}` envelope via `_mcp_error`; validation, internal, idempotency conflict, and not-found codes distinguish error types. Note: not every tool wraps arbitrary internal exceptions in this envelope — `retrieve_memory` only catches `ValueError`, `get_fact_links` catches `(ValueError, AttributeError)`, and `list_tags` has no exception handling at all, so an unexpected error in those paths propagates unwrapped rather than as the structured envelope. `ingest_memory` is the most complete (catches `ValueError` and generic `Exception`). | ✓ Evidence: backend/app/mcp_server/server.py:33-52 (_mcp_error), :109/:166 (retrieve_memory/get_fact_links partial coverage), :237-281 (list_tags, no exception handling), :399-404 (ingest_memory full coverage); backend/tests/mcp/test_mcp_server.py:73-118 (error envelope tests). |
 | RR-010 | MCP resources/evidence | Tools exist, but resources and full live-client coverage are not proven. | “Fully working MCP” claim remains weak. | Add resources if supported and live tests for schemas, invalid inputs, audit metadata, and concurrent SSE clients. |
@@ -104,6 +104,14 @@ Validation performed:
   - Evidence saved: [../tests/2026-07-17-rr011-keyboard-axe-evidence.md](../tests/2026-07-17-rr011-keyboard-axe-evidence.md).
   - Validation commands: `E2E_BASE_URL=http://localhost:8000 pnpm test:e2e` (28 passed), `pnpm test` (9 passed).
   - Three commits: abc8032 (helpers), 854e7ff (axe scans), 544f66d (keyboard workflows).
+- RR-007 closed: Restore SLA timed UAT drill complete.
+  - Set up isolated two-container stack (recalium-drill project) with separate .env and APP_PORT=8020.
+  - Ran two backup→restore cycles with realistic data volume (370–441 raw_archive rows per cycle).
+  - Measurements: Run 1 restore 3.11s, Run 2 restore 1.65s (avg 2.38s, max 3.11s).
+  - Data integrity verified: archive row counts rolled back to backup point in both cycles, original data preserved post-restore.
+  - All safety mechanisms validated: path containment, archive validation, pre-restore snapshot, health check, tombstone reapply.
+  - SLA status: max restore (3.11s) is 0.35% of 15-minute (900s) threshold — PASS with 289× margin.
+  - Evidence saved: [../tests/2026-07-17-rr007-restore-sla-evidence.md](../tests/2026-07-17-rr007-restore-sla-evidence.md).
 
 ## Completion phases
 
