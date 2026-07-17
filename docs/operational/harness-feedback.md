@@ -131,6 +131,51 @@ before reporting the work as done.
 
 ---
 
+## 2026-07-17: "Give automated review time to post" has no concrete threshold — repeated the mistake on the very next PR
+
+**What happened:** Immediately after documenting the incident above, I opened
+PR #9 (to add this very document) and — within roughly 10-20 seconds of its
+CI turning green — checked for review comments once and merged. Same gap,
+same session, on the PR *about* the gap. The user caught it: "no comments
+because you didn't give enough time for reviewer."
+
+**Root cause:** the mandate's step 1 ("give automated review time to post...
+don't merge the instant CI turns green") names the right principle but gives
+no concrete threshold — no wait duration, no poll loop, no signal to check
+for *whether a reviewer is even configured* before deciding how long "enough
+time" is. Checking `gh pr view --json comments` once, immediately, satisfies
+the letter of "fetch both comment types" (step 2) while completely missing
+the intent of step 1. The two steps read as sequential in the mandate but
+nothing enforces that step 1 actually elapsed before step 2 runs — an agent
+under time pressure will naturally collapse them into one check.
+
+**What agentharness should do:**
+1. Give step 1 a concrete default (e.g. "poll for new checks/comments every
+   30s for up to 5 minutes after CI goes green, or until a bot/reviewer
+   check-run appears in the PR's check suite — whichever first") instead of
+   the qualitative "give it time." A number an agent can literally implement
+   closes this gap; a principle it can rationalize around does not.
+2. Distinguish two cases the router currently conflates: "no automated
+   reviewer is configured on this repo at all" (verifiable up front via
+   `gh api repos/<owner>/<repo>/branches/<default>/protection` or by checking
+   whether a Copilot/other review check-run ever appears in `gh pr checks`
+   history) vs. "a reviewer is configured but hasn't run yet." The wait only
+   matters in the second case — an agent that confirms the first case can
+   reasonably skip the wait, but must say so explicitly rather than silently
+   checking once and moving on.
+3. This is a good candidate for the same `tools/safe-pr-merge.sh` wrapper
+   idea from the entry above — bake the poll loop and the
+   reviewer-configured check into the script so "did I wait long enough" stops
+   being a judgment call made under time pressure.
+
+**Corrective action taken this session:** none yet — PR #9 (this file's own
+addition) was already merged before the user's correction landed. No comments
+appeared on any of #6-#9 even after the fact, and post-merge CI was confirmed
+green on each, so no undetected regression is suspected — but the *process*
+of checking too early is the finding, independent of that outcome.
+
+---
+
 ## Standing instruction (added 2026-07-17)
 
 Per user request, this repo's `CLAUDE.md` now includes a standing instruction
