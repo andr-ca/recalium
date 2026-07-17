@@ -9,7 +9,12 @@ with `--with-hook` (trunk-protection). This log tracks real incidents where
 the harness's guidance, hooks, or bootstrap either failed to prevent a mistake
 or wasn't surfaced clearly enough to prevent one. Feed findings back upstream
 (agentharness repo issues) when a pattern repeats or looks structural rather
-than a one-off operator error.
+than a one-off operator error — record the issue number back in this file
+once filed, so the two stay linked.
+
+**Upstream issues filed from this log:**
+- [andr-ca/agentharness#76](https://github.com/andr-ca/agentharness/issues/76) — trunk-protection hook doesn't fire on merge commits (first entry below)
+- [andr-ca/agentharness#77](https://github.com/andr-ca/agentharness/issues/77) — "give review time to post" mandate has no concrete threshold (second + third entries below)
 
 ---
 
@@ -173,6 +178,49 @@ addition) was already merged before the user's correction landed. No comments
 appeared on any of #6-#9 even after the fact, and post-merge CI was confirmed
 green on each, so no undetected regression is suspected — but the *process*
 of checking too early is the finding, independent of that outcome.
+
+Filed upstream as
+[andr-ca/agentharness#77](https://github.com/andr-ca/agentharness/issues/77)
+(combined with the "merge on CI alone" entry above — same mandate, same
+missing threshold).
+
+---
+
+## 2026-07-17: Request — a built-in, optional "harness feedback" mechanism
+
+**What happened:** the three entries above were all produced by hand, ad hoc,
+because the user asked for a feedback doc and then asked for upstream issues
+— there is no harness-provided command, skill, or script that does either
+step. Filing the two issues above required manually gathering the writeup,
+re-deriving the right level of detail, linking back to this repo's commits,
+and remembering to record the resulting issue numbers back in this file
+(easy to skip, since nothing enforces it).
+
+**Request (not yet a fix, no code proposed here):** a built-in, **opt-in**
+mechanism — a `tools/harness-feedback.sh` script, a skill, or a
+`harness-link.sh feedback` subcommand — that does two things on request:
+1. Appends a dated entry to the consuming repo's own feedback log
+   (`docs/operational/harness-feedback.md` or equivalent), using a standard
+   template (what happened → root cause → impact → what agentharness should
+   do → corrective action taken) instead of an agent re-deriving that
+   structure from scratch each time.
+2. Optionally (must default off — not every consumer wants an agent auto-filing
+   issues on a repo it doesn't own) files the same finding as a GitHub issue
+   on `andr-ca/agentharness`, automatically including: a link back to the
+   consuming repo, the relevant commit/PR, and the full explanation — then
+   writes the resulting issue number back into the local log entry so the
+   two stay linked without a manual round-trip.
+
+**Why this matters:** without it, every consuming project reinvents this
+loop from scratch (or, more likely, never does it at all) — the exact
+"N drifted copies" problem agentharness exists to solve for conventions
+applies just as much to *feedback about the conventions themselves*.
+
+**Corrective action taken this session:** none (this is a feature request,
+not an incident). Filed as part of
+[andr-ca/agentharness#77](https://github.com/andr-ca/agentharness/issues/77)'s
+"separate, smaller suggestion" section rather than its own issue, since it's
+a small addendum to the same discussion rather than a standalone bug.
 
 ---
 
