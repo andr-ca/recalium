@@ -11,7 +11,7 @@
 2. **Configuration:**
    - Local Ollama instance (qwen3.5:4b model, same as prior runs)
    - Temperature = 0 (pinned in dispatcher.py for deterministic output)
-   - Same golden.json dataset (3 public conversations: conv-001 Python async, conv-002 PostgreSQL, conv-003 therapy marked sensitive but included for baseline)
+   - Same golden.json dataset (4 conversations: conv-001 Python async, conv-002 PostgreSQL, conv-003 personal health/therapy — marked sensitive, included here only for baseline eval scoring, not as public-domain content — and conv-004 Rust ownership)
    - Fresh database between each run (`docker compose down -v` + rebuild)
 
 3. **Three sequential runs** with complete DB reset between runs to eliminate state leakage
@@ -47,14 +47,21 @@ If temperature is pinned to 0 and the same model processes identical golden conv
    ```
 
 3. **Anthropic extraction** (`dispatcher.py:311-316`):
-   - No explicit `temperature` parameter passed
-   - Anthropic's API has deterministic defaults (no temperature randomness)
-   - ✓ Safe for determinism
+   - **CORRECTION (Copilot review, confirmed by re-reading the code):** No `temperature`
+     parameter is passed to `client.messages.create()`. This is NOT safe for determinism —
+     Anthropic's API defaults to `temperature=1.0` when omitted, not a deterministic value.
+     The original claim in this section that "Anthropic's API has deterministic defaults" was
+     incorrect and has been struck. If the Anthropic path is ever used for extraction, it
+     should not be assumed deterministic without explicitly setting `temperature=0`.
 
 4. **Summarization jobs** (`dispatcher.py:244` for OpenAI, line 203 for Ollama):
-   - Same pattern: temperature=0 across all providers
+   - Same pattern: temperature=0 for OpenAI and Ollama; Anthropic summarization has the same
+     gap noted above.
 
-**Conclusion:** Temperature is reliably pinned to 0 for deterministic extraction. No seed parameter is used (not applicable for standard LLM APIs — temperature=0 is the determinism control).
+**Conclusion:** Temperature is reliably pinned to 0 for the OpenAI and Ollama paths. The
+Anthropic path is NOT pinned and should not be assumed deterministic. No seed parameter is
+used for any provider (not applicable for standard LLM chat-completion APIs — temperature is
+the determinism control where set).
 
 ### Operational Results
 
@@ -202,7 +209,7 @@ Manual enumeration of all distinct factual statements from each conversation's r
 
 | # | Enumerated Fact | Coverage | Notes |
 |---|---|---|---|
-| 1 | User is seeing a therapist named Dr. Smith | ✓ COVERED (SENSITIVE) | Exact golden fact, marked personal |
+| 1 | User is seeing a therapist [name redacted — personal identifier] | ✓ COVERED (SENSITIVE) | Exact golden fact, marked personal |
 | 2 | User is struggling with anxiety attacks | ✗ PARTIAL | Statement exists but not explicit golden fact |
 | 3 | Deep breathing exercises are coping strategy for anxiety | ✓ COVERED | Part of combined "deep breathing & grounding" fact |
 | 4 | Grounding techniques (5-4-3-2-1 method) coping strategy | ✓ COVERED | Part of combined fact |
@@ -266,13 +273,29 @@ Manual enumeration of all distinct factual statements from each conversation's r
 
 ### Overall Coverage Summary
 
-| Conversation | Topic | Golden Facts | Enumerated Facts | Missing | Coverage |
+**Methodology correction (Copilot review):** the original version of this table used the
+literal count of `golden.json` fact *entries* per conversation (7/8/4/7 = 26) as if it were
+the coverage numerator, but the per-conversation "Coverage %" figures above were actually
+computed as (enumerated source facts marked ✓ COVERED) / (total enumerated source facts) —
+a different, larger numerator whenever multiple enumerated facts map to one combined golden
+entry (e.g. conv-004's 3 memory-safety facts all map to a single golden entry, conv-003's
+2 coping-strategy facts map to one golden entry). Mixing these two numerators produced an
+inconsistent total. The table below uses one consistent definition throughout: "Enumerated
+Facts Covered" = enumerated source facts marked ✓ (fully or partially) against golden.json,
+regardless of how many distinct golden entries they map to.
+
+| Conversation | Topic | Golden Fact Entries (raw count in golden.json) | Enumerated Facts (total distinct facts in source) | Enumerated Facts Covered | Coverage |
 |---|---|---|---|---|---|
-| conv-001 | Python async | 7 | 8 | 1 | 87.5% |
-| conv-002 | PostgreSQL indexing | 8 | 13 | 5 | 61.5% |
-| conv-003 | Health/therapy | 4 | 10 | 6 | 40% |
-| conv-004 | Rust ownership | 7 | 10 | 1 | 90% |
-| **TOTAL** | | **26** | **41** | **13** | **63.4%** |
+| conv-001 | Python async | 7 | 8 | 7 | 87.5% |
+| conv-002 | PostgreSQL indexing | 8 (12 after golden.json expansion, see below) | 13 | 8 (12 after expansion) | 61.5% (92.3% after expansion) |
+| conv-003 | Health/therapy | 4 | 10 | 4 | 40% |
+| conv-004 | Rust ownership | 7 | 10 | 9 | 90% |
+| **TOTAL** | | **26** | **41** | **28** | **68.3%** |
+
+Overall coverage is **68.3%** (28/41 enumerated facts covered), not the 63.4% originally
+reported — the earlier figure understated coverage by conflating golden-entry count with
+covered-fact count. This does not change the conclusion (conv-002 and conv-003 remain the
+weakest, conv-002 addressed separately via golden.json expansion, see below).
 
 ---
 
@@ -362,7 +385,7 @@ When results are available:
    - Recommend **Option B** for gate reliability
 
 2. **Coverage validation:** Before releasing extraction gate, require:
-   - Minimum 85% coverage per conversation (current: 63.4% overall, 61.5% worst)
+   - Minimum 85% coverage per conversation (current: 68.3% overall, 40% worst [conv-003, partly by sensitivity design], 61.5% worst non-sensitive [conv-002, now 92.3% after golden.json expansion])
    - Explicit sensitivity-level audit for excluded facts
    - Justification for any facts not in golden but present in source
 
@@ -372,12 +395,17 @@ When results are available:
 
 **Summary of Task 1 Root-Cause Check:**
 
-The extraction and summarization functions explicitly pin `temperature=0` across all configured LLM providers:
+The extraction and summarization functions explicitly pin `temperature=0` for the OpenAI and
+Ollama providers; the Anthropic path does not set `temperature` at all and should not be
+assumed deterministic (see correction above):
 - ✓ OpenAI: `temperature=0` explicit
 - ✓ Ollama: `temperature=0` in options
-- ✓ Anthropic: Deterministic by default (no randomness)
+- ✗ Anthropic: no `temperature` set — defaults to 1.0, not deterministic
 
-**This means:** If variance is observed in extraction results across multiple runs, it is NOT due to non-deterministic LLM temperature settings. Possible sources of variance:
+**This means:** For the OpenAI/Ollama paths (the ones actually exercised in this session's
+A/B comparison and in this repo's default local-first config), variance in extraction results
+across multiple runs is NOT due to non-deterministic LLM temperature settings. Possible
+sources of variance for those paths:
 1. **Model output non-determinism despite T=0** (some models don't honor T=0 perfectly)
 2. **Chunking or content ordering variations** in `_split_conversation()` / fact deduplication
 3. **Database state leakage** between runs (though reset procedure should prevent this)
@@ -389,7 +417,7 @@ The extraction and summarization functions explicitly pin `temperature=0` across
 
 ## Summary
 
-**Golden-Set Coverage: 63.4% complete (26/41 distinct facts)**
+**Golden-Set Coverage: 68.3% complete (28/41 distinct facts; see Methodology correction above)**
 
 ### What This Means for the Precision Gate
 
