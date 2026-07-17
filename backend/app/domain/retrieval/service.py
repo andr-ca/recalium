@@ -670,7 +670,8 @@ async def _traverse_links(
                 tf.fact_text AS target_fact_text,
                 tf.raw_archive_id::text AS target_archive_id,
                 ra.source_type AS source_system,
-                ra.ingested_at::text AS captured_at
+                ra.ingested_at::text AS captured_at,
+                lower(ra.metadata_json->>'data_class') AS category
             FROM memory_links ml
             JOIN facts sf ON sf.id = ml.source_fact_id
             JOIN facts tf ON tf.id = ml.target_fact_id
@@ -703,6 +704,7 @@ async def _traverse_links(
             "source_id": row["target_archive_id"] or "",
             "source_system": row["source_system"] or "unknown",
             "captured_at": str(row["captured_at"] or ""),
+            "category": row["category"] or "",
             "conflict_label": None,
             "source_fact_id": row["source_fact_id"],
             "link_type": row["link_type"],
@@ -740,10 +742,13 @@ def _apply_candidate_filters(candidates: list[dict], f: RetrievalFilters) -> lis
 
     source_system, time range, category, and canonical_only are enforced at the SQL
     layer (before the per-mode LIMIT). This post-filter still runs because link
-    traversal appends linked facts *after* the SQL queries; it keeps those additions
-    consistent with the declared source/time/canonical filters. Source matching uses
-    the same normalization as SQL so the advertised ``chatgpt`` matches stored
-    ``chatgpt_import``.
+    traversal appends linked facts *after* the SQL queries; it re-applies the same
+    source/time/category/canonical filters to those appended candidates so they
+    can't bypass a declared filter. Source matching uses the same normalization as
+    SQL so the advertised ``chatgpt`` matches stored ``chatgpt_import``. Category
+    matching only applies to candidates that carry a ``category`` key (currently:
+    linked facts from ``_traverse_links``); other candidate types were already
+    filtered by category at the SQL layer before reaching here.
     """
     out = candidates
     if f.canonical_only:
@@ -755,6 +760,9 @@ def _apply_candidate_filters(candidates: list[dict], f: RetrievalFilters) -> lis
         out = [c for c in out if (c.get("captured_at") or "") >= f.time_range_start]
     if f.time_range_end:
         out = [c for c in out if (c.get("captured_at") or "") <= f.time_range_end]
+    if f.category:
+        wanted = f.category.strip().lower()
+        out = [c for c in out if "category" not in c or c.get("category") == wanted]
     return out
 
 

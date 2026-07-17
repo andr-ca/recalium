@@ -16,6 +16,7 @@ from app.domain.derived_memory.service import write_fts_entry
 from app.domain.retrieval.service import (
     RetrievalFilters,
     RetrievalRequest,
+    _apply_candidate_filters,
     invalidate_cache,
     retrieve,
 )
@@ -137,3 +138,23 @@ async def test_direct_fact_retrieval_matches_fact_text(db_session):
     assert str(fact.id) in {i.id for i in fact_items}
     assert any("zephyrium" in i.content.lower() for i in fact_items)
 
+
+
+async def test_apply_candidate_filters_enforces_category_on_linked_facts():
+    """Copilot review finding on PR #5: linked facts appended after the SQL
+    queries (see _traverse_links) carry a 'category' key and must be excluded
+    by a declared category filter, not just source/time/canonical_only."""
+    candidates = [
+        {"type": "fact", "category": "personal", "id": "a"},
+        {"type": "fact", "category": "work", "id": "b"},
+        {"type": "fact", "id": "c"},  # no category key: not from link traversal, pre-filtered in SQL
+    ]
+    filters = RetrievalFilters(category="work")
+
+    out = _apply_candidate_filters(candidates, filters)
+
+    ids = {c["id"] for c in out}
+    assert ids == {"b", "c"}, (
+        "category filter must exclude a mismatched linked-fact category (a) while "
+        "leaving candidates with no category key untouched (c, already SQL-filtered)"
+    )
