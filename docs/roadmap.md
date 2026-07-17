@@ -41,7 +41,7 @@ The v1 feature build-out (planning phases 1–5) is complete: ingest (paste, fil
 
 Quality and evidence state:
 
-- **Eval suite** (`evals/`): 5 checks (ingest, extraction, retrieval, sensitivity, mcp) against frozen thresholds. Ingest/retrieval/sensitivity/mcp pass; **extraction is borderline** — latest fresh runs measured recall 0.583 (gate ≥0.60, failing) and precision 0.717 (gate ≥0.70, passing). Tracked in issue #13.
+- **Eval suite** (`evals/`): 5 checks (ingest, extraction, retrieval, sensitivity, mcp) against frozen thresholds. Ingest/retrieval/sensitivity/mcp pass; **extraction is borderline** — the latest fresh measurements (2026-07-17, two identical back-to-back runs) show recall 0.583 (gate ≥0.60, failing) / precision 0.717 (gate ≥0.70, passing), while the best historical run (prompt-iteration 7 in the [extraction failure analysis](operational/tests/2026-07-17-extraction-failure-analysis.md)) measured recall 0.774 / precision 0.617. The [determinism audit](operational/tests/2026-07-17-determinism-and-golden-coverage-audit.md) attributes that gap to prompt/model-state drift between measurement dates, not eval noise — which is itself part of why M2 exists. Tracked in issue #13.
 - **Performance:** ingest P95 ~18 ms (SLA ≤1 s), hybrid search P95 ~175 ms (SLA ≤2 s), restore worst case 3.11 s (SLA ≤15 min).
 - **Accessibility:** all 9 routes WCAG 2.2 AA, core workflows keyboard-operable (RR-011 evidence doc).
 - **Release readiness:** 7 of 14 gap-register rows closed with cited evidence (RR-006, 007, 008, 009, 011, 012, 013); 7 remain open (RR-001, 002, 003, 004, 005, 010, 014).
