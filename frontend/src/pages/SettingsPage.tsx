@@ -8,10 +8,13 @@ import {
   listBackups,
   triggerBackup,
   restoreBackup,
+  exportBundle,
+  importBundle,
   ApiError,
   type BackupItem,
   type SettingsKeyStatus,
   type TelemetrySummary,
+  type BundleImportResponse,
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -162,6 +165,239 @@ function formatBackupSize(sizeBytes: number) {
   const kib = sizeBytes / 1024;
   if (kib < 1024) return `${kib.toFixed(1)} KiB`;
   return `${(kib / 1024).toFixed(1)} MiB`;
+}
+
+function MemoryPortabilitySection() {
+  const [exporting, setExporting] = React.useState(false);
+  const [importing, setImporting] = React.useState(false);
+  const [showConfirmDialog, setShowConfirmDialog] = React.useState(false);
+  const [parsedBundle, setParsedBundle] = React.useState<unknown | null>(null);
+  const [message, setMessage] = React.useState<string | null>(null);
+  const [error, setError] = React.useState<string | null>(null);
+  const [importResult, setImportResult] = React.useState<BundleImportResponse | null>(null);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  function getCurrentDate() {
+    return new Date().toISOString().split("T")[0];
+  }
+
+  async function handleExport() {
+    setExporting(true);
+    setMessage(null);
+    setError(null);
+    setImportResult(null);
+    try {
+      const bundle = await exportBundle();
+      // Create JSON string with formatting
+      const jsonStr = JSON.stringify(bundle, null, 2);
+      const blob = new Blob([jsonStr], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `recalium-memory-bundle-${getCurrentDate()}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      // Show success message with counts
+      const itemCount = bundle.items?.length ?? 0;
+      const canonicalCount = bundle.canonical_memory?.length ?? 0;
+      const tombstoneCount = bundle.tombstones?.length ?? 0;
+      setMessage(
+        `Bundle exported successfully: ${itemCount} items, ${canonicalCount} canonical, ${tombstoneCount} tombstones.`
+      );
+    } catch (err) {
+      setError(err instanceof ApiError ? err.detail : "Export failed");
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  function handleFileSelect(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) {
+      setParsedBundle(null);
+      return;
+    }
+
+    setError(null);
+    setMessage(null);
+    setImportResult(null);
+
+    // Parse JSON client-side
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const content = e.target?.result as string;
+        const bundle = JSON.parse(content);
+        setParsedBundle(bundle);
+        setShowConfirmDialog(true);
+      } catch {
+        setError("Failed to parse JSON file. Please ensure it is a valid JSON bundle.");
+        setParsedBundle(null);
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  function handleCancelImport() {
+    setShowConfirmDialog(false);
+    setParsedBundle(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }
+
+  async function handleConfirmImport() {
+    if (!parsedBundle) return;
+
+    setShowConfirmDialog(false);
+    setImporting(true);
+    setError(null);
+    setMessage(null);
+
+    try {
+      const result = await importBundle(parsedBundle);
+      setImportResult(result);
+      setMessage(
+        `Import completed: ${result.imported} imported, ${result.skipped} skipped, ${result.canonical_imported} canonical, ${result.tombstones_applied} tombstones.`
+      );
+      if (result.errors.length > 0) {
+        setError(`There were ${result.errors.length} error(s) during import.`);
+      }
+    } catch (err) {
+      setError(err instanceof ApiError ? err.detail : "Import failed");
+      setImportResult(null);
+    } finally {
+      setImporting(false);
+      setParsedBundle(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  }
+
+  return (
+    <section className="mt-10" aria-labelledby="portability-heading">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 id="portability-heading" className="text-lg font-semibold mb-1">Memory Portability</h2>
+          <p className="text-sm text-muted-foreground">
+            Export your memory bundle as JSON or import a previously exported bundle.
+          </p>
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          onClick={handleExport}
+          disabled={exporting || importing}
+          aria-label="Export memory bundle"
+        >
+          {exporting ? "Exporting…" : "Export bundle"}
+        </Button>
+      </div>
+
+      {message && (
+        <output className="mt-4 block rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
+          {message}
+        </output>
+      )}
+      {error && (
+        <p role="alert" className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          {error}
+        </p>
+      )}
+
+      {importResult && (
+        <div className="mt-4 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-700">
+          <div className="font-semibold mb-1">Import Result</div>
+          <dl className="grid grid-cols-2 gap-2 text-xs">
+            <div>
+              <dt className="text-blue-600">Imported:</dt>
+              <dd className="font-mono">{importResult.imported}</dd>
+            </div>
+            <div>
+              <dt className="text-blue-600">Skipped:</dt>
+              <dd className="font-mono">{importResult.skipped}</dd>
+            </div>
+            <div>
+              <dt className="text-blue-600">Canonical:</dt>
+              <dd className="font-mono">{importResult.canonical_imported}</dd>
+            </div>
+            <div>
+              <dt className="text-blue-600">Tombstones:</dt>
+              <dd className="font-mono">{importResult.tombstones_applied}</dd>
+            </div>
+          </dl>
+          {importResult.errors.length > 0 && (
+            <div className="mt-2 pt-2 border-t border-blue-200">
+              <div className="font-semibold mb-1">Errors</div>
+              <ul className="text-xs space-y-1">
+                {importResult.errors.map((err, i) => (
+                  <li key={i} className="break-words">
+                    • {err}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="mt-4">
+        <label htmlFor="bundle-file-input" className="block text-sm font-medium mb-2">
+          Import bundle
+        </label>
+        <input
+          ref={fileInputRef}
+          id="bundle-file-input"
+          type="file"
+          accept="application/json,.json"
+          onChange={handleFileSelect}
+          disabled={exporting || importing}
+          aria-label="Select memory bundle file to import"
+          className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-3 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+        />
+        <p className="text-xs text-muted-foreground mt-1">Accepts .json files</p>
+      </div>
+
+      {/* Confirmation Dialog */}
+      {showConfirmDialog && !!parsedBundle && (
+        <div className="mt-4 rounded-lg border border-yellow-200 bg-yellow-50 p-4" role="region" aria-label="Import confirmation">
+          <div className="mb-3">
+            <p className="text-sm font-semibold text-yellow-900">Confirm import?</p>
+            <p className="text-sm text-yellow-800 mt-1">
+              This will import the selected bundle into this instance. This action cannot be undone.
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="default"
+              size="sm"
+              onClick={handleConfirmImport}
+              disabled={importing}
+              autoFocus
+              aria-label="Confirm import"
+            >
+              {importing ? "Importing…" : "Confirm"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleCancelImport}
+              disabled={importing}
+              aria-label="Cancel import"
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+    </section>
+  );
 }
 
 function BackupRestoreSection() {
@@ -529,6 +765,8 @@ export function SettingsPage() {
 
       {/* Telemetry Section */}
       <TelemetrySection telemetry7={telemetry7} telemetryAll={telemetryAll} telemetryLoading={telemetryLoading} verboseAudit={verboseAudit} onVerboseAuditChange={handleVerboseAuditChange} />
+
+      <MemoryPortabilitySection />
 
       <BackupRestoreSection />
 
