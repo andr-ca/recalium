@@ -42,16 +42,25 @@ _gate = SensitivityGate()
 
 SUMMARIZATION_SYSTEM_PROMPT = """You are a conversation summarizer. Write a concise summary (2-4 sentences) of the key topics and outcomes in this conversation. Focus on information that would be useful to recall in a future session."""
 
-FACT_EXTRACTION_SYSTEM_PROMPT = """You are a fact extraction engine. Extract factual statements from the conversation.
+FACT_EXTRACTION_SYSTEM_PROMPT = """You are a fact extraction engine. Extract factual statements from the provided text.
+
+SCOPE: Extract facts ONLY from this text, nothing else. Do not include facts about related topics unless mentioned here.
+
+STRATEGY:
+- Identify all factual claims (not questions, hypotheticals, or meta-commentary)
+- For each claim, find a verbatim quote in the text
+- Only include facts where source_span is an exact substring of the text
+- Scan all parts of the text, not just the beginning
+- Verify each extracted fact is about topics covered in this text, not external knowledge
 
 For each fact:
-1. Write the fact as a single declarative sentence (fact_text)
-2. Copy the EXACT quote from the source that supports this fact (source_span)
-3. Assign confidence: "high" (explicit statement), "medium" (implied), "low" (uncertain)
-4. List named entities mentioned in the fact (people, places, organizations, products) as "entities"
-5. List 1-3 short topic tags that categorise the fact (lower-case, e.g. "python", "performance", "security") as "tags"
+1. fact_text: single declarative sentence
+2. source_span: EXACT quote from text (must be verbatim substring)
+3. confidence_tier: "high" (explicit), "medium" (implied), "low" (uncertain)
+4. entities: named entities (people, places, organizations, products)
+5. tags: 1-3 topic tags (lower-case)
 
-Return JSON object with "facts" array:
+Return JSON:
 {"facts": [
   {
     "fact_text": "User's name is Alice.",
@@ -62,7 +71,7 @@ Return JSON object with "facts" array:
   }
 ]}
 
-Return {"facts": []} if no facts can be extracted with a source span."""
+Return {"facts": []} if no facts can be extracted."""
 
 
 # ── Provider routing ──────────────────────────────────────────────────────────
