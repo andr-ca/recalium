@@ -313,9 +313,7 @@ per the user's explicit request, since the earlier informal mention inside
 
 ## 2026-07-17: npm-mode installer left 32+ skill files and `.agentharness-pkg/` uncommitted, with no signal anything was wrong
 
-**What happened:** while auditing `.claude/skills/` in an unrelated session, `git ls-files
-.claude/skills/` returned only 2 tracked files (`recalium-memory`, `recalium-use-and-test` —
-this project's own hand-authored skills, added separately). All 32 of the skills the harness
+**What happened:** while auditing `.claude/skills/` in an unrelated session, `git ls-files .claude/skills/` returned only 2 tracked file paths (`.claude/skills/recalium-memory/SKILL.md` and `.claude/skills/recalium-use-and-test/SKILL.md` — this project's own hand-authored skills, added separately), meaning only those 2 of the 34 skill directories had any tracked content at all. All 32 of the other skills the harness
 installer wrote (`accessibility`, `agentic-loops`, `api-design`, ... `testing`,
 `typescript-conventions`) exist on disk — real, substantial content, not stubs — but were
 never committed. `git log --all -- .claude/skills/` shows no commit ever added them.
