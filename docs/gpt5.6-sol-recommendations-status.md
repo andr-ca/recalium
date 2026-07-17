@@ -16,7 +16,7 @@ Most P0s are **multi-day architectural builds**, not one-pass fixes; those are a
 
 | #   | P   | Finding (short)                                | Decision                                       | Evidence           |
 | --- | --- | ---------------------------------------------- | ---------------------------------------------- | ------------------ |
-| 1   | P0  | Cold-start vendor import not implemented       | � Import domain built (per-conversation)       | `feat(import)`     |
+| 1   | P0  | Cold-start vendor import not implemented       | ✅ Import domain built (per-conversation)       | `feat(import)`     |
 | 2   | P0  | Deletion/backup/restore safety                 | ✅ Implemented (crypto-erase + tombstone ledger + safe restore) | `4849828`     |
 | 3   | P0  | Eval can go green after skips/errors           | ✅ Implemented (testable strict gate)           | `15267e4`          |
 | 4   | P0  | Retrieval filters + hybrid fusion              | ✅ Implemented (stable-identity RRF + SQL filters + fact FTS) | `9bce2ef`,`1ead3f7`,`787ad29` |
@@ -27,16 +27,16 @@ Most P0s are **multi-day architectural builds**, not one-pass fixes; those are a
 | 9   | P0  | Concurrency: deletion vs promotion races       | ✅ Implemented (serialized + server-side promotion) | `b830279`      |
 | 10  | P0  | Conflict detection empty; resolve is a no-op   | ✅ Implemented (queue materialization + keep/suppress effects) | `1da5f3a` |
 | 11  | P1  | MCP reads not durably audited; error contracts | ✅ Implemented                                  | `9d216b3`          |
-| 12  | P1  | Extraction/ranking metric defects              | � Implemented (matching/span/nDCG + tests)     | `evals/metrics.py` |
+| 12  | P1  | Extraction/ranking metric defects              | ✅ Implemented (matching/span/nDCG + tests)     | `evals/metrics.py` |
 | 13  | P1  | Red/skipped gates; no app CI                   | ✅ CI workflow (backend/frontend/docker build)  | `.github/workflows/ci.yml` |
 | 14  | P1  | Keyboard a11y + curation incomplete            | 🟡 Ingest tabs/upload keyboard-operable; suite planned | `500542f`, IngestPage |
 | 15  | P1  | Website/repo claims inaccurate; no LICENSE     | 🟡 LICENSE added; website copy planned          | `500542f`          |
-| 16  | P1  | Requirements/plans not traceable               | � Requirement→test matrix + CI gate (50/52)     | `feat(traceability)` |
+| 16  | P1  | Requirements/plans not traceable               | ✅ Requirement→test matrix + CI gate (50/52)     | `feat(traceability)` |
 | 17  | P1  | Provenance/canonical integrity below promise   | ✅ Server-derived promotion provenance + carried in bundle | `b830279`,`f0bd9bc` |
 | 18  | P1  | `memory/` credential & path-traversal hazards  | 📋 Planned (quarantine)                         | —                  |
 | 19  | P1  | "Exposed mode" not fully wired/secure          | 📋 Planned (declare unsupported)                | —                  |
-| 20  | P1  | Eval not representative/isolated/at-scale      | � Diverse corpus + scale/concurrency check; real vendor data TBD | `ed98bb2`  |
-| 21  | P1  | Embedding provider routing partial             | � Canonical model + stale-embedding guard      | `feat(embeddings)` |
+| 20  | P1  | Eval not representative/isolated/at-scale      | ✅ Diverse corpus + scale/concurrency check; real vendor data TBD | `ed98bb2`  |
+| 21  | P1  | Embedding provider routing partial             | ✅ Canonical model + stale-embedding guard      | `feat(embeddings)` |
 | 22  | P1  | Frontend error/deleted-item states mislead     | ✅ deleted_at + Canonical error/empty states    | `6788d91`, CanonicalPage |
 | 23  | P1  | Differentiation/market evidence stale          | 💬 Accepted (docs)                              | 📋                  |
 | 24  | P1  | Initial customer/packaging unresolved          | 💬 Accepted (product)                           | 📋                  |
