@@ -154,7 +154,7 @@ async def client() -> AsyncGenerator[AsyncClient, None]:
 **Critical notes for executor:**
 - `ASGITransport` is `httpx.ASGITransport` (httpx ≥ 0.23) — do NOT use the deprecated `app=` kwarg directly on `AsyncClient`.
 - `scope="session"` for `event_loop` fixture is required by pytest-asyncio 1.x when using session-scoped async fixtures.
-- If the test PostgreSQL database `recalium_test` does not exist yet, the executor must create it: `createdb recalium_test` or `docker exec recalium-postgres psql -U recalium -c "CREATE DATABASE recalium_test;"`.
+- If the test PostgreSQL database `recalium_test` does not exist yet, the executor must create it: `createdb recalium_test` or `docker compose exec recalium-postgres psql -U recalium -c "CREATE DATABASE recalium_test;"` (use `docker compose exec <service>`, not a fixed container name — `docker-compose.yml` no longer sets `container_name`).
   </action>
   <acceptance_criteria>
 - `backend/tests/__init__.py` exists (empty file)
@@ -709,7 +709,7 @@ describe("LeftNav", () => {
 
 ```bash
 # If running locally against a dev PostgreSQL:
-docker exec recalium-postgres psql -U recalium -c "CREATE DATABASE recalium_test;" 2>/dev/null || true
+docker compose exec recalium-postgres psql -U recalium -c "CREATE DATABASE recalium_test;" 2>/dev/null || true
 
 # Set TEST_DATABASE_URL if different from default
 export TEST_DATABASE_URL="postgresql+asyncpg://recalium:changeme@localhost:5432/recalium_test"

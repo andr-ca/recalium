@@ -6,7 +6,12 @@
 services:
   recalium-postgres:
     image: pgvector/pgvector:pg16
-    container_name: recalium-postgres
+    # No fixed container_name: Docker container names are global across the host, not
+    # scoped per Compose project. A fixed name here collides whenever a second isolated
+    # stack (e.g. a parallel worktree drill) tries to come up alongside this one. Compose
+    # already gives the container a resolvable network alias (the service name) for
+    # in-network DNS, and `docker compose exec/logs <service>` resolves it correctly
+    # without `container_name` — do not re-add this.
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
@@ -33,7 +38,7 @@ services:
         # gpu  → sentence-transformers with CUDA torch    (~4 GB image delta)
         # none → skip local ML; use OpenAI / Anthropic / Ollama only
         EMBED_BACKEND: ${EMBED_BACKEND:-cpu}
-    container_name: recalium-app
+    # No fixed container_name — see recalium-postgres above for why.
     restart: unless-stopped
     depends_on:
       recalium-postgres:
