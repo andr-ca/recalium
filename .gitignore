@@ -115,3 +115,8 @@ memory/scripts/session-flush-*.md
 # Local copy of built SPA (Docker copies frontend/dist at build time)
 backend/app/static/
 .claude/settings.local.json
+
+# agentharness-toolkit bootstrap package — never meant to be committed; goes stale the
+# moment a new harness version publishes (see andr-ca/agentharness commit 8ab1478 /
+# .github/.gitignore.template, and andr-ca/agentharness#88)
+.agentharness-pkg/
