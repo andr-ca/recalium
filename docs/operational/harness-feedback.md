@@ -358,6 +358,27 @@ decided/committed: whether to commit the 32 skill directories as-is in this repo
 handle `.agentharness-pkg/` — deferred pending that issue's resolution, since committing
 `.agentharness-pkg/` without knowing its intended status could itself be wrong.
 
+**Update (2026-07-18) — maintainer verified and partially corrected the report:**
+[andr-ca/agentharness#88](https://github.com/andr-ca/agentharness/issues/88#issuecomment)
+confirmed the core finding by actually running `harness-link.sh init --mode npm` +
+`doctor` in a scratch repo (not just reading code), and found it's **worse and broader**
+than filed: `cmd_init` in npm mode leaves everything it writes untracked — not just
+`.claude/skills/`, but also `.agents/skills/`, `CLAUDE.md`, `AGENTS.md`, `GEMINI.md`,
+`.github/`, and both state-json files — and `cmd_doctor` reports "all checks passed" on
+that exact untracked state, since it never checks git-tracked status. That's a false-green
+signal on a repo that would lose every installed skill on a fresh clone.
+
+However, **one half of this report was wrong on current `main`**: the `.agentharness-pkg/`
+gitignore ambiguity (ask #2) is already fixed upstream —
+`.github/.gitignore.template:212` has carried `.agentharness-pkg/` since commit `8ab1478`,
+the same commit that introduced npm mode. A live test confirmed a fresh npm-mode init does
+not show `.agentharness-pkg/` as untracked. This repo's `.agentharness-state.json` records
+harness revision `0.2.1` and our own `.gitignore` has no `.agentharness-pkg/` entry at
+all — we were on a stale pin relative to that fix, not observing a live upstream bug.
+Added the missing `.gitignore` entry directly in this repo (no need to wait for a harness
+version bump to fix our own state) rather than leaving the report's now-inaccurate half
+uncorrected here.
+
 ---
 
 ## Standing instruction (updated 2026-07-17)
