@@ -239,7 +239,7 @@
         {
           "id": "fact-202",
           "text": "User's therapist recommended cognitive behavioral therapy (CBT) techniques",
-          "source_span": "Dr. Smith recommended cognitive behavioral therapy techniques",
+          "source_span": "she recommended cognitive behavioral therapy techniques",
           "confidence": 0.9,
           "tags": [
             "personal",
@@ -265,6 +265,50 @@
           "tags": [
             "anxiety",
             "coping"
+          ],
+          "sensitivity_level": "public"
+        },
+        {
+          "id": "fact-205",
+          "text": "Regular exercise is a coping strategy for anxiety",
+          "source_span": "Regular exercise",
+          "confidence": 0.85,
+          "tags": [
+            "anxiety",
+            "coping"
+          ],
+          "sensitivity_level": "public"
+        },
+        {
+          "id": "fact-206",
+          "text": "Medication, if recommended, is a coping strategy for anxiety",
+          "source_span": "Medication if recommended",
+          "confidence": 0.85,
+          "tags": [
+            "anxiety",
+            "coping"
+          ],
+          "sensitivity_level": "public"
+        },
+        {
+          "id": "fact-207",
+          "text": "CBT is evidence-based and effective for anxiety",
+          "source_span": "CBT is evidence-based and effective for anxiety",
+          "confidence": 0.9,
+          "tags": [
+            "therapy",
+            "clinical"
+          ],
+          "sensitivity_level": "public"
+        },
+        {
+          "id": "fact-208",
+          "text": "Personal relationships are key to recovery",
+          "source_span": "Personal relationships are key to recovery",
+          "confidence": 0.85,
+          "tags": [
+            "recovery",
+            "general-principle"
           ],
           "sensitivity_level": "public"
         }
