@@ -379,6 +379,24 @@ Added the missing `.gitignore` entry directly in this repo (no need to wait for 
 version bump to fix our own state) rather than leaving the report's now-inaccurate half
 uncorrected here.
 
+**Second correction (2026-07-19) — the "32 files" were never independent content:** while
+deciding whether to commit the 32 untracked skill directories per the plan above, `readlink`
+on all 32 showed every one is a **symlink** into `.agentharness-pkg/.claude/skills/<name>` —
+only this project's own 2 hand-authored skills (`recalium-memory`, `recalium-use-and-test`)
+are real, independent directories. This narrows the original report: nothing unique is at
+risk of loss from these 32 staying untracked, since re-running `harness-link.sh init
+--mode npm` on a fresh clone recreates identical (or newer-pinned) symlinks, as long as
+`init` places `.agentharness-pkg/` at the same repo-relative path every time. The real gap
+is narrower than "32 real files could be silently lost" — it's "a fresh clone has zero
+working skills until someone remembers to re-run `init`, with no signal that anything is
+missing," which the maintainer's broader `cmd_init`/`doctor` finding above already
+substantially covers. Posted this correction, plus an open design question (should these
+symlinks be committed, so `doctor` can detect a dangling-symlink state specifically instead
+of the current total silence?), as a follow-up comment on
+[andr-ca/agentharness#88](https://github.com/andr-ca/agentharness/issues/88). **Decided:
+do not commit `.claude/skills/*` in this repo** — there's nothing there to commit that
+isn't already either tracked (the 2 real skills) or regenerable via `init`.
+
 ---
 
 ## Standing instruction (updated 2026-07-17)
