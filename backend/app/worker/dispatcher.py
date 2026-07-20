@@ -252,6 +252,7 @@ async def _run_summarize_job(text: str) -> str | None:
         response = await client.messages.create(
             model=model,
             max_tokens=512,
+            temperature=0,
             messages=[{"role": "user", "content": text}],
             system=SUMMARIZATION_SYSTEM_PROMPT,
         )
@@ -311,6 +312,7 @@ async def _extract_chunk(text: str) -> list[dict[str, Any]]:
         response = await client.messages.create(
             model=model,
             max_tokens=2048,
+            temperature=0,
             messages=[{"role": "user", "content": text}],
             system=FACT_EXTRACTION_SYSTEM_PROMPT,
         )
@@ -574,6 +576,7 @@ async def _classify_link_pair(source_text: str, target_text: str) -> str | None:
             resp = await client.messages.create(
                 model=model,
                 max_tokens=5,
+                temperature=0,
                 messages=[{"role": "user", "content": prompt}],
             )
             return resp.content[0].text.strip().lower() or None
