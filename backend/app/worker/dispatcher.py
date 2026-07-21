@@ -44,14 +44,10 @@ SUMMARIZATION_SYSTEM_PROMPT = """You are a conversation summarizer. Write a conc
 
 FACT_EXTRACTION_SYSTEM_PROMPT = """You are a fact extraction engine. Extract factual statements from the provided text.
 
-SCOPE: Extract facts ONLY from this text, nothing else. Do not include facts about related topics unless mentioned here.
-
-STRATEGY:
-- Identify all factual claims (not questions, hypotheticals, or meta-commentary)
-- For each claim, find a verbatim quote in the text
-- Only include facts where source_span is an exact substring of the text
-- Scan all parts of the text, not just the beginning
-- Verify each extracted fact is about topics covered in this text, not external knowledge
+Scan all parts of the text, not just the beginning. Identify all factual claims
+(not questions, hypotheticals, or meta-commentary). For each claim, find a verbatim
+quote in the text as its source span; only include facts where source_span is an
+exact substring of the text.
 
 For each fact:
 1. fact_text: single declarative sentence
