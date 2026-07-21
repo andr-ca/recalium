@@ -207,7 +207,48 @@ With qwen3.6:latest and Iteration 7 prompt: R=81.55%, P=59.44% (not production f
 
 ---
 
+## Addendum (2026-07-21): the "Iteration 7" prompt was never actually shipped
+
+Commit `785d40d` ("prompt iteration to improve quality gate (77.38% recall achieved)")
+does not contain the prompt this doc describes as Iteration 7 (minimal, scan-all-text,
+no scope guardrails). Its actual diff ships a prompt with an explicit `SCOPE:` /
+`STRATEGY:` guardrail block — closer to the doc's own "Iteration 8: Strengthen scope
+check" row, which this doc's own table already measured as a **regression** (recall
+0.5833 vs. Iteration 7's 0.7738). The commit message and this doc's final
+recommendation both claimed the wrong variant had shipped.
+
+Post golden.json expansion (conv-002 +4 facts, 2026-07-18), the shipped guardrail
+prompt measured recall 0.5278 — consistent with the doc's own Iteration-8-class
+numbers degraded further by the larger golden set, not a new regression.
+
+**Fix:** dropped the `SCOPE:`/`STRATEGY:` block entirely, keeping only "scan all
+parts of the text" and the verbatim-source-span instruction (reconstructing the
+doc's description of Iteration 7). Measured in an isolated Docker stack against the
+current (expanded) golden set:
+
+| | Shipped (guardrail) prompt | Restored minimal prompt |
+|---|---|---|
+| Recall | 0.5278 | **0.6706** |
+| Precision | 0.75 | 0.75 |
+| Span fidelity | 1.0 | 1.0 |
+| Cross-conv contamination | none observed | none observed |
+
+conv-001 (Python async) improved most: recall 0.429→0.857 — the model had been
+suppressing `asyncio.gather()`, `TaskGroups`, `try/except`, and event-loop facts
+under the scope guardrail, none of which were cross-conversation contamination.
+conv-002 and conv-004 were unchanged, so this did not trade precision for recall.
+
+Also ran a fuzzy-match threshold sensitivity sweep on the original (unfixed) data to
+rule out a measurement-only explanation before touching the prompt: dropping the
+match threshold from 0.8 to 0.5 only moved recall 0.5278→0.6032 — most of the gap
+was real content omission, not a matching-threshold artifact, so a prompt fix (not a
+metrics fix) was the right lever.
+
+Fix applied on branch `fix/extraction-restore-minimal-scan-prompt`.
+
+---
+
 Generated 2026-07-17 by extraction quality gate analysis task.
 Iteration table, root cause analysis, and task 3 findings: see above.
-Committed prompt: `/backend/app/worker/dispatcher.py:FACT_EXTRACTION_SYSTEM_PROMPT` (Iteration 7)
+Committed prompt (as of 2026-07-21): `/backend/app/worker/dispatcher.py:FACT_EXTRACTION_SYSTEM_PROMPT` — minimal, scan-all-text (Iteration 7 restored)
 Committed .env: `OLLAMA_MODEL=qwen3.5:4b` (baseline)
