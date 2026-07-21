@@ -189,7 +189,14 @@ With qwen3.6:latest and Iteration 7 prompt: R=81.55%, P=59.44% (not production f
 
 ## Final Recommendation
 
-**STATUS: PARTIALLY COMPLETE**
+> **Superseded 2026-07-21 — see the addendum below.** The status and numbers in
+> this section describe the Iteration 7 prompt as *measured*, not as *shipped*.
+> The prompt actually deployed on `main` at the time was a different, stricter
+> variant that measured significantly worse (see addendum). As of 2026-07-21
+> the minimal Iteration 7 prompt has now actually been restored on `main`; the
+> addendum below has the current, accurate status.
+
+**STATUS: PARTIALLY COMPLETE (as measured in this run, not as shipped — see addendum)**
 - **Recall Gate:** ✓ MET (77.38% > 75% target)
 - **Precision Gate:** ✗ NOT MET (61.67% < 80% target, needs +18.33pp improvement)
 - **Span Fidelity:** ✓ MET (100%)
