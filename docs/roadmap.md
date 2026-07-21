@@ -63,8 +63,8 @@ Note on `recommendations.md` §3: its "v1.2 Quality Improvements" list (F1, F2, 
 | RR-003 / RR-004 facts lifecycle | Audit rows against current code — substantial functionality landed after the rows were written (editing, statuses, archive/delete, promotion). Close what's evidenced; finish and test any genuine remainder |
 | RR-010 MCP resources & live coverage | Decide whether MCP resources ship in v1 or move to M3 (record the decision); add live-client tests for schemas, invalid inputs, audit metadata, concurrent SSE clients |
 | RR-014 evidence matrix | Publish the acceptance-criteria → evidence mapping so release readiness is auditable in one place |
-| Extraction gate (#13) | Re-run the gate now that `golden.json` conv-002 was expanded (+4 facts, 2026-07-17); sustain recall ≥0.60 and precision ≥0.70 in `--strict` mode or document precisely why not |
-| Known code-health items | Pin `temperature=0` on the Anthropic path in `dispatcher.py` (determinism gap found 2026-07-17); wrap unexpected exceptions in the MCP error envelope for `retrieve_memory`/`get_fact_links`/`list_tags`; fix the 3 stale phase-5 MCP tests (pre-envelope assertions + test isolation) |
+| Extraction gate (#13) | ✅ Re-measured on `main` post golden.json expansion (conv-002 + conv-003, 2026-07-18): recall 0.5278 (gate ≥0.60, **failing**, worse than pre-expansion), precision 0.75 (gate ≥0.70, **passing**). Recall is now the sole blocker — see M2, this is no longer a golden-set-coverage problem |
+| Known code-health items | ✅ Anthropic `temperature=0` pin landed 2026-07-20 (all 3 call sites: summarize/extract/link-classify). Still open: wrap unexpected exceptions in the MCP error envelope for `retrieve_memory`/`get_fact_links`/`list_tags`; fix the 3 stale phase-5 MCP tests (pre-envelope assertions + test isolation) |
 
 **Exit criteria:** gap register all-closed · `evals/runner.py --strict` 5/5 · evidence matrix published.
 
@@ -73,7 +73,7 @@ Note on `recommendations.md` §3: its "v1.2 Quality Improvements" list (F1, F2, 
 **Goal:** make the extraction number one we believe, then reach the **backlog-unlock bar: recall ≥0.75 and precision ≥0.80** (a deliberately higher bar than the ≥0.60/≥0.70 release gates — it gates the 999.x synthesis features, which compound extraction errors if built on a weak base).
 
 - **Golden-set completeness:** raise per-conversation coverage to ≥85% (2026-07-17 audit measured 68.3% overall; conv-002 fixed to 92.3%, conv-003 needs an explicit sensitivity-vs-coverage policy). Golden facts are authored by exhaustive manual enumeration of the source, never from model output.
-- **Eval methodology hardening:** N-run averaged mode with variance reporting in `evals/runner.py`. Determinism is confirmed for the OpenAI/Ollama paths (bit-for-bit identical A/B runs, 2026-07-17); keep it that way and extend to Anthropic once its temperature is pinned (M1).
+- **Eval methodology hardening:** N-run averaged mode with variance reporting in `evals/runner.py`. Determinism is confirmed for the OpenAI/Ollama paths (bit-for-bit identical A/B runs, 2026-07-17); Anthropic's `temperature=0` pin landed 2026-07-20 (all 3 call sites) — still needs its own A/B determinism confirmation run.
 - **Closed-model control experiment:** one measured run with a GPT-4-class `EXTRACT_PROVIDER` to locate the quality ceiling — answers whether the gap is the local model or the method.
 - **Chunk-metadata spike** (conversation title/sequence/speaker headers on chunks): design-first, and only if the gates are still unmet after the above — measurement before architecture.
 - **Deduplication stays exact-match** unless a change is proven on the eval. (A fuzzy-paraphrase dedup was tried and rejected 2026-07-17: zero measured improvement, and ≥60% content-word overlap falsely merged genuinely distinct facts.)
@@ -136,7 +136,7 @@ Each of these requires changing a standing constraint, so each enters planning o
 | --- | --- | --- |
 | MCP SDK v2 breaking transport changes (upstream) | Forced rework of the MCP layer | Pin `<2`; phased spike→migrate plan in ADR 0001 (M3/M4) |
 | Local-model extraction ceiling (qwen-class) | 999.x stays blocked | M2 sequence: fix measurement first, closed-model control second, architecture change last |
-| Eval trust erosion (non-determinism, golden gaps) | Gates stop meaning anything | Anthropic temperature pin (M1), N-run averaging + ≥85% golden coverage (M2) |
+| Eval trust erosion (non-determinism, golden gaps) | Gates stop meaning anything | Anthropic temperature pin landed (M1); N-run averaging + ≥85% golden coverage (M2) |
 | Frontend major-version churn (React 19 / Vite 8 / Tailwind 4) | Upgrade breakage | Versions pinned; upgrades only on green E2E + axe suites |
 | pnpm v11 (beta, breaking) | CI/dev breakage | Stay on 10.x until stable (see tech-stack doc) |
 | Single-user assumptions leaking into schema | Costly v2 rework | Service-ready boundary review in PRs touching domain seams |
