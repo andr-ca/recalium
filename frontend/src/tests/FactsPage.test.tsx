@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { MemoryRouter } from "react-router-dom";
 import { FactsPage } from "../pages/FactsPage";
 import {
   listFacts,
@@ -78,7 +79,7 @@ describe("FactsPage", () => {
 
   it("edits facts and sends lifecycle actions", async () => {
     const user = userEvent.setup();
-    render(<FactsPage />);
+    render(<MemoryRouter><FactsPage /></MemoryRouter>);
 
     const textarea = await screen.findByLabelText(/edit fact text/i);
     await user.clear(textarea);
@@ -98,7 +99,7 @@ describe("FactsPage", () => {
 
   it("can show archived/deleted facts and suppress a fact", async () => {
     const user = userEvent.setup();
-    render(<FactsPage />);
+    render(<MemoryRouter><FactsPage /></MemoryRouter>);
 
     await screen.findByText("Recalium uses FastAPI.");
     expect(listFacts).toHaveBeenCalledWith({ limit: 100, reviewStatus: undefined });

@@ -10,6 +10,7 @@ import { CanonicalPage } from "@/pages/CanonicalPage";
 import { ReviewQueuePage } from "@/pages/ReviewQueuePage";
 import { AuditPage } from "@/pages/AuditPage";
 import { WizardPage } from "@/pages/WizardPage";
+import { MemoryDetailPage } from "@/pages/MemoryDetailPage";
 import { getOnboardingStatus } from "@/lib/api";
 
 function AppInner() {
@@ -36,6 +37,7 @@ function AppInner() {
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/search" element={<SearchPage />} />
         <Route path="/facts" element={<FactsPage />} />
+        <Route path="/memory/:id" element={<MemoryDetailPage />} />
         <Route path="/canonical" element={<CanonicalPage />} />
         <Route path="/review-queue" element={<ReviewQueuePage />} />
         <Route path="/audit" element={<AuditPage />} />

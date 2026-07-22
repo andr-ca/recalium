@@ -242,6 +242,48 @@ export async function listFacts(params?: { limit?: number; offset?: number; revi
   return request<{ facts: FactItem[]; count: number }>(`/facts/?${p}`);
 }
 
+export async function getFact(factId: string): Promise<FactItem> {
+  return request<FactItem>(`/facts/${factId}`);
+}
+
+// ── Tags & memory links (relationship graph) ─────────────────────────────────
+
+export interface FactTag {
+  tag_id: string;
+  name: string;
+  assigned_by: string;
+  assigned_at: string;
+}
+
+export type LinkDirection = "outgoing" | "incoming" | "both";
+
+/** A typed edge to another fact. link_type ∈ supports | elaborates | contradicts | related | entity. */
+export interface FactLink {
+  link_id: string;
+  link_type: string;
+  confidence: number;
+  entity_name: string | null;
+  created_by: string;
+  created_at: string;
+  other_fact_id: string;
+  other_fact_text: string;
+}
+
+export async function getFactTags(factId: string): Promise<{ fact_id: string; tags: FactTag[] }> {
+  return request<{ fact_id: string; tags: FactTag[] }>(`/facts/${factId}/tags`);
+}
+
+export async function getFactLinks(
+  factId: string,
+  direction: LinkDirection = "both",
+): Promise<{ fact_id: string; direction: string; links: FactLink[]; total: number }> {
+  const p = new URLSearchParams({ direction });
+  return request<{ fact_id: string; direction: string; links: FactLink[]; total: number }>(
+    `/facts/${factId}/links?${p}`,
+  );
+}
+
+
 export async function updateFact(
   factId: string,
   data: { fact_text?: string; source_span?: string; confidence_tier?: string; review_status?: string },
