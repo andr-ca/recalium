@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -199,7 +199,7 @@ async def list_fact_links(
 @router.get("/tags/{tag_id}/facts")
 async def list_tag_facts(
     tag_id: uuid.UUID,
-    limit: int = 200,
+    limit: int = Query(200, ge=1, le=500),
     session: AsyncSession = Depends(get_session),
 ) -> dict:
     """List active facts tagged with a specific tag.
@@ -222,7 +222,8 @@ async def list_tag_facts(
                 f.confidence_tier,
                 f.review_status,
                 f.raw_archive_id::text AS raw_archive_id,
-                f.created_at::text AS created_at
+                f.created_at::text AS created_at,
+                COUNT(*) OVER() AS total_count
             FROM fact_tags ft
             JOIN facts f ON f.id = ft.fact_id
             WHERE ft.tag_id = :tid
@@ -234,6 +235,9 @@ async def list_tag_facts(
         {"tid": str(tag_id), "limit": limit},
     )).mappings().all()
 
+    # total matching active facts (before LIMIT) — so `count` is meaningful even
+    # when the returned `facts` page is truncated to `limit`.
+    total = int(rows[0]["total_count"]) if rows else 0
     return {
         "tag_id": str(tag_id),
         "name": tag_row["name"],
@@ -248,5 +252,5 @@ async def list_tag_facts(
             }
             for row in rows
         ],
-        "count": len(rows),
+        "count": total,
     }

@@ -13,6 +13,7 @@ export function TagFactsPage() {
   const { tagId = "" } = useParams()
   const [name, setName] = React.useState<string>("")
   const [facts, setFacts] = React.useState<TagFact[]>([])
+  const [count, setCount] = React.useState(0)
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
   const [notFound, setNotFound] = React.useState(false)
@@ -23,12 +24,14 @@ export function TagFactsPage() {
     setError(null)
     setNotFound(false)
     setFacts([])
+    setCount(0)
     setName("")
     getTagFacts(tagId)
       .then((r) => {
         if (cancelled) return
         setName(r.name)
         setFacts(r.facts)
+        setCount(r.count)
       })
       .catch((err) => {
         if (cancelled) return
@@ -50,10 +53,13 @@ export function TagFactsPage() {
         <h1 className="text-2xl font-semibold mt-1">
           {name ? name : "Tag"}
           {!loading && !notFound && !error && (
-            <span className="text-muted-foreground font-normal text-lg"> · {facts.length} fact{facts.length === 1 ? "" : "s"}</span>
+            <span className="text-muted-foreground font-normal text-lg"> · {count} fact{count === 1 ? "" : "s"}</span>
           )}
         </h1>
         <p className="text-sm text-muted-foreground mt-1">Active facts carrying this tag.</p>
+        {!loading && facts.length < count && (
+          <p className="text-xs text-muted-foreground mt-1">Showing the first {facts.length} of {count}.</p>
+        )}
       </div>
 
       <div aria-live="polite" aria-busy={loading}>
