@@ -213,8 +213,10 @@ export async function searchMemory(
   q: string,
   mode: "keyword" | "semantic" | "hybrid" = "hybrid",
   limit = 20,
+  canonicalOnly = false,
 ): Promise<RetrievalResponse> {
   const params = new URLSearchParams({ q, mode, limit: String(limit) });
+  if (canonicalOnly) params.set("canonical_only", "true");
   return request<RetrievalResponse>(`/search?${params}`);
 }
 
