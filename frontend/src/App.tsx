@@ -11,6 +11,8 @@ import { ReviewQueuePage } from "@/pages/ReviewQueuePage";
 import { AuditPage } from "@/pages/AuditPage";
 import { WizardPage } from "@/pages/WizardPage";
 import { MemoryDetailPage } from "@/pages/MemoryDetailPage";
+import { ExplorePage } from "@/pages/ExplorePage";
+import { TagFactsPage } from "@/pages/TagFactsPage";
 import { getOnboardingStatus } from "@/lib/api";
 
 function AppInner() {
@@ -36,6 +38,8 @@ function AppInner() {
         <Route path="/archive" element={<ArchivePage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/search" element={<SearchPage />} />
+        <Route path="/explore" element={<ExplorePage />} />
+        <Route path="/explore/tags/:tagId" element={<TagFactsPage />} />
         <Route path="/facts" element={<FactsPage />} />
         <Route path="/memory/:id" element={<MemoryDetailPage />} />
         <Route path="/canonical" element={<CanonicalPage />} />

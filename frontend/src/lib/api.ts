@@ -283,6 +283,33 @@ export async function getFactLinks(
   );
 }
 
+export interface Tag {
+  id: string;
+  name: string;
+  created_at: string;
+  fact_count: number;
+}
+
+export async function listTags(): Promise<{ tags: Tag[]; total: number }> {
+  return request<{ tags: Tag[]; total: number }>(`/tags`);
+}
+
+export interface TagFact {
+  id: string;
+  fact_text: string;
+  confidence_tier: string;
+  review_status: string;
+  raw_archive_id: string;
+  created_at: string;
+}
+
+export async function getTagFacts(
+  tagId: string,
+): Promise<{ tag_id: string; name: string; facts: TagFact[]; count: number }> {
+  return request<{ tag_id: string; name: string; facts: TagFact[]; count: number }>(`/tags/${tagId}/facts`);
+}
+
+
 
 export async function updateFact(
   factId: string,
