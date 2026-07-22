@@ -1,4 +1,5 @@
 import * as React from "react"
+import { Link } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { searchMemory, getArchiveItem, type RetrievalItem, type RetrievalResponse, type ArchiveItemDetail, ApiError } from "@/lib/api"
@@ -107,6 +108,15 @@ export function SearchPage() {
                   </Button>
                 </div>
                 <p className="text-sm whitespace-pre-wrap">{item.content}</p>
+                {item.type === "fact" && (
+                  <Link
+                    to={`/memory/${item.id}`}
+                    className="inline-block text-sm text-primary hover:underline"
+                    aria-label="Open memory detail, links, and lineage for this fact"
+                  >
+                    Open memory →
+                  </Link>
+                )}
                 {item.provenance?.derivation_method && (
                   <p className="text-xs text-muted-foreground">
                     via {item.provenance.derivation_method} · {item.provenance.derivation_model}

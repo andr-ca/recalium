@@ -189,3 +189,27 @@ async def test_archive_and_delete_fact_hide_from_default_list(
     all_statuses = {item["id"]: item["review_status"] for item in all_resp.json()["facts"]}
     assert all_statuses[str(archived_fact.id)] == "archived"
     assert all_statuses[str(deleted_fact.id)] == "deleted"
+
+
+@pytest.mark.asyncio
+async def test_get_fact_returns_single_fact(
+    client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    """GET /api/facts/{id} returns one fact by id; unknown id 404s."""
+    fact = await _create_fact(db_session, fact_text="Recalium links related facts.")
+
+    resp = await client.get(f"/api/facts/{fact.id}")
+
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["id"] == str(fact.id)
+    assert data["fact_text"] == "Recalium links related facts."
+    assert data["raw_archive_id"] == str(fact.raw_archive_id)
+    assert data["source_span"] == fact.source_span
+    assert data["confidence_tier"] == fact.confidence_tier
+    assert data["review_status"] == "active"
+
+    missing = await client.get(f"/api/facts/{uuid.uuid4()}")
+    assert missing.status_code == 404, missing.text
+

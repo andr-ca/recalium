@@ -1,4 +1,5 @@
 import * as React from "react"
+import { Link } from "react-router-dom"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -170,6 +171,13 @@ export function FactsPage() {
               <Button variant="outline" size="sm" disabled={saving === fact.id} onClick={() => handleStatus(fact, "stale")}>Mark stale</Button>
               <Button variant="outline" size="sm" disabled={saving === fact.id} onClick={() => handleStatus(fact, "archive")}>Archive</Button>
               <Button variant="outline" size="sm" disabled={saving === fact.id} onClick={() => handleStatus(fact, "delete")}>Delete</Button>
+              <Link
+                to={`/memory/${fact.id}`}
+                className="inline-flex items-center rounded-md border px-3 h-8 text-sm font-medium hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-ring]"
+                aria-label={`View memory details and links for: ${fact.fact_text.slice(0, 40)}`}
+              >
+                Details →
+              </Link>
             </div>
           </div>
         ))}

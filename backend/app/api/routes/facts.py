@@ -172,6 +172,22 @@ async def list_facts(
     )
 
 
+@router.get("/{fact_id}")
+async def get_fact(
+    fact_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Return a single extracted fact by id.
+
+    Powers the memory detail view. Returns the fact regardless of review
+    status so a linked/promoted fact still resolves; 404 if it does not exist.
+    """
+    fact = await session.scalar(select(Fact).where(Fact.id == fact_id))
+    if fact is None:
+        raise HTTPException(status_code=404, detail=f"Fact {fact_id} not found")
+    return _fact_to_dict(fact)
+
+
 @router.patch("/{fact_id}")
 async def update_fact(
     fact_id: uuid.UUID,
