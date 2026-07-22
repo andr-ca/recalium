@@ -173,7 +173,7 @@ export function FactsPage() {
               <Button variant="outline" size="sm" disabled={saving === fact.id} onClick={() => handleStatus(fact, "delete")}>Delete</Button>
               <Link
                 to={`/memory/${fact.id}`}
-                className="inline-flex items-center rounded-md border px-3 h-8 text-sm font-medium hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-ring]"
+                className="inline-flex items-center rounded-md border px-3 h-8 text-sm font-medium hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 aria-label={`View memory details and links for: ${fact.fact_text.slice(0, 40)}`}
               >
                 Details →

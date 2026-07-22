@@ -50,6 +50,9 @@ export function MemoryDetailPage() {
     setLoading(true)
     setError(null)
     setNotFound(false)
+    setFact(null)
+    setTags([])
+    setLinks([])
     getFact(id)
       .then(async (f) => {
         // Tags and links are best-effort — a fact with no links/tags is valid,
