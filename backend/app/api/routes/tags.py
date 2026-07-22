@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -193,4 +193,64 @@ async def list_fact_links(
             for row in rows
         ],
         "total": len(rows),
+    }
+
+
+@router.get("/tags/{tag_id}/facts")
+async def list_tag_facts(
+    tag_id: uuid.UUID,
+    limit: int = Query(200, ge=1, le=500),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """List active facts tagged with a specific tag.
+
+    Powers the Explore tag/entity browser. Returns the tag's name plus the
+    active facts carrying it; 404 if the tag does not exist.
+    """
+    tag_row = (await session.execute(
+        text("SELECT id::text AS id, name FROM tags WHERE id = :tid LIMIT 1"),
+        {"tid": str(tag_id)},
+    )).mappings().fetchone()
+    if tag_row is None:
+        raise HTTPException(status_code=404, detail="Tag not found")
+
+    rows = (await session.execute(
+        text("""
+            SELECT
+                f.id::text AS id,
+                f.fact_text,
+                f.confidence_tier,
+                f.review_status,
+                f.raw_archive_id::text AS raw_archive_id,
+                f.created_at::text AS created_at,
+                COUNT(*) OVER() AS total_count
+            FROM fact_tags ft
+            JOIN facts f ON f.id = ft.fact_id
+            WHERE ft.tag_id = :tid
+              AND f.source_status = 'active'
+              AND f.review_status = 'active'
+            ORDER BY f.created_at DESC
+            LIMIT :limit
+        """),
+        {"tid": str(tag_id), "limit": limit},
+    )).mappings().all()
+
+    # total matching active facts (before LIMIT) — so `count` is meaningful even
+    # when the returned `facts` page is truncated to `limit`.
+    total = int(rows[0]["total_count"]) if rows else 0
+    return {
+        "tag_id": str(tag_id),
+        "name": tag_row["name"],
+        "facts": [
+            {
+                "id": row["id"],
+                "fact_text": row["fact_text"],
+                "confidence_tier": row["confidence_tier"],
+                "review_status": row["review_status"],
+                "raw_archive_id": row["raw_archive_id"],
+                "created_at": row["created_at"],
+            }
+            for row in rows
+        ],
+        "count": total,
     }

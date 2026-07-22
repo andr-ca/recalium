@@ -2,8 +2,8 @@
  * Component test for left-nav layout — covers WEBUI-01 (D-19).
  *
  * Requirements:
- * - Left-nav renders all 8 items in correct order: Ingest, Archive, Facts,
- *   Canonical, Search, Review Queue, Audit, Settings
+ * - Left-nav renders all 9 items in correct order: Ingest, Archive, Facts,
+ *   Canonical, Search, Explore, Review Queue, Audit, Settings
  * - All v1 route entries are enabled links once the release pages exist.
  */
 import { render, screen } from "@testing-library/react";
@@ -18,6 +18,7 @@ const NAV_ITEMS = [
   { label: "Facts", path: "/facts" },
   { label: "Canonical", path: "/canonical" },
   { label: "Search", path: "/search" },
+  { label: "Explore", path: "/explore" },
   { label: "Review Queue", path: "/review-queue" },
   { label: "Audit", path: "/audit" },
   { label: "Settings", path: "/settings" },
@@ -32,7 +33,7 @@ function renderNav() {
 }
 
 describe("NavSidebar", () => {
-  it("renders all 8 navigation items", () => {
+  it("renders all 9 navigation items", () => {
     renderNav();
     for (const item of NAV_ITEMS) {
       expect(
