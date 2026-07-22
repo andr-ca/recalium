@@ -77,7 +77,8 @@ graph LR
   `target_fact_id`, `link_type`, `entity_name`, `confidence`, `created_by`.
   Link types produced by the worker
   ([dispatcher.py](../../backend/app/worker/dispatcher.py)):
-  `supports`, `elaborates`, `contradicts`, `related` (`unrelated` is discarded).
+  `supports`, `elaborates`, `contradicts`, `related`, and `entity` (co-mention
+  pass — carries `entity_name`); `unrelated` is discarded.
 - **`tags` / `fact_tags`** ([migration 0005](../../backend/migrations/versions/0005_links_and_tags.py)) —
   many-to-many labels, including `entity:`-prefixed entity tags.
 - **`conflict_groups`** ([migration 0002](../../backend/migrations/versions/0002_derived_memory.py)) —
@@ -247,14 +248,14 @@ the global graph (it neither scales nor reads well at personal-memory sizes).
 
 ```
 ┌─ Graph · root: "prefers pnpm" ───────────────── depth [1] [2]  [reset] ─┐
-│  legend:  ── supports(green)  ── elaborates(blue)                        │
-│           ── contradicts(red)  ·· related(grey)                         │
+│  legend:  ── supports(green)  ── elaborates(blue)  ── contradicts(red)   │
+│           ·· related(grey)     ══ entity/co-mention(violet)              │
 │                                                                          │
 │            (Repo uses pnpm-lock) ──supports──▶ ● prefers pnpm ●          │
 │                     ▲                          │      ▲                  │
 │                 elaborates                  contradicts related          │
 │                     │                          ▼      │                  │
-│            (strict hoisting)          (switch to npp) (Node tooling)     │
+│            (strict hoisting)          (switch to npm) (Node tooling)     │
 │                                                                          │
 │  ▸ click a node → expand its neighbors    ▸ double-click → open detail   │
 └──────────────────────────────────────────────────────────────────────────┘
