@@ -18,6 +18,7 @@ once filed, so the two stay linked.
 - [andr-ca/agentharness#78](https://github.com/andr-ca/agentharness/issues/78) — no mechanism surfaces stale unaddressed review comments on pre-existing open PRs (fifth entry below)
 - [andr-ca/agentharness#79](https://github.com/andr-ca/agentharness/issues/79) — feature request: an optional harness mechanism that *enforces* this exact monitor-log-file loop, instead of it happening only when a user asks (sixth entry below)
 - [andr-ca/agentharness#88](https://github.com/andr-ca/agentharness/issues/88) — npm-mode installer leaves 32+ skill files and `.agentharness-pkg/` uncommitted with no signal (seventh entry below)
+- [andr-ca/agentharness#149](https://github.com/andr-ca/agentharness/issues/149) — 0.3.0 `update` leaves `doctor` red: the pre-merge-commit hook is checked for but not shipped/installed (eighth entry below)
 
 ---
 
@@ -396,6 +397,45 @@ of the current total silence?), as a follow-up comment on
 [andr-ca/agentharness#88](https://github.com/andr-ca/agentharness/issues/88). **Decided:
 do not commit `.claude/skills/*` in this repo** — there's nothing there to commit that
 isn't already either tracked (the 2 real skills) or regenerable via `init`.
+
+---
+
+## 2026-07-22: 0.3.0 `update` leaves `doctor` red — pre-merge-commit hook checked but not shipped/installed
+
+**What happened:** Updated `agentharness-toolkit` 0.2.1 → 0.3.0 via
+`npx agentharness-toolkit@latest update <project>` (npm mode). The update
+succeeded (added `github-issue-triage` + `harness-feedback` skills, re-synced
+34 skills, merged `.gitignore`), but the post-update `harness-link.sh doctor`
+**exited 1**:
+
+    ✗ pre-commit hook exists but pre-merge-commit is missing — merge commits to
+      trunk branches may bypass protection (see issue #76 for details)
+
+**Root cause:** 0.3.0 implemented the *detection* half of the closed #76 (doctor
+now checks for a `pre-merge-commit` hook) but not the *fix* half — the package
+still ships only `pre-commit`/`pre-push`/`prevent-trunk-commit` in
+`.github/hooks/`, and `update` "never touches hooks". Since `core.hooksPath`
+points straight at the shipped dir, an npm-mode upgrade lands on a doctor check
+for a hook the harness neither ships nor installs.
+
+**Impact:** `doctor` (documented as a CI-usable gate) fails immediately after a
+clean upgrade, with no CLI-performed remediation. The 5 `✗ MISSING: tools/*`
+lines under `audit` are unrelated and expected (the npm package intentionally
+ships only `tools/setup/harness-link.sh`); `audit` itself exited 0.
+
+**What agentharness should change:** Ship `.github/hooks/pre-merge-commit`
+(delegating to `prevent-trunk-commit`, mirroring the `pre-commit` dispatcher) so
+fresh installs pass doctor, and make `update`/`init --with-hook` self-heal the
+hook on upgrade — or have doctor's message name the exact remediation command.
+
+**Corrective action taken:** Hand-created
+`.agentharness-pkg/.github/hooks/pre-merge-commit` delegating to
+`prevent-trunk-commit`; `doctor` then passed (`✓ both pre-commit and
+pre-merge-commit hooks present`, exit 0). That file lives in the gitignored
+durable copy and will be wiped on the next `update`, so the durable fix must
+land upstream. Logged upstream as
+[andr-ca/agentharness#149](https://github.com/andr-ca/agentharness/issues/149)
+(references the closed #76).
 
 ---
 
