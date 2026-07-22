@@ -15,6 +15,10 @@ export function CanonicalPage() {
   const [error, setError] = React.useState<string | null>(null)
   const [editingId, setEditingId] = React.useState<string | null>(null)
   const [editContent, setEditContent] = React.useState("")
+  const [query, setQuery] = React.useState("")
+  const [selected, setSelected] = React.useState<Set<string>>(new Set())
+  const [bulkBusy, setBulkBusy] = React.useState(false)
+  const [bulkMsg, setBulkMsg] = React.useState<string | null>(null)
 
   async function reload() {
     setLoading(true)
@@ -22,6 +26,7 @@ export function CanonicalPage() {
     try {
       const r = await listCanonical({ include_non_active: true })
       setItems(r.items)
+      setSelected(new Set())
     } catch (err) {
       console.error(err)
       setError(err instanceof ApiError ? err.detail : "Failed to load canonical memory.")
@@ -61,6 +66,46 @@ export function CanonicalPage() {
     }
   }
 
+  const filtered = React.useMemo(() => {
+    const q = query.trim().toLowerCase()
+    return q ? items.filter((i) => i.content.toLowerCase().includes(q)) : items
+  }, [items, query])
+
+  const allFilteredSelected = filtered.length > 0 && filtered.every((i) => selected.has(i.id))
+
+  function toggle(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function toggleAll() {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (allFilteredSelected) filtered.forEach((i) => next.delete(i.id))
+      else filtered.forEach((i) => next.add(i.id))
+      return next
+    })
+  }
+
+  async function handleBulkDelete() {
+    const ids = [...selected]
+    if (ids.length === 0) return
+    if (!window.confirm(`Delete ${ids.length} canonical item${ids.length === 1 ? "" : "s"}? This cannot be undone.`)) return
+    setBulkBusy(true)
+    setBulkMsg(null)
+    const results = await Promise.allSettled(ids.map((id) => deleteCanonical(id)))
+    const failed = results.filter((r) => r.status === "rejected").length
+    const ok = results.length - failed
+    const noun = ok === 1 ? "item" : "items"
+    setBulkMsg(failed === 0 ? `Deleted ${ok} ${noun}.` : `Deleted ${ok} ${noun}, failed ${failed}.`)
+    setBulkBusy(false)
+    await reload()
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -70,7 +115,27 @@ export function CanonicalPage() {
         </p>
       </div>
 
-      {loading && <p role="status" className="text-sm text-muted-foreground">Loading…</p>}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search canonical memory…"
+          aria-label="Search canonical memory"
+          className="w-full sm:max-w-xs h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        />
+        {selected.size > 0 && (
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-muted-foreground">{selected.size} selected</span>
+            <Button variant="destructive" size="sm" disabled={bulkBusy} onClick={handleBulkDelete}>
+              {bulkBusy ? "Deleting…" : `Delete selected (${selected.size})`}
+            </Button>
+          </div>
+        )}
+      </div>
+      {bulkMsg && <output className="block text-sm text-muted-foreground">{bulkMsg}</output>}
+
+      {loading && <output className="block text-sm text-muted-foreground">Loading…</output>}
 
       {!loading && error && (
         <div role="alert" className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm">
@@ -86,11 +151,35 @@ export function CanonicalPage() {
         </p>
       )}
 
+      {!loading && !error && items.length > 0 && filtered.length === 0 && (
+        <p className="text-sm text-muted-foreground">No canonical items match "{query}".</p>
+      )}
+
+      {!loading && !error && filtered.length > 0 && (
+        <label className="flex w-fit items-center gap-2 text-sm text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={allFilteredSelected}
+            onChange={toggleAll}
+            aria-label="Select all canonical items"
+            className="rounded border-input"
+          />
+          Select all{query ? " (filtered)" : ""}
+        </label>
+      )}
+
       <div className="space-y-3">
-        {items.map((item) => (
+        {filtered.map((item) => (
           <div key={item.id} className="border rounded-lg p-4 space-y-2">
             <div className="flex items-start justify-between gap-2">
               <div className="flex items-center gap-2 flex-wrap">
+                <input
+                  type="checkbox"
+                  checked={selected.has(item.id)}
+                  onChange={() => toggle(item.id)}
+                  aria-label={`Select canonical item ${item.id.slice(0, 8)}`}
+                  className="rounded border-input"
+                />
                 <Badge variant={STATUS_VARIANT[item.status] ?? "outline"}>{item.status}</Badge>
                 <Badge variant="outline">{item.promoted_from}</Badge>
                 <span className="text-xs text-muted-foreground">by {item.promoted_by}</span>
@@ -123,9 +212,6 @@ export function CanonicalPage() {
             )}
           </div>
         ))}
-        {!loading && items.length === 0 && (
-          <p className="text-sm text-muted-foreground">No canonical items yet. Promote facts from the Facts page.</p>
-        )}
       </div>
     </div>
   )

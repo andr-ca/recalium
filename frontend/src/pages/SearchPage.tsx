@@ -2,7 +2,7 @@ import * as React from "react"
 import { Link } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { searchMemory, getArchiveItem, type RetrievalItem, type RetrievalResponse, type ArchiveItemDetail, ApiError } from "@/lib/api"
+import { searchMemory, getArchiveItem, deleteCanonical, deleteFact, type RetrievalItem, type RetrievalResponse, type ArchiveItemDetail, ApiError } from "@/lib/api"
 
 type Mode = "hybrid" | "keyword" | "semantic"
 
@@ -20,14 +20,54 @@ export function SearchPage() {
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [panelSourceId, setPanelSourceId] = React.useState<string | null>(null)
+  const [canonicalOnly, setCanonicalOnly] = React.useState(false)
+  const [selected, setSelected] = React.useState<Set<string>>(new Set())
+  const [bulkBusy, setBulkBusy] = React.useState(false)
+  const [bulkMsg, setBulkMsg] = React.useState<string | null>(null)
+
+  function toggle(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  async function handleBulkDelete() {
+    if (!response) return
+    const targets = response.items.filter(
+      (it) => selected.has(it.id) && (it.type === "fact" || it.type === "canonical"),
+    )
+    if (targets.length === 0) return
+    if (!window.confirm(`Delete ${targets.length} item${targets.length === 1 ? "" : "s"}? This cannot be undone.`)) return
+    setBulkBusy(true)
+    setBulkMsg(null)
+    const results = await Promise.allSettled(
+      targets.map((it) => (it.type === "canonical" ? deleteCanonical(it.id) : deleteFact(it.id))),
+    )
+    const okIds = new Set<string>()
+    let failed = 0
+    results.forEach((r, i) => {
+      if (r.status === "fulfilled") okIds.add(targets[i].id)
+      else failed += 1
+    })
+    setResponse((prev) => (prev ? { ...prev, items: prev.items.filter((it) => !okIds.has(it.id)) } : prev))
+    setSelected(new Set())
+    const noun = okIds.size === 1 ? "item" : "items"
+    setBulkMsg(failed === 0 ? `Deleted ${okIds.size} ${noun}.` : `Deleted ${okIds.size} ${noun}, failed ${failed}.`)
+    setBulkBusy(false)
+  }
 
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault()
     if (!query.trim()) return
     setLoading(true)
     setError(null)
+    setSelected(new Set())
+    setBulkMsg(null)
     try {
-      const result = await searchMemory(query, mode)
+      const result = await searchMemory(query, mode, 20, canonicalOnly)
       setResponse(result)
     } catch (err) {
       setError(err instanceof ApiError ? err.detail : "Search failed")
@@ -74,22 +114,47 @@ export function SearchPage() {
         </Button>
       </form>
 
+      <label className="flex w-fit items-center gap-2 text-sm text-muted-foreground">
+        <input
+          type="checkbox"
+          checked={canonicalOnly}
+          onChange={(e) => setCanonicalOnly(e.target.checked)}
+          className="rounded border-input"
+        />
+        <span>Canonical only</span>
+      </label>
+
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
 
       <div aria-live="polite" aria-busy={loading}>
         {response && (
           <div className="space-y-4">
-            <div className="flex items-center gap-4 text-sm text-muted-foreground">
+            <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
               <span>{response.items.length} results</span>
               <span>mode: {response.retrieval_mode}</span>
               <span>budget: {response.budget_used}/{response.budget_limit}</span>
               {response.degraded_mode && <Badge variant="destructive">degraded</Badge>}
+              {selected.size > 0 && (
+                <Button variant="destructive" size="sm" disabled={bulkBusy} onClick={handleBulkDelete}>
+                  {bulkBusy ? "Deleting…" : `Delete selected (${selected.size})`}
+                </Button>
+              )}
+              {bulkMsg && <span>{bulkMsg}</span>}
             </div>
 
             {response.items.map((item: RetrievalItem) => (
               <div key={item.id} className="border rounded-lg p-4 space-y-2">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2 flex-wrap">
+                    {(item.type === "fact" || item.type === "canonical") && (
+                      <input
+                        type="checkbox"
+                        checked={selected.has(item.id)}
+                        onChange={() => toggle(item.id)}
+                        aria-label={`Select ${item.type} result`}
+                        className="rounded border-input"
+                      />
+                    )}
                     <Badge variant={TYPE_VARIANT[item.type] ?? "outline"}>{item.type}</Badge>
                     {item.conflict_label && (
                       <Badge variant="destructive">{item.conflict_label}</Badge>
