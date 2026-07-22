@@ -133,9 +133,9 @@ export function CanonicalPage() {
           </div>
         )}
       </div>
-      {bulkMsg && <output className="block text-sm text-muted-foreground">{bulkMsg}</output>}
-
-      {loading && <output className="block text-sm text-muted-foreground">Loading…</output>}
+      <output aria-live="polite" className="block text-sm text-muted-foreground">
+        {loading ? "Loading…" : (bulkMsg ?? "")}
+      </output>
 
       {!loading && error && (
         <div role="alert" className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm">
