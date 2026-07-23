@@ -24,14 +24,18 @@ class ReportWriter:
         checks: List[CheckResult],
         thresholds: Dict[str, Any],
         overall_passed: bool,
+        raw_runs: List[List[CheckResult]] | None = None,
     ) -> Dict[str, str]:
         """
         Write markdown and JSON reports.
 
         Args:
-            checks: List of CheckResult objects
+            checks: List of CheckResult objects (aggregated, if n-runs > 1)
             thresholds: Thresholds dict (from thresholds.json)
             overall_passed: True if all checks passed thresholds
+            raw_runs: optional per-run CheckResult lists (n-runs > 1 mode) —
+                included in the JSON report under "raw_runs" for full
+                transparency behind the aggregated mean/stdev metrics.
 
         Returns:
             Dict with keys 'markdown_path' and 'json_path'
@@ -40,7 +44,7 @@ class ReportWriter:
         markdown_path = self._write_markdown(checks, thresholds, overall_passed)
 
         # Generate JSON report
-        json_path = self._write_json(checks, thresholds, overall_passed)
+        json_path = self._write_json(checks, thresholds, overall_passed, raw_runs)
 
         return {
             "markdown_path": str(markdown_path),
@@ -75,9 +79,15 @@ class ReportWriter:
                 status_icon = "✓" if check.passed else "✗"
                 skip_icon = "⊘" if check.skipped else ""
 
+                # First 3 primary metrics — skip "_stdev" companions here so the
+                # compact preview isn't crowded out by n-runs variance columns
+                # (they're still shown in full in the detailed metrics table below).
+                primary_metrics = [
+                    (k, v) for k, v in check.metrics.items() if not k.endswith("_stdev")
+                ]
                 metrics_str = ", ".join(
                     f"{k}={v:.2f}" if isinstance(v, float) else f"{k}={v}"
-                    for k, v in list(check.metrics.items())[:3]  # First 3 metrics
+                    for k, v in primary_metrics[:3]
                 )
 
                 f.write(f"| {check.name} | {status_icon} | {skip_icon} | {metrics_str} |\n")
@@ -169,26 +179,32 @@ class ReportWriter:
         checks: List[CheckResult],
         thresholds: Dict[str, Any],
         overall_passed: bool,
+        raw_runs: List[List[CheckResult]] | None = None,
     ) -> Path:
         """Write JSON report."""
         json_path = self.results_dir / "results.json"
+
+        def _serialize(check: CheckResult) -> Dict[str, Any]:
+            return {
+                "name": check.name,
+                "passed": check.passed,
+                "skipped": check.skipped,
+                "skip_reason": check.skip_reason,
+                "metrics": check.metrics,
+                "details": check.details,
+            }
 
         data = {
             "timestamp": self.timestamp,
             "overall_passed": overall_passed,
             "thresholds": thresholds.get("thresholds", {}),
-            "checks": [
-                {
-                    "name": check.name,
-                    "passed": check.passed,
-                    "skipped": check.skipped,
-                    "skip_reason": check.skip_reason,
-                    "metrics": check.metrics,
-                    "details": check.details,
-                }
-                for check in checks
-            ],
+            "checks": [_serialize(check) for check in checks],
         }
+
+        if raw_runs:
+            data["raw_runs"] = [
+                [_serialize(check) for check in run] for run in raw_runs
+            ]
 
         with open(json_path, "w") as f:
             json.dump(data, f, indent=2, default=str)

@@ -174,6 +174,28 @@ prevents eval data from accumulating in your archive. Retrieval relevance is
 resolved through the current run's server-assigned `archive_ids`, matched
 against each retrieved item's `source_id`.
 
+## N-Run Averaging
+
+Non-deterministic providers (local Ollama models, or any provider without a
+temperature pin) can make a single run's metrics a noisy sample. Pass
+`--n-runs N` to run the full check suite N times and aggregate:
+
+```bash
+python evals/runner.py --base-url http://localhost:8000 --n-runs 3
+```
+
+Each numeric metric is reported as its mean across runs, with a parallel
+`<metric>_stdev` key (0.0 for a single run). A check's aggregated `passed`
+requires **every** non-skipped run to pass — a gate must be sustained across
+runs, not hit once by chance. Skipped runs are excluded from the average; a
+check is only reported skipped overall if every run skipped it.
+
+This relies on the same per-run idempotency described above (each run
+soft-deletes and re-ingests fresh `eval-*` items), so repeated runs against
+the same live stack don't cross-contaminate each other. The JSON report
+additionally includes a `raw_runs` array with each individual run's
+unaggregated `CheckResult`s, for full transparency behind the mean/stdev.
+
 ## No-Key Mode Behavior
 
 The eval suite gracefully degrades when provider keys are missing:
