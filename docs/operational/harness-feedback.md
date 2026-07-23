@@ -481,12 +481,14 @@ confirming a second, independent agent session was actively working the same
 checkout concurrently. Nothing from the harness surfaced this; it was found by
 accident via routine `git status`, not by any coordination mechanism.
 
-**Root cause:** This repo has the `.claude/skills/multi-agent-coordination`
-skill installed (part of the standard skill set synced by the npm-mode
-installer), and it documents a lock protocol — `tools/agent-lock.sh check` /
-`acquire` / `release`, a `.agentharness-locks/` directory, and a CLAUDE.md-level
-mandate describing `pre-push` enforcement via `check-branch`. None of that
-exists here: `tools/agent-lock.sh` is not present in this repo, and
+**Root cause:** This checkout has `.claude/skills/multi-agent-coordination`
+present on disk (part of the same untracked skill-sync pile documented in the
+#88 entry above — it is not committed to the repo; `git ls-files` shows only
+`recalium-memory` and `recalium-use-and-test` as tracked skills), and it
+documents a lock protocol — `tools/agent-lock.sh check` / `acquire` /
+`release`, a `.agentharness-locks/` directory, and a CLAUDE.md-level mandate
+describing `pre-push` enforcement via `check-branch`. None of that exists
+here: `tools/agent-lock.sh` is not present in this repo, and
 `.agentharness-locks/` was never created. The skill file itself carries a
 warning banner acknowledging `harness-link.sh` never installs the tool into
 consumer projects — but that caveat is easy to miss (it precedes the
