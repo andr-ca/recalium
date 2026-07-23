@@ -64,13 +64,25 @@ def aggregate_check_results(all_runs: List[List[CheckResult]]) -> List[CheckResu
             + f": {non_skipped[-1].details}"
         )
 
+        # Partial skip: not every run executed this check, but at least one did.
+        # skipped stays False (there IS real data to report), but skip_reason is
+        # set as a signal --strict must not ignore — a check that errored/skipped
+        # in even one run out of N hasn't sustained the gate, and strict mode's
+        # contract ("ANY skipped or errored check fails the run") must still hold.
+        partial_skip_reason = (
+            f"{skipped_count}/{len(results)} runs skipped/errored this check "
+            f"(e.g. {next(r.skip_reason for r in results if r.skipped)!r})"
+            if skipped_count
+            else ""
+        )
+
         aggregated.append(CheckResult(
             name=name,
             passed=passed,
             metrics=metrics,
             details=details,
             skipped=False,
-            skip_reason="",
+            skip_reason=partial_skip_reason,
         ))
 
     return aggregated

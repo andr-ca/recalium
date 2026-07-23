@@ -67,6 +67,19 @@ def test_some_runs_skipped_averages_only_non_skipped():
     assert aggregated[0].skipped is False
     assert aggregated[0].passed is True
     assert aggregated[0].metrics["leaked_fact_count"] == 0.0
+    # Partial skip must leave a signal even though skipped=False, so strict
+    # mode (which only checks .skipped) doesn't miss it (Copilot review, PR #34).
+    assert aggregated[0].skip_reason != ""
+    assert "flaky" in aggregated[0].skip_reason
+
+
+def test_no_partial_skip_has_empty_skip_reason():
+    runs = [
+        [_result("sensitivity", True, {"leaked_fact_count": 0.0})],
+        [_result("sensitivity", True, {"leaked_fact_count": 0.0})],
+    ]
+    aggregated = aggregate_check_results(runs)
+    assert aggregated[0].skip_reason == ""
 
 
 def test_preserves_check_order_from_first_run():

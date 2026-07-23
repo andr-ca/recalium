@@ -122,13 +122,19 @@ def determine_overall_status(
     A run with no executed (non-skipped) checks never passes — an all-skipped or
     all-errored suite cannot report success. In strict (release) mode, ANY skipped or
     errored check fails the run, so a green eval can never hide omitted coverage.
+
+    In --n-runs mode, a check that skipped/errored in only SOME runs (not all)
+    is reported with skipped=False (there's real aggregated data) but a non-empty
+    skip_reason set by evals.aggregate — that partial-skip signal must still fail
+    strict mode, or a flaky run could hide behind the runs that happened to work.
     """
     non_skipped = [c for c in checks if not c.skipped]
     skipped = [c for c in checks if c.skipped]
+    partially_skipped = [c for c in non_skipped if c.skip_reason]
     overall_passed = bool(non_skipped) and all(c.passed for c in non_skipped)
-    if strict and skipped:
+    if strict and (skipped or partially_skipped):
         overall_passed = False
-    return overall_passed, skipped
+    return overall_passed, skipped + partially_skipped
 
 
 async def main():
