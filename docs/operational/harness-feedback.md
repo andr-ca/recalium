@@ -19,6 +19,7 @@ once filed, so the two stay linked.
 - [andr-ca/agentharness#79](https://github.com/andr-ca/agentharness/issues/79) — feature request: an optional harness mechanism that *enforces* this exact monitor-log-file loop, instead of it happening only when a user asks (sixth entry below)
 - [andr-ca/agentharness#88](https://github.com/andr-ca/agentharness/issues/88) — npm-mode installer leaves 32+ skill files and `.agentharness-pkg/` uncommitted with no signal (seventh entry below)
 - [andr-ca/agentharness#149](https://github.com/andr-ca/agentharness/issues/149) — 0.3.0 `update` leaves `doctor` red: the pre-merge-commit hook is checked for but not shipped/installed (eighth entry below)
+- [andr-ca/agentharness#154](https://github.com/andr-ca/agentharness/issues/154) — `multi-agent-coordination` skill's lock tool is never installed into consumer projects, so its protocol is entirely inert here (ninth entry below)
 
 ---
 
@@ -463,3 +464,55 @@ involving `agentharness` (hooks not firing as expected, unclear router
 guidance, a mandate that was hard to find or apply, a bootstrap step that
 didn't do what its output claimed, or a process gap like the one just above
 this section).
+
+---
+
+## 2026-07-23: multi-agent-coordination lock tool is never installed here, so two sessions collided undetected
+
+**What happened:** Mid-session, a routine `git status` on the primary checkout
+(`/home/andrey/projects/recalium`, not a worktree) showed it wasn't in the
+state this session had left it: a different branch checked out
+(`docs/harness-feedback-0.3.0-doctor`, later `fix/theme-tokens-readability`),
+new merged PRs (#28 through #32) this session never made, and uncommitted
+edits to `.gitignore`/`AGENTS.md`/`CLAUDE.md`/`GEMINI.md`/
+`frontend/src/tailwind.css` sitting in the working tree. Checking again minutes
+later showed further movement (more merged PRs, more uncommitted changes) —
+confirming a second, independent agent session was actively working the same
+checkout concurrently. Nothing from the harness surfaced this; it was found by
+accident via routine `git status`, not by any coordination mechanism.
+
+**Root cause:** This repo has the `.claude/skills/multi-agent-coordination`
+skill installed (part of the standard skill set synced by the npm-mode
+installer), and it documents a lock protocol — `tools/agent-lock.sh check` /
+`acquire` / `release`, a `.agentharness-locks/` directory, and a CLAUDE.md-level
+mandate describing `pre-push` enforcement via `check-branch`. None of that
+exists here: `tools/agent-lock.sh` is not present in this repo, and
+`.agentharness-locks/` was never created. The skill file itself carries a
+warning banner acknowledging `harness-link.sh` never installs the tool into
+consumer projects — but that caveat is easy to miss (it precedes the
+protocol's own "Enforcement" section, which reads as a hard guarantee), and
+nothing at bootstrap time (`doctor`, `audit`) flags that the coordination
+skill is present without its supporting tool.
+
+**Impact:** For every consumer install (not just this repo), the entire
+multi-agent-coordination protocol is decorative. Two sessions can work the
+same primary checkout — not even separate worktrees — with zero lock check,
+zero `pre-push` block, and zero warning, exactly as happened here. The only
+reason this was caught was an incidental `git status`; nothing would have
+surfaced it otherwise, and a less careful pass could have raced a `git
+checkout`/`pull`/commit against the other session's in-progress, uncommitted
+work.
+
+**What agentharness should do:** See
+[andr-ca/agentharness#154](https://github.com/andr-ca/agentharness/issues/154)
+for the full writeup and recommended options: ship the lock tool into
+consumer installs, or clearly downgrade the CLAUDE.md enforcement language to
+match reality, or (minimum) have `doctor` flag a repo that has the
+coordination skill installed but not the tool it depends on.
+
+**Corrective action taken:** Did not touch the shared primary checkout at all
+once the collision was suspected — no `checkout`, `pull`, `commit`, or `push`
+against it. All follow-up work (this log entry included) was done in a
+separate `git worktree` off `origin/main`, per the skill's own "Option B" for
+when a feature is contended. Asked the user directly whether the other
+session was expected/theirs before resuming any shared-checkout work.
