@@ -14,8 +14,40 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.domain.archive.models import RawArchiveItem
 from app.mcp_server import server as mcp_server_module
-from app.mcp_server.server import ingest_memory, mcp_app, create_mcp_server
+from app.mcp_server.server import (
+    get_fact_links,
+    ingest_memory,
+    list_tags,
+    mcp_app,
+    create_mcp_server,
+    retrieve_memory,
+)
 from mcp.server.fastmcp import FastMCP
+
+
+class _BrokenSession:
+    """Fake async-context-manager session whose execute() always raises,
+    for exercising the internal_error envelope path on an unexpected DB
+    failure (as opposed to the expected ValueError/validation paths)."""
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        return False
+
+    async def execute(self, *args, **kwargs):
+        raise RuntimeError("db exploded")
+
+    async def commit(self):
+        pass
+
+    async def rollback(self):
+        pass
+
+
+def _broken_session_factory():
+    return _BrokenSession()
 
 
 def test_mcp_app_is_fastmcp_instance():
@@ -168,3 +200,42 @@ async def test_ingest_memory_accepts_metadata_and_replays_idempotency(
     assert item.metadata_json["idempotency_key"] == key
     assert item.metadata_json["client_identity"] == "copilot-test-client"
     assert item.metadata_json["import_method"] == "mcp_tool"
+
+
+@pytest.mark.asyncio
+async def test_retrieve_memory_wraps_unexpected_exception(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An unexpected (non-ValueError) failure must return the stable error
+    envelope, not propagate a raw exception through the MCP transport."""
+    monkeypatch.setattr(mcp_server_module, "get_session_factory", lambda: _broken_session_factory)
+
+    result = await retrieve_memory(query="what did we discuss about deployments")
+
+    assert result["status"] == "error"
+    assert result["error"]["code"] == "internal_error"
+    assert result["error"]["retryable"] is True
+
+
+@pytest.mark.asyncio
+async def test_get_fact_links_wraps_unexpected_exception(monkeypatch: pytest.MonkeyPatch) -> None:
+    """get_fact_links had zero exception handling around its DB queries
+    (RR-009) — an unexpected failure must return the error envelope."""
+    monkeypatch.setattr(mcp_server_module, "get_session_factory", lambda: _broken_session_factory)
+
+    result = await get_fact_links(fact_id=str(uuid.uuid4()))
+
+    assert result["status"] == "error"
+    assert result["error"]["code"] == "internal_error"
+    assert result["error"]["retryable"] is True
+
+
+@pytest.mark.asyncio
+async def test_list_tags_wraps_unexpected_exception(monkeypatch: pytest.MonkeyPatch) -> None:
+    """list_tags had zero exception handling (RR-009) — an unexpected
+    failure must return the error envelope, not a raw traceback."""
+    monkeypatch.setattr(mcp_server_module, "get_session_factory", lambda: _broken_session_factory)
+
+    result = await list_tags()
+
+    assert result["status"] == "error"
+    assert result["error"]["code"] == "internal_error"
+    assert result["error"]["retryable"] is True
