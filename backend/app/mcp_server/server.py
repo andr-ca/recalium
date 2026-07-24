@@ -109,6 +109,10 @@ async def retrieve_memory(
         except ValueError as exc:
             await session.rollback()
             return _mcp_error("validation_error", str(exc), field="mode")
+        except Exception:
+            await session.rollback()
+            logger.exception("MCP retrieve_memory failed")
+            return _mcp_error("internal_error", "Retrieval failed due to an internal error.", retryable=True)
 
     return {
         "query": response.query,
@@ -170,48 +174,53 @@ async def get_fact_links(
 
     factory = get_session_factory()
     async with factory() as session:
-        fact_check = (await session.execute(
-            text("SELECT id FROM facts WHERE id = :fid AND source_status = 'active' AND review_status = 'active' LIMIT 1"),
-            {"fid": str(fid)},
-        )).fetchone()
-        if fact_check is None:
-            return _mcp_error("not_found", f"Fact {fact_id} not found or not active", field="fact_id")
+        try:
+            fact_check = (await session.execute(
+                text("SELECT id FROM facts WHERE id = :fid AND source_status = 'active' AND review_status = 'active' LIMIT 1"),
+                {"fid": str(fid)},
+            )).fetchone()
+            if fact_check is None:
+                return _mcp_error("not_found", f"Fact {fact_id} not found or not active", field="fact_id")
 
-        if direction == "outgoing":
-            where = "ml.source_fact_id = :fid"
-            other_id_col = "ml.target_fact_id::text AS other_fact_id"
-            join_clause = "JOIN facts tf ON tf.id = ml.target_fact_id"
-            text_col = "tf.fact_text AS other_fact_text"
-            status_filter = "AND tf.source_status = 'active' AND tf.review_status = 'active'"
-        elif direction == "incoming":
-            where = "ml.target_fact_id = :fid"
-            other_id_col = "ml.source_fact_id::text AS other_fact_id"
-            join_clause = "JOIN facts sf ON sf.id = ml.source_fact_id"
-            text_col = "sf.fact_text AS other_fact_text"
-            status_filter = "AND sf.source_status = 'active' AND sf.review_status = 'active'"
-        else:
-            where = "(ml.source_fact_id = :fid OR ml.target_fact_id = :fid)"
-            other_id_col = """CASE WHEN ml.source_fact_id = :fid THEN ml.target_fact_id::text ELSE ml.source_fact_id::text END AS other_fact_id"""
-            join_clause = "LEFT JOIN facts tf ON tf.id = ml.target_fact_id LEFT JOIN facts sf ON sf.id = ml.source_fact_id"
-            text_col = """CASE WHEN ml.source_fact_id = :fid THEN tf.fact_text ELSE sf.fact_text END AS other_fact_text"""
-            status_filter = """
-                                    AND (
-                                        (ml.source_fact_id = :fid AND tf.source_status = 'active' AND tf.review_status = 'active')
-                                        OR (ml.target_fact_id = :fid AND sf.source_status = 'active' AND sf.review_status = 'active')
-                                    )"""
+            if direction == "outgoing":
+                where = "ml.source_fact_id = :fid"
+                other_id_col = "ml.target_fact_id::text AS other_fact_id"
+                join_clause = "JOIN facts tf ON tf.id = ml.target_fact_id"
+                text_col = "tf.fact_text AS other_fact_text"
+                status_filter = "AND tf.source_status = 'active' AND tf.review_status = 'active'"
+            elif direction == "incoming":
+                where = "ml.target_fact_id = :fid"
+                other_id_col = "ml.source_fact_id::text AS other_fact_id"
+                join_clause = "JOIN facts sf ON sf.id = ml.source_fact_id"
+                text_col = "sf.fact_text AS other_fact_text"
+                status_filter = "AND sf.source_status = 'active' AND sf.review_status = 'active'"
+            else:
+                where = "(ml.source_fact_id = :fid OR ml.target_fact_id = :fid)"
+                other_id_col = """CASE WHEN ml.source_fact_id = :fid THEN ml.target_fact_id::text ELSE ml.source_fact_id::text END AS other_fact_id"""
+                join_clause = "LEFT JOIN facts tf ON tf.id = ml.target_fact_id LEFT JOIN facts sf ON sf.id = ml.source_fact_id"
+                text_col = """CASE WHEN ml.source_fact_id = :fid THEN tf.fact_text ELSE sf.fact_text END AS other_fact_text"""
+                status_filter = """
+                                        AND (
+                                            (ml.source_fact_id = :fid AND tf.source_status = 'active' AND tf.review_status = 'active')
+                                            OR (ml.target_fact_id = :fid AND sf.source_status = 'active' AND sf.review_status = 'active')
+                                        )"""
 
-        rows = (await session.execute(
-            text(f"""
-                SELECT ml.id::text AS link_id, ml.link_type, ml.confidence,
-                       ml.entity_name, ml.created_by, ml.created_at::text AS created_at,
-                       {other_id_col}, {text_col}
-                FROM memory_links ml
-                {join_clause}
-                WHERE {where} {status_filter}
-                ORDER BY ml.created_at DESC
-            """),
-            {"fid": str(fid)},
-        )).mappings().all()
+            rows = (await session.execute(
+                text(f"""
+                    SELECT ml.id::text AS link_id, ml.link_type, ml.confidence,
+                           ml.entity_name, ml.created_by, ml.created_at::text AS created_at,
+                           {other_id_col}, {text_col}
+                    FROM memory_links ml
+                    {join_clause}
+                    WHERE {where} {status_filter}
+                    ORDER BY ml.created_at DESC
+                """),
+                {"fid": str(fid)},
+            )).mappings().all()
+        except Exception:
+            await session.rollback()
+            logger.exception("MCP get_fact_links failed")
+            return _mcp_error("internal_error", "Link lookup failed due to an internal error.", retryable=True)
 
     return {
         "fact_id": fact_id,
@@ -251,20 +260,25 @@ async def list_tags(
 
     factory = get_session_factory()
     async with factory() as session:
-        rows = (await session.execute(
-            text("""
-                SELECT
-                    t.id::text AS id,
-                    t.name,
-                    t.created_at::text AS created_at,
-                    COUNT(f.id) AS fact_count
-                FROM tags t
-                LEFT JOIN fact_tags ft ON ft.tag_id = t.id
-                LEFT JOIN facts f ON f.id = ft.fact_id AND f.source_status = 'active' AND f.review_status = 'active'
-                GROUP BY t.id, t.name, t.created_at
-                ORDER BY fact_count DESC, t.name ASC
-            """),
-        )).mappings().all()
+        try:
+            rows = (await session.execute(
+                text("""
+                    SELECT
+                        t.id::text AS id,
+                        t.name,
+                        t.created_at::text AS created_at,
+                        COUNT(f.id) AS fact_count
+                    FROM tags t
+                    LEFT JOIN fact_tags ft ON ft.tag_id = t.id
+                    LEFT JOIN facts f ON f.id = ft.fact_id AND f.source_status = 'active' AND f.review_status = 'active'
+                    GROUP BY t.id, t.name, t.created_at
+                    ORDER BY fact_count DESC, t.name ASC
+                """),
+            )).mappings().all()
+        except Exception:
+            await session.rollback()
+            logger.exception("MCP list_tags failed")
+            return _mcp_error("internal_error", "Tag listing failed due to an internal error.", retryable=True)
 
     tags = [
         {
@@ -399,9 +413,10 @@ async def ingest_memory(
         except ValueError as exc:
             code = "idempotency_conflict" if "idempotency key" in str(exc) else "validation_error"
             return _mcp_error(code, str(exc), retryable=False)
-        except Exception as exc:
-            logger.error("MCP ingest_memory failed: %s", exc)
-            return _mcp_error("internal_error", f"Ingest failed: {exc}", retryable=True)
+        except Exception:
+            await session.rollback()
+            logger.exception("MCP ingest_memory failed")
+            return _mcp_error("internal_error", "Ingest failed due to an internal error.", retryable=True)
 
     return {
         "status": "accepted",
