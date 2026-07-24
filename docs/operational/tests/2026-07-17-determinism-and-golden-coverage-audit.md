@@ -483,7 +483,7 @@ already anchored inside `fact-204`'s `source_span` even though `fact-204`'s
 
 **Decision: do not pad conv-003 further to chase the 85% figure.** conv-003
 carries `personal`/`relationship`-tagged facts, which means it is **entirely
-excluded from extraction recall/precision scoring** (`eval_extraction.py`
+excluded from extraction recall/precision scoring** (`evals/checks/eval_extraction.py`
 skips any conversation containing a personal/relationship golden fact,
 scoring it instead via the separate sensitivity check's block-verification
 logic). Its coverage percentage therefore has zero effect on the extraction
