@@ -109,10 +109,10 @@ async def retrieve_memory(
         except ValueError as exc:
             await session.rollback()
             return _mcp_error("validation_error", str(exc), field="mode")
-        except Exception as exc:
+        except Exception:
             await session.rollback()
-            logger.error("MCP retrieve_memory failed: %s", exc)
-            return _mcp_error("internal_error", f"Retrieval failed: {exc}", retryable=True)
+            logger.exception("MCP retrieve_memory failed")
+            return _mcp_error("internal_error", "Retrieval failed due to an internal error.", retryable=True)
 
     return {
         "query": response.query,
@@ -217,9 +217,10 @@ async def get_fact_links(
                 """),
                 {"fid": str(fid)},
             )).mappings().all()
-        except Exception as exc:
-            logger.error("MCP get_fact_links failed: %s", exc)
-            return _mcp_error("internal_error", f"Link lookup failed: {exc}", retryable=True)
+        except Exception:
+            await session.rollback()
+            logger.exception("MCP get_fact_links failed")
+            return _mcp_error("internal_error", "Link lookup failed due to an internal error.", retryable=True)
 
     return {
         "fact_id": fact_id,
@@ -274,9 +275,10 @@ async def list_tags(
                     ORDER BY fact_count DESC, t.name ASC
                 """),
             )).mappings().all()
-        except Exception as exc:
-            logger.error("MCP list_tags failed: %s", exc)
-            return _mcp_error("internal_error", f"Tag listing failed: {exc}", retryable=True)
+        except Exception:
+            await session.rollback()
+            logger.exception("MCP list_tags failed")
+            return _mcp_error("internal_error", "Tag listing failed due to an internal error.", retryable=True)
 
     tags = [
         {
@@ -411,9 +413,10 @@ async def ingest_memory(
         except ValueError as exc:
             code = "idempotency_conflict" if "idempotency key" in str(exc) else "validation_error"
             return _mcp_error(code, str(exc), retryable=False)
-        except Exception as exc:
-            logger.error("MCP ingest_memory failed: %s", exc)
-            return _mcp_error("internal_error", f"Ingest failed: {exc}", retryable=True)
+        except Exception:
+            await session.rollback()
+            logger.exception("MCP ingest_memory failed")
+            return _mcp_error("internal_error", "Ingest failed due to an internal error.", retryable=True)
 
     return {
         "status": "accepted",

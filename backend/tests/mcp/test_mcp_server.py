@@ -213,6 +213,8 @@ async def test_retrieve_memory_wraps_unexpected_exception(monkeypatch: pytest.Mo
     assert result["status"] == "error"
     assert result["error"]["code"] == "internal_error"
     assert result["error"]["retryable"] is True
+    # Copilot review, PR #36: the raw exception text must not leak to the client.
+    assert "db exploded" not in result["error"]["message"]
 
 
 @pytest.mark.asyncio
@@ -226,6 +228,7 @@ async def test_get_fact_links_wraps_unexpected_exception(monkeypatch: pytest.Mon
     assert result["status"] == "error"
     assert result["error"]["code"] == "internal_error"
     assert result["error"]["retryable"] is True
+    assert "db exploded" not in result["error"]["message"]
 
 
 @pytest.mark.asyncio
@@ -239,3 +242,4 @@ async def test_list_tags_wraps_unexpected_exception(monkeypatch: pytest.MonkeyPa
     assert result["status"] == "error"
     assert result["error"]["code"] == "internal_error"
     assert result["error"]["retryable"] is True
+    assert "db exploded" not in result["error"]["message"]
