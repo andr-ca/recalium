@@ -21,7 +21,7 @@ where an RR row already covers a criterion in depth.
 | # | Criterion (short) | Status | Evidence |
 |---|---|---|---|
 | 1 | Paste/upload import stores raw content + metadata, shows in review UI | ✓ | `backend/tests/test_ingest.py::test_paste_ingest`, `::test_chatgpt_upload`, `::test_claude_upload`, `::test_generic_json_upload`, `::test_txt_upload` |
-| 2 | Processing exposes summaries/facts/search without losing raw archive | ✓ | `backend/tests/worker/test_dispatcher.py` (extraction/summarization pipeline); `backend/tests/domain/test_deletion_cascade.py::test_priv01_cascade_suppresses_summaries/_facts` confirms raw archive and derived artifacts are linked, not merged |
+| 2 | Processing exposes summaries/facts/search without losing raw archive | ✓ | `backend/tests/worker/test_dispatcher.py` (extraction/summarization pipeline); `backend/tests/domain/test_deletion_cascade.py::test_priv01_cascade_suppresses_summaries` and `::test_priv01_cascade_suppresses_facts` confirm raw archive and derived artifacts are linked, not merged |
 | 3 | Facts: inspect provenance, edit, delete, dispute/stale, promote to canonical | ✓ | `backend/tests/api/test_facts_api.py::test_update_fact_edits_review_fields_and_audits`, `::test_mark_fact_disputed_and_stale`, `::test_archive_and_delete_fact_hide_from_default_list`, `::test_get_fact_returns_single_fact`; `backend/tests/api/test_canonical_api.py::test_promote_fact_no_source_span_requires_confirmed` |
 | 4 | Canonical memory distinguished/prioritized over unconfirmed extracted memory | ✓ | `backend/tests/domain/test_retrieval.py::test_rrf_canonical_stays_distinct_from_its_archive`; retrieval budget-trim priority order (see #20) puts canonical first |
 | 5 | Keyword/semantic/hybrid search returns ranked results with source links + filters | ✓ | `backend/tests/api/test_search_api.py::test_search_endpoint_hybrid_mode`; `backend/tests/integration/test_retrieval_filters.py` |
@@ -56,7 +56,7 @@ where an RR row already covers a criterion in depth.
 |---|---|---|---|
 | 1 | Ingest ack P95 ≤ 1s for ≤5MB paste/upload | ✓ | `backend/tests/test_ingest.py::test_ingest_latency`; eval suite `ingest` check (P95 ~36-63ms measured, far under 1000ms threshold) |
 | 2 | Search/retrieval P95 ≤ 2s up to 100k items | ⚠ | Eval suite `retrieval` check measures P95 well under 2s threshold, but at synthetic-eval scale (dozens of items), not the full 100k-item NFR target — no dedicated 100k-scale load test exists (`evals/checks/eval_scale.py` exercises volume/concurrency but not this specific P95-at-100k claim) |
-| 3 | Raw archive durable across container/host restart with persisted volumes | ✓ | `docker-compose.yml` bind-mount volumes (`./data/postgres`); implicitly covered by every test that relies on Postgres persistence, but no explicit restart-and-verify integration test exists — **treat as ⚠ if a literal restart-cycle test is wanted** |
+| 3 | Raw archive durable across container/host restart with persisted volumes | ⚠ | `docker-compose.yml` bind-mount volumes (`./data/postgres`) make durability structurally sound, but no explicit restart-and-verify integration test exists — the literal criterion (survives an actual restart cycle) is architecturally satisfied but not test-proven |
 | 4 | ≥90 days of machine-client audit-access history available | ✗ | No retention-period enforcement or test found for audit event history (no purge job observed); audit events appear to be retained indefinitely by default (never deleted), which technically satisfies "≥90 days" but isn't explicitly tested/documented as a guarantee |
 
 ## Anti-criteria (must NOT be true)
@@ -94,7 +94,7 @@ where an RR row already covers a criterion in depth.
 
 - **47 criteria total**, verified against actual test/source code (not inferred from docstrings alone).
 - **✓ Evidenced: 40** — direct, verified automated test coverage or explicit code-level confirmation.
-- **⚠ Partial: 4** — some coverage exists but doesn't fully close the literal criterion (product #26 scheduling cadence, NFR #2 scale, NFR #3 restart-cycle, anti-criteria #5 cost visibility — feature is implemented but untested).
+- **⚠ Partial: 4** — some coverage exists but doesn't fully close the literal criterion (product #26 scheduling cadence, NFR #2 scale-at-100k, NFR #3 restart-cycle — architecturally sound, not test-proven — anti-criteria #5 cost visibility — feature implemented but untested).
 - **✗ Gap: 3** — no automated evidence found (NFR #4 audit retention enforcement, anti-criteria #3 review-time UX, anti-criteria #4 cold-start timing).
 
 **Recommendation:** none of the remaining gaps/partials block v1 release on their own. Anti-criteria #3/#4 are UX timing studies, not code defects. NFR #4 (audit retention) is likely already satisfied in practice (events are never purged), just undocumented as an explicit guarantee. Anti-criteria #5 (cost visibility) turned out to already be implemented (`WizardPage.tsx`, tagged `BYOK-06`) — it just needs a test, not new product work. The only follow-up worth tracking as its own item: add a unit/E2E test for the wizard's cost-estimate display.
