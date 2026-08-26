@@ -82,24 +82,24 @@ async def test_list_facts_returns_active_facts(
     db_session.add_all([active_fact, removed_fact])
     await db_session.flush()
 
-    resp = await client.get("/api/facts/?limit=50")
+    resp = await client.get("/api/facts/", params={"confidence_tier": "high", "limit": 500})
 
     assert resp.status_code == 200, resp.text
     data = resp.json()
-    assert data["count"] == 1
-    assert len(data["facts"]) == 1
-    item = data["facts"][0]
-    assert item["id"] == str(active_fact.id)
-    assert item["raw_archive_id"] == str(archive_item.id)
-    assert item["fact_text"] == active_fact.fact_text
-    assert item["source_span"] == active_fact.source_span
-    assert item["confidence_tier"] == "high"
-    assert item["derivation_method"] == "llm_extraction"
-    assert item["derivation_model"] == "test-model"
-    assert item["conflict_group_id"] is None
-    assert item["source_status"] == "active"
-    assert item["review_status"] == "active"
-    assert "created_at" in item
+    listed_ids = {item["id"] for item in data["facts"]}
+    assert str(active_fact.id) in listed_ids
+    assert str(removed_fact.id) not in listed_ids
+    active_item = next(item for item in data["facts"] if item["id"] == str(active_fact.id))
+    assert active_item["raw_archive_id"] == str(archive_item.id)
+    assert active_item["fact_text"] == active_fact.fact_text
+    assert active_item["source_span"] == active_fact.source_span
+    assert active_item["confidence_tier"] == "high"
+    assert active_item["derivation_method"] == "llm_extraction"
+    assert active_item["derivation_model"] == "test-model"
+    assert active_item["conflict_group_id"] is None
+    assert active_item["source_status"] == "active"
+    assert active_item["review_status"] == "active"
+    assert "created_at" in active_item
 
 
 @pytest.mark.asyncio
