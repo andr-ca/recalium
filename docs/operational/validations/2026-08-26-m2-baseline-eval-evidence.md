@@ -29,7 +29,7 @@ Other checks passed across all three runs.
 
 ## Notes
 
-- Run 2 evaluated only one conversation (8 facts) vs two in runs 1 and 3 — variance under investigation (M2 follow-up).
+- Run 2 evaluated only one conversation (8 facts) vs two in runs 1 and 3 — see [run-2 variance investigation](./2026-08-26-m2-run2-variance-investigation.md) (harness partial-coverage defect, not model non-determinism).
 - `run.log` shows `EXIT_CODE:0` after Overall FAILED because the log was captured via `| tee`; without `pipefail`, shell `$?` reflects `tee`, not the runner. Runner sets `sys.exit(1)` when overall fails (`evals/runner.py`).
 - Closed-model control experiment remains blocked until `OPENAI_API_KEY` is available locally (BYOK; not committed).
 

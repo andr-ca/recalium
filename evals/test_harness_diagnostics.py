@@ -148,3 +148,65 @@ async def test_preflight_fails_when_ollama_model_missing(monkeypatch):
     ok, msg = await preflight_extraction_provider(client, "http://localhost:8000")
     assert not ok
     assert "not installed" in msg.lower() or "llama3.2" in msg
+
+
+@pytest.mark.asyncio
+async def test_extraction_fails_when_conversation_coverage_incomplete(monkeypatch):
+    """Partial pipeline completion must fail, not average a subset silently."""
+    from evals.checks.eval_extraction import run_check
+
+    monkeypatch.setenv("EVAL_PIPELINE_TIMEOUT_S", "1")
+
+    golden = {
+        "conversations": [
+            {
+                "id": "conv-a",
+                "raw_text": "Python async uses await.",
+                "facts": [{"text": "python async uses await", "source_span": "await"}],
+            },
+            {
+                "id": "conv-b",
+                "raw_text": "PostgreSQL uses btree indexes.",
+                "facts": [{"text": "postgres uses btree", "source_span": "btree"}],
+            },
+        ],
+    }
+    settings = {
+        "base_url": "http://localhost:8000",
+        "ingested_archive_ids": {
+            "conv-a": ["arch-a"],
+            "conv-b": ["arch-b"],
+        },
+    }
+
+    client = AsyncMock()
+
+    async def mock_get(url, *args, **kwargs):
+        resp = MagicMock()
+        if "/api/settings/keys" in url:
+            resp.status_code = 200
+            resp.json.return_value = {"ollama": {"configured": True}}
+        elif "/api/facts" in url:
+            resp.status_code = 200
+            resp.json.return_value = {
+                "facts": [
+                    {
+                        "raw_archive_id": "arch-a",
+                        "fact_text": "python async uses await",
+                        "source_span": "await",
+                        "confidence_tier": "high",
+                        "derivation_method": "llm",
+                        "derivation_model": "test",
+                    },
+                ],
+            }
+        return resp
+
+    client.get = mock_get
+
+    result = await run_check(client, golden, settings)
+    assert not result.passed
+    assert "INCOMPLETE COVERAGE" in result.details
+    assert "conv-b" in result.details
+    assert result.metrics["count_conversations"] == 1
+    assert result.metrics["count_conversations_expected"] == 2
