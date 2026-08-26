@@ -1,7 +1,7 @@
 # Recalium Product Roadmap
 
 **Status:** Living document — reviewed at each milestone close, changed via PR
-**Last updated:** 2026-08-26
+**Last updated:** 2026-08-26 (M1 closed)
 **Audience:** Contributors and users deciding what Recalium is, what works today, and what comes next
 
 This is the forward-looking product view. It does not replace the sources of truth it is built from:
@@ -35,26 +35,33 @@ These are commitments, not preferences. Changing any of them requires explicit a
 
 ---
 
-## Where we are (2026-07-17)
+## Where we are (2026-08-26)
 
-The v1 feature build-out (planning phases 1–5) is complete: ingest (paste, file upload, watched folder, MCP), async pipeline (summaries, span-validated facts, embeddings, sensitivity gate), hybrid retrieval (FTS + pgvector + RRF), canonical memory and review queue, deletion cascade with crypto-erase, backup/restore, first-run wizard, audit trail, and bundle v2 export/import with UI.
+**M1 — v1.0 GA is complete.** All three exit criteria are met:
 
-Quality and evidence state:
+- Gap register: all 14 rows closed (RR-001–RR-014) with cited evidence.
+- Strict eval: `evals/runner.py --strict` **5/5 passed** on 2026-08-26 — see [2026-08-26-m1-strict-eval-evidence.md](operational/validations/2026-08-26-m1-strict-eval-evidence.md).
+- Evidence matrix: published (RR-014, 2026-07-24).
 
-- **Eval suite** (`evals/`): 5 checks (ingest, extraction, retrieval, sensitivity, mcp) against frozen thresholds. Ingest/retrieval/sensitivity/mcp pass; **extraction is borderline** — the latest fresh measurements (2026-07-17, two identical back-to-back runs) show recall 0.583 (gate ≥0.60, failing) / precision 0.717 (gate ≥0.70, passing), while the best historical run (prompt-iteration 7 in the [extraction failure analysis](operational/tests/2026-07-17-extraction-failure-analysis.md)) measured recall 0.774 / precision 0.617. The [determinism audit](operational/tests/2026-07-17-determinism-and-golden-coverage-audit.md) attributes that gap to prompt/model-state drift between measurement dates, not eval noise — which is itself part of why M2 exists. Tracked in issue #13.
-- **Performance:** ingest P95 ~18 ms (SLA ≤1 s), hybrid search P95 ~175 ms (SLA ≤2 s), restore worst case 3.11 s (SLA ≤15 min).
-- **Accessibility:** all 9 routes WCAG 2.2 AA, core workflows keyboard-operable (RR-011 evidence doc).
-- **Release readiness:** all 14 gap-register rows closed with cited evidence as of 2026-08-26 (RR-001–RR-014).
+The v1 feature build-out (planning phases 1–5) remains complete: ingest, async pipeline, hybrid retrieval, canonical memory, review queue, deletion cascade, backup/restore, wizard, audit, bundle v2, MCP tools.
 
-Note on `recommendations.md` §3: its "v1.2 Quality Improvements" list (F1, F2, F4, F7, F8) was pulled forward and already shipped — see `recommendations-update.md`. The v1.2 milestone below is therefore *not* that list; it is the MCP-evolution work from ADR 0001.
+Current quality snapshot (2026-08-26 strict run, Ollama `qwen3.8:27b`):
+
+- **Eval suite:** 5/5 strict — extraction recall 0.69 / precision 0.71; retrieval hybrid passes; sensitivity and MCP pass.
+- **Performance:** ingest P95 ~42 ms, retrieval P95 within SLA (see strict eval artifact).
+- **Accessibility:** 9 routes axe-clean after destructive-token fix (PR #48).
+
+**Next milestone:** M2 — extraction quality & eval trustworthiness (999.x unlock bar: recall ≥0.75, precision ≥0.80). First M2 item per PO: closed-model control experiment; eval skip-reason / vacuous-sensitivity fixes logged from M1 strict run.
 
 ---
 
 ## Milestones
 
-### M1 — v1.0 GA: close the release register *(Now)*
+### M1 — v1.0 GA: close the release register *(Complete — 2026-08-26)*
 
 **Goal:** every gap-register row closed with cited evidence; a strict eval run green; a release evidence matrix published. No new features.
+
+**Status:** ✅ All exit criteria met. Tagged `v1.0.0`.
 
 | Item | What "done" means |
 | --- | --- |
@@ -64,14 +71,13 @@ Note on `recommendations.md` §3: its "v1.2 Quality Improvements" list (F1, F2, 
 | RR-010 MCP resources & live coverage | ✅ M1 live-client evidence closed 2026-08-26 (`test_mcp_live_client.py`, 7 tests). MCP *resources* remain M3. |
 | RR-014 evidence matrix | ✅ Published 2026-07-24: all 47 acceptance criteria mapped to verified test/code evidence (40 evidenced, 4 partial, 3 gaps, none release-blocking) — see `docs/operational/validations/recalium-v1-acceptance-criteria-evidence-matrix.md` |
 | Extraction gate (#13) | ✅ Root cause found and fixed 2026-07-21: the commit that claimed "77.38% recall achieved" (785d40d) never actually shipped that prompt — it shipped a stricter-scope variant the same analysis had already measured as a regression. Restoring the minimal, scan-all-text prompt (dropping the `SCOPE:`/`STRATEGY:` guardrail block) re-measured at recall 0.6706 (gate ≥0.60, **passing**), precision 0.75 (gate ≥0.70, **passing**), no cross-conversation contamination observed. Gate is green |
-| Known code-health items | ✅ Anthropic `temperature=0` pin landed 2026-07-20 (all 3 call sites: summarize/extract/link-classify). ✅ MCP error-envelope coverage landed 2026-07-24: `retrieve_memory` (previously only caught `ValueError`), `get_fact_links` and `list_tags` (previously zero exception handling around their DB queries) all now wrap unexpected exceptions in the same stable `internal_error` envelope `ingest_memory` already used; 3 new tests cover the previously-untested failure path. The "3 stale phase-5 MCP tests" note was already stale itself — full backend suite (307 tests) passes clean |
-
-**Exit criteria:** gap register all-closed · `evals/runner.py --strict` 5/5 · evidence matrix published.
+| Strict eval gate | ✅ Closed 2026-08-26 — `evals/runner.py --strict` 5/5; evidence in `docs/operational/validations/2026-08-26-m1-strict-eval-evidence.md` |
 
 ### M2 — v1.1: extraction quality & eval trustworthiness *(Next)*
 
 **Goal:** make the extraction number one we believe, then reach the **backlog-unlock bar: recall ≥0.75 and precision ≥0.80** (a deliberately higher bar than the ≥0.60/≥0.70 release gates — it gates the 999.x synthesis features, which compound extraction errors if built on a weak base).
 
+- **Eval-trustworthiness (from M1 strict run):** fix extraction skip-reason misattribution when provider fails; harden sensitivity check against vacuous pass on empty corpus.
 - **Golden-set completeness:** ✅ Resolved 2026-07-23: re-enumerated all 4 conversations against their raw text — conv-001 ~100%, conv-002 ~92–100%, conv-004 ~100%, all comfortably above the ≥85% target. conv-003 sits at ~80%; **policy decision:** don't pad it further, since it carries personal/relationship-tagged facts and is entirely excluded from extraction scoring (`evals/checks/eval_extraction.py` skips any conversation with a personal/relationship golden fact) — its coverage percentage has zero effect on gate reliability, so chasing 85% there would just mean cataloging more synthetic personal-health detail for no measurable benefit. Golden facts are authored by exhaustive manual enumeration of the source, never from model output.
 - **Eval methodology hardening:** ✅ N-run averaged mode with variance reporting landed 2026-07-23 (`evals/runner.py --n-runs N`, mean + stdev per metric, "passed" requires every run to sustain the gate). Smoke-tested with `--n-runs 2` against the post-fix extraction prompt: stdev 0.0 across every metric, reconfirming Ollama determinism through the tool itself. Determinism is confirmed for the OpenAI/Ollama paths (bit-for-bit identical A/B runs, 2026-07-17); Anthropic's `temperature=0` pin landed 2026-07-20 (all 3 call sites) — still needs its own A/B determinism confirmation run (blocked: no `ANTHROPIC_API_KEY` configured locally).
 - **Closed-model control experiment:** one measured run with a GPT-4-class `EXTRACT_PROVIDER` to locate the quality ceiling — answers whether the gap is the local model or the method.
