@@ -114,6 +114,29 @@ def test_status_strict_fails_on_any_skip():
     assert len(skipped) == 1
 
 
+def test_status_strict_fails_on_partial_skip_from_n_runs_aggregation():
+    """A --n-runs aggregated check that skipped in only SOME runs reports
+    skipped=False (real data exists) but a non-empty skip_reason (evals.aggregate's
+    partial-skip signal). Strict mode must still fail on it, not just on fully
+    skipped checks (Copilot review, PR #34)."""
+    from evals.checks import CheckResult
+    from evals.runner import determine_overall_status
+
+    partially_skipped = CheckResult(
+        name="extraction", passed=True, metrics={"recall": 0.7}, details="",
+        skipped=False, skip_reason="1/3 runs skipped/errored this check",
+    )
+    checks = [_check("a", True), partially_skipped]
+
+    passed, flagged = determine_overall_status(checks, strict=True)
+    assert passed is False
+    assert partially_skipped in flagged
+
+    # Non-strict mode still fail-opens on it (real data + it passed on its own terms).
+    passed_non_strict, _ = determine_overall_status(checks, strict=False)
+    assert passed_non_strict is True
+
+
 # ── Diverse scale corpus generator (GPT5.6 #20) ────────────────────────────
 
 

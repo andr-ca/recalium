@@ -454,3 +454,49 @@ The precision gate is measuring against an incomplete golden set. This creates a
 
 **Report Status:** Task 1 resolved (see addendum). Task 2 complete.  
 **Committed:** As local commit to worktree before merge.
+
+---
+
+## Addendum (2026-07-23): golden-set completeness re-measured, conv-003 policy resolved
+
+The M2 roadmap item ("raise per-conversation coverage to ≥85%; conv-003 needs
+an explicit sensitivity-vs-coverage policy") is resolved by manual
+re-enumeration of the current `golden.json` (post the conv-002/conv-003
+expansions in PR #18/#21) against each conversation's `raw_text`:
+
+| Conversation | Golden facts | Enumerated atomic claims | Coverage |
+|---|---|---|---|
+| conv-001 (Python async) | 7 | 7 (excluding one code-syntax-level detail, `asyncio.TimeoutError`, not separately golden-worthy) | ~100% |
+| conv-002 (PostgreSQL) | 12 | 12–13 | ~92–100% |
+| conv-003 (health/therapy) | 8 | ~10 | ~80% |
+| conv-004 (Rust ownership) | 7 | 7 (excluding one code-syntax-level detail, the `'a` lifetime annotation syntax) | ~100% |
+
+conv-001, conv-002, and conv-004 are all comfortably above the ≥85% target —
+no further golden.json changes needed there.
+
+**conv-003's remaining gap and the policy decision:** the two atomic claims
+not separately captured are (a) "the user has been struggling with anxiety
+attacks" (personal-sensitivity, already implicit context around `fact-201`),
+and (b) the specific "5-4-3-2-1" grounding-method name (public-sensitivity,
+already anchored inside `fact-204`'s `source_span` even though `fact-204`'s
+`text` doesn't restate the method name).
+
+**Decision: do not pad conv-003 further to chase the 85% figure.** conv-003
+carries `personal`/`relationship`-tagged facts, which means it is **entirely
+excluded from extraction recall/precision scoring** (`evals/checks/eval_extraction.py`
+skips any conversation containing a personal/relationship golden fact,
+scoring it instead via the separate sensitivity check's block-verification
+logic). Its coverage percentage therefore has zero effect on the extraction
+gate's reliability — the ≥85% target's purpose (making sure the *scored*
+denominator reflects real recall, not golden-set gaps) is already satisfied
+by conv-001/002/004. Adding more golden facts to a sensitivity-excluded,
+synthetic-personal-health conversation for the sole purpose of moving a
+percentage that doesn't gate anything would be coverage-padding, not a
+methodology improvement — and it would mean cataloging more realistic
+personal-health detail in a fixture that lives in git history permanently,
+for no measurable benefit. Both are worth avoiding.
+
+This closes the M2 golden-set-completeness item: coverage is verified ≥85%
+on every conversation the extraction gate actually scores, and conv-003's
+lower raw completeness is an explicit, documented, zero-impact policy
+choice rather than an open question.

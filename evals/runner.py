@@ -30,6 +30,7 @@ from evals.checks.eval_retrieval import run_check as run_retrieval_check
 from evals.checks.eval_sensitivity import run_check as run_sensitivity_check
 from evals.checks.eval_mcp import run_check as run_mcp_check
 from evals.checks.eval_scale import run_check as run_scale_check
+from evals.aggregate import aggregate_check_results
 from evals.report import ReportWriter
 
 
@@ -121,13 +122,19 @@ def determine_overall_status(
     A run with no executed (non-skipped) checks never passes — an all-skipped or
     all-errored suite cannot report success. In strict (release) mode, ANY skipped or
     errored check fails the run, so a green eval can never hide omitted coverage.
+
+    In --n-runs mode, a check that skipped/errored in only SOME runs (not all)
+    is reported with skipped=False (there's real aggregated data) but a non-empty
+    skip_reason set by evals.aggregate — that partial-skip signal must still fail
+    strict mode, or a flaky run could hide behind the runs that happened to work.
     """
     non_skipped = [c for c in checks if not c.skipped]
     skipped = [c for c in checks if c.skipped]
+    partially_skipped = [c for c in non_skipped if c.skip_reason]
     overall_passed = bool(non_skipped) and all(c.passed for c in non_skipped)
-    if strict and skipped:
+    if strict and (skipped or partially_skipped):
         overall_passed = False
-    return overall_passed, skipped
+    return overall_passed, skipped + partially_skipped
 
 
 async def main():
@@ -139,6 +146,7 @@ async def main():
 Examples:
   python evals/runner.py --base-url http://localhost:8000
   python evals/runner.py --base-url http://localhost:8000 --output-dir ./results
+  python evals/runner.py --base-url http://localhost:8000 --n-runs 3
   make eval  # Via Makefile target
         """,
     )
@@ -189,7 +197,22 @@ Examples:
         help="Number of synthetic conversations for the scale check (default: 150).",
     )
 
+    parser.add_argument(
+        "--n-runs",
+        type=int,
+        default=1,
+        help=(
+            "Run the full check suite this many times and aggregate (mean + stdev) "
+            "per metric, to average out non-deterministic providers (default: 1, "
+            "no aggregation). A check's aggregated 'passed' requires every "
+            "non-skipped run to pass — a gate must be sustained, not hit once."
+        ),
+    )
+
     args = parser.parse_args()
+
+    if args.n_runs < 1:
+        parser.error("--n-runs must be >= 1")
 
     print(f"Recalium Evaluation Suite")
     print(f"========================\n")
@@ -219,8 +242,16 @@ Examples:
 
         print("✓ OK\n")
 
-        # Run all checks
-        checks = await run_all_checks(client, golden, settings)
+        # Run all checks, once or N times for averaging
+        raw_runs: List[List[CheckResult]] = []
+        for run_num in range(1, args.n_runs + 1):
+            if args.n_runs > 1:
+                print(f"--- Run {run_num}/{args.n_runs} ---")
+            raw_runs.append(await run_all_checks(client, golden, settings))
+
+    checks = (
+        aggregate_check_results(raw_runs) if args.n_runs > 1 else raw_runs[0]
+    )
 
     # Determine overall status (GPT5.6 #3): no executed checks never passes, and
     # strict/release mode fails on any skipped or errored check.
@@ -235,7 +266,12 @@ Examples:
     # Generate reports
     print(f"Generating reports...")
     report_writer = ReportWriter(args.output_dir)
-    report_paths = report_writer.write_reports(checks, thresholds, overall_passed)
+    report_paths = report_writer.write_reports(
+        checks,
+        thresholds,
+        overall_passed,
+        raw_runs=raw_runs if args.n_runs > 1 else None,
+    )
 
     print(f"  Markdown: {report_paths['markdown_path']}")
     print(f"  JSON: {report_paths['json_path']}")

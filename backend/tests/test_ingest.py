@@ -43,6 +43,90 @@ async def test_paste_ingest_empty_returns_error(client: AsyncClient):
     assert resp.status_code == 422
 
 
+async def test_rest_ingest_accepts_mcp_aligned_metadata(client: AsyncClient):
+    """Issue #41: REST accepts source_metadata + client fields for daemon clients."""
+    payload = {
+        "content": "Daemon flush: remember the deploy window is Fridays only.",
+        "source_metadata": {
+            "source_type": "ntfy_pipeline",
+            "source_name": "bobbonson-outbox",
+            "conversation_id": "conv-rest-001",
+        },
+        "client_identity": "outbox-flusher-test",
+        "import_method": "rest_api",
+        "idempotency_key": "rest-meta-key-001",
+        "sensitivity_hint": "normal",
+        "project_hint": "recalium",
+        "processing_mode": "deferred",
+    }
+    resp = await client.post("/api/ingest", json=payload)
+    assert resp.status_code == 202, resp.text
+    data = resp.json()
+    assert data["status"] == "accepted"
+    assert data["idempotent_replay"] is False
+    assert data["idempotency_key"] == "rest-meta-key-001"
+    assert len(data["archive_ids"]) >= 1
+
+
+async def test_rest_ingest_idempotent_replay(client: AsyncClient):
+    """Issue #41: same idempotency_key + same content replays without duplicate."""
+    key = "rest-idempotency-replay-001"
+    payload = {
+        "content": "Outbox replay test: durable note about Friday deploys.",
+        "source_metadata": {"source_type": "ntfy_pipeline", "source_name": "outbox"},
+        "client_identity": "outbox-flusher-test",
+        "idempotency_key": key,
+    }
+    first = await client.post("/api/ingest", json=payload)
+    assert first.status_code == 202, first.text
+    first_data = first.json()
+
+    replay = await client.post("/api/ingest", json=payload)
+    assert replay.status_code == 202, replay.text
+    replay_data = replay.json()
+    assert replay_data["idempotent_replay"] is True
+    assert replay_data["archive_ids"] == first_data["archive_ids"]
+
+
+async def test_rest_ingest_idempotency_conflict(client: AsyncClient):
+    """Issue #41: same key with different content returns 409 conflict."""
+    key = "rest-idempotency-conflict-001"
+    first = await client.post(
+        "/api/ingest",
+        json={
+            "content": "First payload for conflict test, long enough.",
+            "idempotency_key": key,
+            "source_metadata": {"source_type": "api", "source_name": "conflict"},
+        },
+    )
+    assert first.status_code == 202, first.text
+
+    conflict = await client.post(
+        "/api/ingest",
+        json={
+            "content": "Different payload for the same idempotency key!!",
+            "idempotency_key": key,
+            "source_metadata": {"source_type": "api", "source_name": "conflict"},
+        },
+    )
+    assert conflict.status_code == 409, conflict.text
+    detail = conflict.json()["detail"]
+    assert detail["error"]["code"] == "idempotency_conflict"
+    assert detail["error"]["retryable"] is False
+
+
+async def test_rest_ingest_rejects_invalid_processing_mode(client: AsyncClient):
+    """Issue #41: invalid processing_mode is rejected at the REST boundary."""
+    resp = await client.post(
+        "/api/ingest",
+        json={
+            "content": "Valid length content for processing mode check.",
+            "processing_mode": "not_a_real_mode",
+        },
+    )
+    assert resp.status_code == 422, resp.text
+
+
 # ── INGT-02: File upload ─────────────────────────────────────────────────────
 
 CHATGPT_EXPORT = {
