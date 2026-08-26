@@ -58,7 +58,7 @@ Note on `recommendations.md` §3: its "v1.2 Quality Improvements" list (F1, F2, 
 
 | Item | What "done" means |
 | --- | --- |
-| RR-001 startup docs | Verify `docs/guides/local-use-and-test.md` + README cover clean-checkout start/use/test/troubleshoot end to end, then close the row with evidence (the guide exists; the row predates it) |
+| RR-001 startup docs | ✅ Closed 2026-08-26 — verified in `docs/operational/validations/2026-08-26-rr001-startup-docs-verification.md` |
 | RR-002 / RR-005 UI evidence | ✅ Closed 2026-08-26 — audit mapped nav + review-queue coverage to RR-011 suite; evidence in `docs/operational/validations/2026-08-26-rr002-rr005-ui-evidence-audit.md` |
 | RR-003 / RR-004 facts lifecycle | ✅ Closed 2026-08-26 — audit confirmed API, UI, audit events, and retrieval filtering; evidence in `docs/operational/validations/2026-08-26-rr003-rr004-facts-lifecycle-audit.md` |
 | RR-010 MCP resources & live coverage | ✅ M1 live-client evidence closed 2026-08-26 (`test_mcp_live_client.py`, 7 tests). MCP *resources* remain M3. |
