@@ -2,7 +2,7 @@
   "version": 1,
   "mode": "npm",
   "source": {
-    "path": "/home/andrey/projects/recalium/.agentharness-pkg",
+    "path": ".agentharness-pkg",
     "revision": "0.3.0",
     "remote": "https://github.com/andr-ca/recalium.git"
   },
@@ -44,7 +44,7 @@
   ],
   "skills_filter": null,
   "with_hook": true,
-  "hooks_path": "/home/andrey/projects/recalium/.agentharness-pkg/.github/hooks",
+  "hooks_path": ".agentharness-pkg/.github/hooks",
   "previous_hooks_path": null,
   "coverage_hook": false,
   "profile": null,
