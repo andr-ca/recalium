@@ -236,6 +236,12 @@ async def run_check(client: httpx.AsyncClient, golden: Dict[str, Any], settings:
     avg_precision = total_precision / conv_count
     avg_span_fidelity = total_span_fidelity / conv_count
 
+    expected_conv_count = len(golden_facts_by_conv)
+    missing_conversations = sorted(
+        set(golden_facts_by_conv.keys()) - set(extracted_facts_by_conv.keys())
+    )
+    coverage_complete = conv_count == expected_conv_count
+
     # Thresholds
     recall_threshold = 0.6
     precision_threshold = 0.7
@@ -243,6 +249,7 @@ async def run_check(client: httpx.AsyncClient, golden: Dict[str, Any], settings:
     provenance_threshold = 1.0  # PIPE-02 is absolute: every fact carries provenance
 
     passed = (
+        coverage_complete and
         avg_recall >= recall_threshold and
         avg_precision >= precision_threshold and
         avg_span_fidelity >= span_fidelity_threshold and
@@ -258,6 +265,12 @@ async def run_check(client: httpx.AsyncClient, golden: Dict[str, Any], settings:
         f"Provenance completeness {provenance_completeness:.2%} "
         f"(threshold: {provenance_threshold:.0%}; PIPE-02: span+confidence+method+model)."
     )
+    if missing_conversations:
+        details += (
+            f" INCOMPLETE COVERAGE: {conv_count}/{expected_conv_count} conversations "
+            f"produced facts within {pipeline_timeout:.0f}s "
+            f"(missing: {', '.join(missing_conversations)})."
+        )
 
     return CheckResult(
         name="extraction",
@@ -269,6 +282,7 @@ async def run_check(client: httpx.AsyncClient, golden: Dict[str, Any], settings:
             "provenance_completeness": provenance_completeness,
             "count_facts": len(all_extracted),
             "count_conversations": conv_count,
+            "count_conversations_expected": expected_conv_count,
         },
         details=details,
     )

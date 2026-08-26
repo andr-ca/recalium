@@ -250,12 +250,20 @@ Examples:
             sys.exit(1)
         print(f"Preflight: {preflight_msg}\n")
 
-        # Run all checks, once or N times for averaging
+        # Run all checks, once or N times for averaging.
+        # Fresh settings per run so ingested_archive_ids / extraction_worked do not
+        # leak across N-run iterations.
         raw_runs: List[List[CheckResult]] = []
         for run_num in range(1, args.n_runs + 1):
             if args.n_runs > 1:
                 print(f"--- Run {run_num}/{args.n_runs} ---")
-            raw_runs.append(await run_all_checks(client, golden, settings))
+            run_settings = {
+                "base_url": args.base_url,
+                "output_dir": args.output_dir,
+                "scale": args.scale,
+                "scale_size": args.scale_size,
+            }
+            raw_runs.append(await run_all_checks(client, golden, run_settings))
 
     checks = (
         aggregate_check_results(raw_runs) if args.n_runs > 1 else raw_runs[0]
