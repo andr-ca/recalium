@@ -66,7 +66,7 @@
 | --- | --- | --- | --- |
 | MCP-01 | ✅ done | `backend/tests/api/test_search_api.py`<br>`backend/tests/domain/test_retrieval.py`<br>`backend/tests/integration/test_phase3_integration.py`<br>`backend/tests/mcp/test_mcp_server.py` | MCP `retrieve` tool returns items with source links, type, rank score, provenance metadata, conflict labels, budget/trimming reason, and retrieval-mode metadata |
 | MCP-02 | ✅ done | `backend/tests/integration/test_phase5_integration.py`<br>`backend/tests/mcp/test_mcp_server.py` | MCP ingest endpoint accepts well-formed requests; rejects missing required fields with descriptive error |
-| MCP-03 | ✅ done | `backend/tests/api/test_search_api.py`<br>`backend/tests/domain/test_retrieval.py`<br>`backend/tests/integration/test_phase3_integration.py`<br>`backend/tests/mcp/test_mcp_server.py` | Every MCP access event is recorded with client identity, timestamp, and operation metadata |
+| MCP-03 | ✅ done | `backend/tests/api/test_search_api.py`<br>`backend/tests/domain/test_retrieval.py`<br>`backend/tests/e2e/test_mcp_live_client.py`<br>`backend/tests/integration/test_phase3_integration.py`<br>`backend/tests/mcp/test_mcp_server.py` | Every MCP access event is recorded with client identity, timestamp, and operation metadata |
 | MCP-04 | ✅ done | `backend/tests/api/test_search_api.py`<br>`backend/tests/integration/test_phase3_integration.py`<br>`backend/tests/mcp/test_mcp_server.py` | Access-event history retained for at least 90 days |
 
 ### PIPE
