@@ -29,6 +29,7 @@ frontend/dist/
 frontend/.pnpm-store/
 frontend/.vite/
 frontend/coverage/
+frontend/test-results/
 
 # Editor / OS
 .DS_Store
