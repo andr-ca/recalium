@@ -140,7 +140,56 @@ async def test_direct_fact_retrieval_matches_fact_text(db_session):
 
 
 
-async def test_apply_candidate_filters_enforces_category_on_linked_facts():
+async def test_retrieval_excludes_non_active_review_status_facts(db_session):
+    """RR-004: disputed/stale/archived/deleted facts must not surface in retrieval."""
+    from app.domain.derived_memory.models import Fact
+
+    invalidate_cache()
+    token = "rr004reviewfilter"
+    archive = RawArchiveItem(
+        id=uuid.uuid4(),
+        source_type="test",
+        raw_content="a source conversation",
+        content_hash=hashlib.sha256(f"{token}-archive".encode()).hexdigest(),
+        ingested_at=_NOW,
+    )
+    db_session.add(archive)
+    await db_session.flush()
+
+    statuses = {
+        "active": "active",
+        "disputed": "disputed",
+        "stale": "stale",
+        "archived": "archived",
+        "deleted": "deleted",
+    }
+    facts: dict[str, Fact] = {}
+    for label, review_status in statuses.items():
+        fact = Fact(
+            id=uuid.uuid4(),
+            raw_archive_id=archive.id,
+            fact_text=f"The user prefers {token} {label} configuration.",
+            source_span=f"{token} {label}",
+            confidence_tier="high",
+            derivation_method="llm_extraction",
+            derivation_model="test-model",
+            review_status=review_status,
+        )
+        facts[label] = fact
+        db_session.add(fact)
+    await db_session.commit()
+
+    req = RetrievalRequest(query=token, mode="keyword")
+    resp = await retrieve(db_session, req)
+
+    returned_ids = {i.id for i in resp.items if i.type == "fact"}
+    assert str(facts["active"].id) in returned_ids
+    for label in ("disputed", "stale", "archived", "deleted"):
+        assert str(facts[label].id) not in returned_ids, (
+            f"fact with review_status={label} must not appear in retrieval"
+        )
+
+
     """Copilot review finding on PR #5: linked facts appended after the SQL
     queries (see _traverse_links) carry a 'category' key and must be excluded
     by a declared category filter, not just source/time/canonical_only."""

@@ -36,8 +36,8 @@ Recalium v1 is release-ready only when all of the following are true:
 | --- | --- | --- | --- | --- |
 | RR-001 | Startup docs | ✓ CLOSED — README + local-use-and-test guide verified (2026-08-26) | End-to-end bootstrap path documented and spot-verified on live stack. | ✓ Evidence: [../validations/2026-08-26-rr001-startup-docs-verification.md](../validations/2026-08-26-rr001-startup-docs-verification.md), [../../guides/local-use-and-test.md](../../guides/local-use-and-test.md) |
 | RR-002 | Frontend nav | V1 sections are enabled, but broader keyboard/E2E evidence is still pending. | UI route availability is now visible; release evidence still needs expansion. | Keep v1 sections enabled and maintain component/E2E coverage. |
-| RR-003 | Facts API | Frontend calls `/api/facts/`, but a full facts listing/lifecycle API is missing. | Facts page cannot be release-ready. | Add facts list/filter/edit/status/delete endpoints and tests. |
-| RR-004 | Fact lifecycle | Extracted facts lack full user-facing statuses and mutation flows required by v1. | Acceptance criteria for correcting, deleting, disputed, and stale facts remain incomplete. | Add status model, service methods, audit events, UI actions, and retrieval filtering. |
+| RR-003 | Facts API | ✓ CLOSED — Full facts listing/lifecycle API implemented (2026-08-26 audit) | Facts page is release-ready at API layer. | ✓ Evidence: [2026-08-26-rr003-rr004-facts-lifecycle-audit.md](2026-08-26-rr003-rr004-facts-lifecycle-audit.md), `backend/app/api/routes/facts.py`, `backend/tests/api/test_facts_api.py` |
+| RR-004 | Fact lifecycle | ✓ CLOSED — Status model, mutations, audit, UI, retrieval filtering evidenced (2026-08-26 audit) | Acceptance criteria for correcting, deleting, disputed, and stale facts are implemented and tested. | ✓ Evidence: [2026-08-26-rr003-rr004-facts-lifecycle-audit.md](2026-08-26-rr003-rr004-facts-lifecycle-audit.md), `frontend/src/pages/FactsPage.tsx`, `backend/tests/integration/test_retrieval_filters.py` |
 | RR-005 | Review queue UI/API | Grouped fact comparison is implemented, but keyboard/E2E evidence is still pending. | Duplicate/overlap cleanup is usable but not fully release-evidenced. | Keep group details, candidate facts, resolution notes, and resolve/dismiss coverage passing. |
 | RR-006 | Backup/restore UI | ✓ CLOSED — Backup/restore UI complete | Settings page includes backup inventory (with file listing, sizes, creation times), deletion warnings, manual backup trigger, restore confirmation with privacy review, and user-facing success/error states. All backup/restore UI flows are operable. | ✓ Evidence: frontend/src/pages/SettingsPage.tsx:403-534 (BackupRestoreSection complete implementation). |
 | RR-007 | Restore SLA | ✓ CLOSED — Restore completes in 3.11s max (0.35% of SLA) | Acceptance criterion 26 is met with 289× margin. | ✓ Evidence: [../tests/2026-07-17-rr007-restore-sla-evidence.md](../tests/2026-07-17-rr007-restore-sla-evidence.md) |
@@ -112,6 +112,15 @@ Validation performed:
   - All safety mechanisms validated: path containment, archive validation, pre-restore snapshot, health check, tombstone reapply.
   - SLA status: max restore (3.11s) is 0.35% of 15-minute (900s) threshold — PASS with 289× margin.
   - Evidence saved: [../tests/2026-07-17-rr007-restore-sla-evidence.md](../tests/2026-07-17-rr007-restore-sla-evidence.md).
+
+### 2026-08-26
+
+- PR #40 merged: agentharness scaffolding sync (repo-relative paths in `.agentharness-state.json`).
+- PR #38 merged: theme token definitions + visual verification evidence.
+- PR #43 merged: product-owner subagent, RR-001 closure, RR-010 scope decision.
+- RR-001 closed: startup docs verified — [2026-08-26-rr001-startup-docs-verification.md](2026-08-26-rr001-startup-docs-verification.md).
+- RR-003/RR-004 closed: facts API + lifecycle audit — [2026-08-26-rr003-rr004-facts-lifecycle-audit.md](2026-08-26-rr003-rr004-facts-lifecycle-audit.md); added retrieval review-status filter test; fixed flaky facts list test.
+- RR-010 scoped: MCP resources deferred to M3; M1 remainder is live-client evidence only (PO decision).
 
 ## Completion phases
 
