@@ -320,6 +320,10 @@ When calling `ingest_memory`, include:
 
 MCP validation failures return a stable error envelope with `status`, `error.code`, `error.message`, `error.details`, and `error.retryable`.
 
+For non-MCP clients (scripts, daemons, client-side outbox flushers), use
+`POST /api/ingest` with the same metadata fields. Full contract, idempotency
+semantics, and an outbox recipe: [External ingest contract](external-ingest-contract.md).
+
 Release-ready MCP still requires broader live-client tests, richer audit metadata evidence, and concurrent SSE validation.
 
 ## Backend test layers

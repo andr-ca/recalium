@@ -395,7 +395,10 @@ async def ingest_memory(
     if project_hint:
         metadata["project_hint"] = project_hint
 
-    from app.domain.ingest.service import ingest_text_content  # noqa: PLC0415
+    from app.domain.ingest.service import (  # noqa: PLC0415
+        IdempotencyConflictError,
+        ingest_text_content,
+    )
 
     factory = get_session_factory()
     async with factory() as session:
@@ -410,9 +413,10 @@ async def ingest_memory(
                 idempotency_key=idempotency_key,
             )
             await session.commit()
+        except IdempotencyConflictError as exc:
+            return _mcp_error("idempotency_conflict", str(exc), retryable=False)
         except ValueError as exc:
-            code = "idempotency_conflict" if "idempotency key" in str(exc) else "validation_error"
-            return _mcp_error(code, str(exc), retryable=False)
+            return _mcp_error("validation_error", str(exc), retryable=False)
         except Exception:
             await session.rollback()
             logger.exception("MCP ingest_memory failed")

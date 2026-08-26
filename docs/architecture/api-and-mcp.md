@@ -20,6 +20,10 @@ Requests include:
 - project hint
 - requested processing mode
 
+`POST /api/ingest` accepts the same metadata fields for non-MCP clients
+(daemons, outbox flushers). Full shapes, idempotency semantics, and an outbox
+recipe: [External ingest contract](../guides/external-ingest-contract.md).
+
 ## MCP retrieve minimum contract
 Responses include:
 - returned items

@@ -27,6 +27,10 @@ from app.domain.jobs.models import Job
 logger = logging.getLogger(__name__)
 
 
+class IdempotencyConflictError(ValueError):
+    """Raised when an idempotency key is reused with different content."""
+
+
 @dataclass
 class IngestResult:
     item_count: int
@@ -69,7 +73,9 @@ async def ingest_text_content(
         )).mappings().first()
         if existing is not None:
             if existing["content_hash"] != parsed.content_hash:
-                raise ValueError("idempotency key was already used with different content")
+                raise IdempotencyConflictError(
+                    "idempotency key was already used with different content"
+                )
             return IngestResult(
                 item_count=int(existing["conversation_count"] or 1),
                 archive_ids=[UUID(existing["id"])],
