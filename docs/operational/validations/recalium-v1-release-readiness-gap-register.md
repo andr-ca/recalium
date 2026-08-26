@@ -123,6 +123,7 @@ Validation performed:
 - RR-010 M1 closed: live MCP client evidence — [2026-08-26-rr010-mcp-live-client-evidence.md](2026-08-26-rr010-mcp-live-client-evidence.md); 7 E2E tests in `backend/tests/e2e/test_mcp_live_client.py`.
 - RR-010 scoped: MCP resources deferred to M3; M1 remainder is live-client evidence only (PO decision).
 - RR-002/RR-005 closed: nav + review-queue UI evidence audit — [2026-08-26-rr002-rr005-ui-evidence-audit.md](2026-08-26-rr002-rr005-ui-evidence-audit.md); fresh Playwright run 26/28 pass (RR-002/005 scoped tests all green).
+- M1 strict eval gate closed: `evals/runner.py --strict` 5/5 — [2026-08-26-m1-strict-eval-evidence.md](2026-08-26-m1-strict-eval-evidence.md). **M1 GA complete.**
 
 ## Completion phases
 
