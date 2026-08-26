@@ -29,8 +29,9 @@ an outbox.
 - Bound to localhost (`APP_BIND_HOST=127.0.0.1`): no bearer required.
 - Exposed beyond localhost: send `Authorization: Bearer <APP_AUTH_BEARER>` from
   `.env` on every `/api/*` and `/mcp/*` call (PRIV-06). Never hardcode the token.
-- Health probe for outbox flushers: `GET /api/health` (also under auth when
-  exposed — use the same bearer).
+- Health probe for outbox flushers: `GET /api/health` (route is under the `/api`
+  prefix). When the app is exposed beyond localhost this path requires the same
+  bearer as other `/api/*` routes — use `Authorization: Bearer <APP_AUTH_BEARER>`.
 
 ## REST: `POST /api/ingest`
 

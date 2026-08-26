@@ -8,7 +8,11 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from pydantic import BaseModel, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.domain.ingest.service import ingest_file_content, ingest_text_content
+from app.domain.ingest.service import (
+    IdempotencyConflictError,
+    ingest_file_content,
+    ingest_text_content,
+)
 from app.domain.policy.resolver import (
     ALLOWED_PROCESSING_MODES,
     ALLOWED_SENSITIVITY_HINTS,
@@ -132,22 +136,21 @@ async def ingest_text(
             extra_metadata=metadata,
             idempotency_key=request.idempotency_key,
         )
-    except ValueError as e:
-        detail = str(e)
-        if "idempotency key" in detail:
-            raise HTTPException(
-                status_code=409,
-                detail={
-                    "status": "error",
-                    "error": {
-                        "code": "idempotency_conflict",
-                        "message": detail,
-                        "details": {"field": "idempotency_key"},
-                        "retryable": False,
-                    },
+    except IdempotencyConflictError as e:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "status": "error",
+                "error": {
+                    "code": "idempotency_conflict",
+                    "message": str(e),
+                    "details": {"field": "idempotency_key"},
+                    "retryable": False,
                 },
-            ) from e
-        raise HTTPException(status_code=422, detail=detail) from e
+            },
+        ) from e
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
 
     return IngestResponse(
         status="accepted",
