@@ -1,10 +1,7 @@
 """Extraction quality evaluation (precision, recall, span fidelity)."""
 
-import asyncio
-import time
 from typing import Dict, Any, List
 import httpx
-import os
 
 from evals.checks import CheckResult
 from evals.metrics import extraction_recall_and_precision, span_fidelity
@@ -12,6 +9,8 @@ from evals.harness_diagnostics import (
     classify_zero_extraction,
     fetch_archive_rows_for_ids,
     fetch_gate_events,
+    resolve_pipeline_timeout_s,
+    wait_for_archive_pipeline_drain,
 )
 
 
@@ -57,11 +56,11 @@ async def run_check(client: httpx.AsyncClient, golden: Dict[str, Any], settings:
             skip_reason="Server reports no configured provider (GET /api/settings/keys) — set OPENAI_API_KEY, ANTHROPIC_API_KEY, or OLLAMA_BASE_URL in the app's .env",
         )
 
-    # Ingest conversations and collect extracted facts
-    extracted_facts_by_conv: Dict[str, List[Dict]] = {}
+    # Map control conversations to archive IDs (ingest check runs first in the suite).
+    archive_ids_by_conv: Dict[str, List[str]] = {}
     golden_facts_by_conv: Dict[str, List[Dict]] = {}
     all_control_archive_ids: List[str] = []
-    pipeline_timeout = float(os.getenv("EVAL_PIPELINE_TIMEOUT_S", "300"))
+    pipeline_timeout = await resolve_pipeline_timeout_s(client, base_url)
 
     for conv in golden.get("conversations", []):
         conv_id = conv["id"]
@@ -71,10 +70,6 @@ async def run_check(client: httpx.AsyncClient, golden: Dict[str, Any], settings:
         if not golden_facts:
             continue
 
-        # Conversations with personal/relationship facts are the sensitivity
-        # gate's responsibility: the gate SHOULD prevent extraction for them.
-        # Scoring them here would punish correct blocking; the sensitivity
-        # check asserts zero facts for these instead.
         if any(
             f.get("sensitivity_level") in ("personal", "relationship")
             for f in golden_facts
@@ -82,10 +77,6 @@ async def run_check(client: httpx.AsyncClient, golden: Dict[str, Any], settings:
             continue
 
         golden_facts_by_conv[conv_id] = golden_facts
-
-        # Reuse archive IDs recorded by the ingest check when available;
-        # otherwise ingest via the HTTP contract (mode/content/source_name, 202)
-        base_url = settings.get("base_url", "http://localhost:8000")
         archive_ids = list(settings.get("ingested_archive_ids", {}).get(conv_id, []))
 
         try:
@@ -105,47 +96,47 @@ async def run_check(client: httpx.AsyncClient, golden: Dict[str, Any], settings:
                 if not archive_ids:
                     continue
 
+            archive_ids_by_conv[conv_id] = archive_ids
             all_control_archive_ids.extend(archive_ids)
-
-            # Poll for extracted facts (LLM extraction is async and can be slow,
-            # especially with local Ollama models processing a backlog)
-            poll_interval = 5.0  # seconds
-            deadline = time.time() + pipeline_timeout
-            archive_id_set = set(archive_ids)
-
-            while time.time() < deadline:
-                try:
-                    facts_response = await client.get(
-                        f"{base_url}/api/facts",
-                        params={"limit": 500},
-                        timeout=10.0,
-                    )
-                    if facts_response.status_code == 200:
-                        facts_data = facts_response.json()
-                        facts = facts_data.get("facts", facts_data.get("items", []))
-                        ours = [
-                            f for f in facts
-                            if f.get("raw_archive_id") in archive_id_set
-                        ]
-                        if ours:
-                            extracted_facts_by_conv[conv_id] = [
-                                {
-                                    "text": f.get("fact_text", ""),
-                                    "source_span": f.get("source_span"),
-                                    "confidence_tier": f.get("confidence_tier"),
-                                    "derivation_method": f.get("derivation_method"),
-                                    "derivation_model": f.get("derivation_model"),
-                                }
-                                for f in ours
-                            ]
-                            break
-                except Exception:
-                    pass
-
-                await asyncio.sleep(poll_interval)
 
         except Exception:
             continue
+
+    if golden_facts_by_conv and all_control_archive_ids:
+        drained, _ = await wait_for_archive_pipeline_drain(
+            client,
+            base_url,
+            all_control_archive_ids,
+            timeout_s=pipeline_timeout,
+        )
+        settings["pipeline_drained"] = drained
+
+    extracted_facts_by_conv: Dict[str, List[Dict]] = {}
+    try:
+        facts_response = await client.get(
+            f"{base_url}/api/facts",
+            params={"limit": 500},
+            timeout=10.0,
+        )
+        if facts_response.status_code == 200:
+            facts_data = facts_response.json()
+            facts = facts_data.get("facts", facts_data.get("items", []))
+            for conv_id, archive_ids in archive_ids_by_conv.items():
+                archive_id_set = set(archive_ids)
+                ours = [f for f in facts if f.get("raw_archive_id") in archive_id_set]
+                if ours:
+                    extracted_facts_by_conv[conv_id] = [
+                        {
+                            "text": f.get("fact_text", ""),
+                            "source_span": f.get("source_span"),
+                            "confidence_tier": f.get("confidence_tier"),
+                            "derivation_method": f.get("derivation_method"),
+                            "derivation_model": f.get("derivation_model"),
+                        }
+                        for f in ours
+                    ]
+    except Exception:
+        pass
 
     if not extracted_facts_by_conv or not golden_facts_by_conv:
         gate_events = await fetch_gate_events(client, base_url)
@@ -266,10 +257,15 @@ async def run_check(client: httpx.AsyncClient, golden: Dict[str, Any], settings:
         f"(threshold: {provenance_threshold:.0%}; PIPE-02: span+confidence+method+model)."
     )
     if missing_conversations:
+        drain_note = (
+            "pipeline still Processing"
+            if not settings.get("pipeline_drained", True)
+            else "no facts after pipeline drain"
+        )
         details += (
             f" INCOMPLETE COVERAGE: {conv_count}/{expected_conv_count} conversations "
-            f"produced facts within {pipeline_timeout:.0f}s "
-            f"(missing: {', '.join(missing_conversations)})."
+            f"produced facts within {pipeline_timeout:.0f}s drain "
+            f"({drain_note}; missing: {', '.join(missing_conversations)})."
         )
 
     return CheckResult(

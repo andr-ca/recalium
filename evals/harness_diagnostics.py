@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
+import os
+import time
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Set, Tuple
 
 
@@ -154,3 +157,65 @@ async def fetch_archive_rows_for_ids(
     except Exception:
         pass
     return rows
+
+
+async def wait_for_archive_pipeline_drain(
+    client: Any,
+    base_url: str,
+    archive_ids: Sequence[str],
+    *,
+    timeout_s: float,
+    poll_interval_s: float = 2.0,
+) -> Tuple[bool, List[Dict[str, Any]]]:
+    """
+    Poll until every archive ID has left the Processing state (Done or Failed).
+
+    Returns (drained, archive_rows_for_ids). drained is False when timeout expires
+    while any target archive is still Processing.
+    """
+    if not archive_ids:
+        return True, []
+
+    wanted = set(archive_ids)
+    deadline = time.monotonic() + timeout_s
+    rows: List[Dict[str, Any]] = []
+
+    while time.monotonic() < deadline:
+        rows = await fetch_archive_rows_for_ids(client, base_url, archive_ids)
+        by_id = {row.get("id"): row for row in rows}
+        if wanted.issubset(by_id.keys()):
+            badges = [by_id[aid].get("status_badge") for aid in archive_ids]
+            if all(b != "Processing" for b in badges):
+                return True, rows
+        await asyncio.sleep(poll_interval_s)
+
+    rows = await fetch_archive_rows_for_ids(client, base_url, archive_ids)
+    return False, rows
+
+
+async def resolve_pipeline_timeout_s(
+    client: Any,
+    base_url: str,
+    *,
+    default_s: float = 300.0,
+) -> float:
+    """
+    Pipeline drain timeout. Honors EVAL_PIPELINE_TIMEOUT_S when set; otherwise
+    uses default_s, with a longer profile when only Ollama is configured (local
+    extraction is slower under queued jobs).
+    """
+    if "EVAL_PIPELINE_TIMEOUT_S" in os.environ:
+        return float(os.environ["EVAL_PIPELINE_TIMEOUT_S"])
+
+    try:
+        keys_resp = await client.get(f"{base_url}/api/settings/keys", timeout=5.0)
+        if keys_resp.status_code == 200:
+            providers = keys_resp.json()
+            ollama = providers.get("ollama", {}).get("configured")
+            openai = providers.get("openai", {}).get("configured")
+            anthropic = providers.get("anthropic", {}).get("configured")
+            if ollama and not openai and not anthropic:
+                return max(default_s, 600.0)
+    except Exception:
+        pass
+    return default_s

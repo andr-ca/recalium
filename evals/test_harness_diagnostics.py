@@ -185,7 +185,19 @@ async def test_extraction_fails_when_conversation_coverage_incomplete(monkeypatc
         resp = MagicMock()
         if "/api/settings/keys" in url:
             resp.status_code = 200
-            resp.json.return_value = {"ollama": {"configured": True}}
+            resp.json.return_value = {
+                "ollama": {"configured": True},
+                "openai": {"configured": False},
+                "anthropic": {"configured": False},
+            }
+        elif "/api/archive" in url:
+            resp.status_code = 200
+            resp.json.return_value = {
+                "items": [
+                    {"id": "arch-a", "status_badge": "Done"},
+                    {"id": "arch-b", "status_badge": "Done"},
+                ],
+            }
         elif "/api/facts" in url:
             resp.status_code = 200
             resp.json.return_value = {
@@ -210,3 +222,51 @@ async def test_extraction_fails_when_conversation_coverage_incomplete(monkeypatc
     assert "conv-b" in result.details
     assert result.metrics["count_conversations"] == 1
     assert result.metrics["count_conversations_expected"] == 2
+
+
+@pytest.mark.asyncio
+async def test_wait_for_archive_pipeline_drain_completes_when_not_processing():
+    from evals.harness_diagnostics import wait_for_archive_pipeline_drain
+
+    client = AsyncMock()
+
+    async def mock_get(url, *args, **kwargs):
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.json.return_value = {
+            "items": [
+                {"id": "a1", "status_badge": "Done"},
+                {"id": "a2", "status_badge": "Failed"},
+            ],
+        }
+        return resp
+
+    client.get = mock_get
+    drained, rows = await wait_for_archive_pipeline_drain(
+        client, "http://localhost:8000", ["a1", "a2"], timeout_s=5.0,
+    )
+    assert drained
+    assert len(rows) == 2
+
+
+@pytest.mark.asyncio
+async def test_resolve_pipeline_timeout_ollama_only_default_600(monkeypatch):
+    from evals.harness_diagnostics import resolve_pipeline_timeout_s
+
+    monkeypatch.delenv("EVAL_PIPELINE_TIMEOUT_S", raising=False)
+
+    client = AsyncMock()
+    keys_resp = MagicMock()
+    keys_resp.status_code = 200
+    keys_resp.json.return_value = {
+        "ollama": {"configured": True},
+        "openai": {"configured": False},
+        "anthropic": {"configured": False},
+    }
+
+    async def mock_get(url, *args, **kwargs):
+        return keys_resp
+
+    client.get = mock_get
+    timeout = await resolve_pipeline_timeout_s(client, "http://localhost:8000")
+    assert timeout == 600.0
