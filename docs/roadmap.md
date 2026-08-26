@@ -1,7 +1,7 @@
 # Recalium Product Roadmap
 
 **Status:** Living document — reviewed at each milestone close, changed via PR
-**Last updated:** 2026-07-17
+**Last updated:** 2026-08-26
 **Audience:** Contributors and users deciding what Recalium is, what works today, and what comes next
 
 This is the forward-looking product view. It does not replace the sources of truth it is built from:
@@ -44,7 +44,7 @@ Quality and evidence state:
 - **Eval suite** (`evals/`): 5 checks (ingest, extraction, retrieval, sensitivity, mcp) against frozen thresholds. Ingest/retrieval/sensitivity/mcp pass; **extraction is borderline** — the latest fresh measurements (2026-07-17, two identical back-to-back runs) show recall 0.583 (gate ≥0.60, failing) / precision 0.717 (gate ≥0.70, passing), while the best historical run (prompt-iteration 7 in the [extraction failure analysis](operational/tests/2026-07-17-extraction-failure-analysis.md)) measured recall 0.774 / precision 0.617. The [determinism audit](operational/tests/2026-07-17-determinism-and-golden-coverage-audit.md) attributes that gap to prompt/model-state drift between measurement dates, not eval noise — which is itself part of why M2 exists. Tracked in issue #13.
 - **Performance:** ingest P95 ~18 ms (SLA ≤1 s), hybrid search P95 ~175 ms (SLA ≤2 s), restore worst case 3.11 s (SLA ≤15 min).
 - **Accessibility:** all 9 routes WCAG 2.2 AA, core workflows keyboard-operable (RR-011 evidence doc).
-- **Release readiness:** 7 of 14 gap-register rows closed with cited evidence (RR-006, 007, 008, 009, 011, 012, 013); 7 remain open (RR-001, 002, 003, 004, 005, 010, 014).
+- **Release readiness:** all 14 gap-register rows closed with cited evidence as of 2026-08-26 (RR-001–RR-014).
 
 Note on `recommendations.md` §3: its "v1.2 Quality Improvements" list (F1, F2, F4, F7, F8) was pulled forward and already shipped — see `recommendations-update.md`. The v1.2 milestone below is therefore *not* that list; it is the MCP-evolution work from ADR 0001.
 
@@ -59,7 +59,7 @@ Note on `recommendations.md` §3: its "v1.2 Quality Improvements" list (F1, F2, 
 | Item | What "done" means |
 | --- | --- |
 | RR-001 startup docs | Verify `docs/guides/local-use-and-test.md` + README cover clean-checkout start/use/test/troubleshoot end to end, then close the row with evidence (the guide exists; the row predates it) |
-| RR-002 / RR-005 UI evidence | Expand keyboard/E2E evidence for nav and review-queue workflows to the same standard RR-011 set for the rest of the UI |
+| RR-002 / RR-005 UI evidence | ✅ Closed 2026-08-26 — audit mapped nav + review-queue coverage to RR-011 suite; evidence in `docs/operational/validations/2026-08-26-rr002-rr005-ui-evidence-audit.md` |
 | RR-003 / RR-004 facts lifecycle | ✅ Closed 2026-08-26 — audit confirmed API, UI, audit events, and retrieval filtering; evidence in `docs/operational/validations/2026-08-26-rr003-rr004-facts-lifecycle-audit.md` |
 | RR-010 MCP resources & live coverage | ✅ M1 live-client evidence closed 2026-08-26 (`test_mcp_live_client.py`, 7 tests). MCP *resources* remain M3. |
 | RR-014 evidence matrix | ✅ Published 2026-07-24: all 47 acceptance criteria mapped to verified test/code evidence (40 evidenced, 4 partial, 3 gaps, none release-blocking) — see `docs/operational/validations/recalium-v1-acceptance-criteria-evidence-matrix.md` |
