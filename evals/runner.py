@@ -32,6 +32,7 @@ from evals.checks.eval_mcp import run_check as run_mcp_check
 from evals.checks.eval_scale import run_check as run_scale_check
 from evals.aggregate import aggregate_check_results
 from evals.report import ReportWriter
+from evals.preflight import preflight_extraction_provider
 
 
 async def load_golden_dataset(golden_path: str = "evals/datasets/golden.json") -> Dict[str, Any]:
@@ -241,6 +242,13 @@ Examples:
             sys.exit(1)
 
         print("✓ OK\n")
+
+        ok, preflight_msg = await preflight_extraction_provider(client, args.base_url)
+        if not ok:
+            print(f"Preflight FAILED: {preflight_msg}")
+            print("\nFix the extraction provider configuration before running evals.")
+            sys.exit(1)
+        print(f"Preflight: {preflight_msg}\n")
 
         # Run all checks, once or N times for averaging
         raw_runs: List[List[CheckResult]] = []

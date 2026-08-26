@@ -1,0 +1,156 @@
+"""Eval harness diagnostics — classify pipeline failures vs gate blocks."""
+
+from __future__ import annotations
+
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Set, Tuple
+
+
+PIPELINE_FAILURE_MARKERS = (
+    "404",
+    "not found",
+    "HTTPStatusError",
+    "Cannot reach",
+    "timed out",
+    "Connection refused",
+    "model",
+)
+
+
+def classify_zero_extraction(
+    control_archive_ids: Sequence[str],
+    gate_events: Mapping[str, Mapping[str, Any]],
+    archive_rows: Sequence[Mapping[str, Any]],
+) -> Tuple[str, str]:
+    """
+    Classify why control conversations produced zero extracted facts.
+
+    Returns (category, detail_message).
+    Categories: provider_pipeline_failure | gate_blocked | inconclusive
+    """
+    control_set: Set[str] = set(control_archive_ids)
+    control_gate = [
+        gate_events[aid]
+        for aid in control_archive_ids
+        if aid in gate_events
+    ]
+
+    if control_gate and all(m.get("blocked") is True for m in control_gate):
+        return (
+            "gate_blocked",
+            "Sensitivity gate blocked all control conversations (audit events show blocked=True).",
+        )
+
+    if control_gate and any(m.get("blocked") is False for m in control_gate):
+        pipeline_detail = _pipeline_errors_for_archives(archive_rows, control_set)
+        if pipeline_detail:
+            return ("provider_pipeline_failure", pipeline_detail)
+        return (
+            "provider_pipeline_failure",
+            "Gate allowed control conversations (blocked=False) but no facts were extracted — "
+            "check extraction provider, model availability, and pipeline job errors.",
+        )
+
+    pipeline_detail = _pipeline_errors_for_archives(archive_rows, control_set)
+    if pipeline_detail:
+        return ("provider_pipeline_failure", pipeline_detail)
+
+    return (
+        "inconclusive",
+        "No gate audit events and no facts extracted — cannot distinguish gate vs pipeline failure.",
+    )
+
+
+def _pipeline_errors_for_archives(
+    archive_rows: Sequence[Mapping[str, Any]],
+    archive_ids: Set[str],
+) -> Optional[str]:
+    errors: List[str] = []
+    for row in archive_rows:
+        aid = row.get("id")
+        if aid not in archive_ids:
+            continue
+        badge = row.get("status_badge") or row.get("job_status")
+        err = row.get("job_error") or row.get("error_message") or ""
+        if badge == "Failed" and err:
+            errors.append(err)
+        elif err and any(m in err.lower() for m in ("404", "not found", "model")):
+            errors.append(err)
+
+    for err in errors:
+        lower = err.lower()
+        if any(marker.lower() in lower for marker in PIPELINE_FAILURE_MARKERS):
+            return f"Pipeline job failure: {err[:200]}"
+
+    if errors:
+        return f"Pipeline job failure: {errors[0][:200]}"
+    return None
+
+
+async def fetch_gate_events(
+    client: Any,
+    base_url: str,
+) -> Dict[str, Dict[str, Any]]:
+    """Map raw_archive_id → sensitivity_gate operation_metadata."""
+    gate_events: Dict[str, Dict[str, Any]] = {}
+    try:
+        audit_resp = await client.get(
+            f"{base_url}/api/audit/events",
+            params={"event_type": "sensitivity_gate", "limit": 200},
+            timeout=10.0,
+        )
+        if audit_resp.status_code == 200:
+            for ev in audit_resp.json().get("items", []):
+                aid = ev.get("raw_archive_id")
+                if aid:
+                    gate_events[aid] = ev.get("operation_metadata") or {}
+    except Exception:
+        pass
+    return gate_events
+
+
+async def count_facts_for_archives(
+    client: Any,
+    base_url: str,
+    archive_ids: Sequence[str],
+) -> int:
+    if not archive_ids:
+        return 0
+    wanted = set(archive_ids)
+    try:
+        facts_resp = await client.get(
+            f"{base_url}/api/facts",
+            params={"limit": 500},
+            timeout=10.0,
+        )
+        if facts_resp.status_code != 200:
+            return 0
+        data = facts_resp.json()
+        facts = data.get("facts", data.get("items", []))
+        return sum(1 for f in facts if f.get("raw_archive_id") in wanted)
+    except Exception:
+        return 0
+
+
+async def fetch_archive_rows_for_ids(
+    client: Any,
+    base_url: str,
+    archive_ids: Sequence[str],
+) -> List[Dict[str, Any]]:
+    """Fetch archive list rows matching the given IDs (best-effort)."""
+    if not archive_ids:
+        return []
+    wanted = set(archive_ids)
+    rows: List[Dict[str, Any]] = []
+    try:
+        resp = await client.get(
+            f"{base_url}/api/archive",
+            params={"limit": 500},
+            timeout=10.0,
+        )
+        if resp.status_code == 200:
+            for item in resp.json().get("items", []):
+                if item.get("id") in wanted:
+                    rows.append(item)
+    except Exception:
+        pass
+    return rows
