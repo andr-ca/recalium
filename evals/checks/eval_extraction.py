@@ -8,6 +8,11 @@ import os
 
 from evals.checks import CheckResult
 from evals.metrics import extraction_recall_and_precision, span_fidelity
+from evals.harness_diagnostics import (
+    classify_zero_extraction,
+    fetch_archive_rows_for_ids,
+    fetch_gate_events,
+)
 
 
 async def run_check(client: httpx.AsyncClient, golden: Dict[str, Any], settings: Dict[str, Any]) -> CheckResult:
@@ -55,6 +60,7 @@ async def run_check(client: httpx.AsyncClient, golden: Dict[str, Any], settings:
     # Ingest conversations and collect extracted facts
     extracted_facts_by_conv: Dict[str, List[Dict]] = {}
     golden_facts_by_conv: Dict[str, List[Dict]] = {}
+    all_control_archive_ids: List[str] = []
     pipeline_timeout = float(os.getenv("EVAL_PIPELINE_TIMEOUT_S", "300"))
 
     for conv in golden.get("conversations", []):
@@ -99,6 +105,8 @@ async def run_check(client: httpx.AsyncClient, golden: Dict[str, Any], settings:
                 if not archive_ids:
                     continue
 
+            all_control_archive_ids.extend(archive_ids)
+
             # Poll for extracted facts (LLM extraction is async and can be slow,
             # especially with local Ollama models processing a backlog)
             poll_interval = 5.0  # seconds
@@ -140,19 +148,26 @@ async def run_check(client: httpx.AsyncClient, golden: Dict[str, Any], settings:
             continue
 
     if not extracted_facts_by_conv or not golden_facts_by_conv:
+        gate_events = await fetch_gate_events(client, base_url)
+        archive_rows = await fetch_archive_rows_for_ids(
+            client, base_url, all_control_archive_ids,
+        )
+        category, detail = classify_zero_extraction(
+            all_control_archive_ids, gate_events, archive_rows,
+        )
+        if category == "gate_blocked":
+            skip_reason = "Sensitivity gate blocked control conversations (see details)"
+        elif category == "provider_pipeline_failure":
+            skip_reason = "Extraction pipeline failed — provider/model unreachable (see details)"
+        else:
+            skip_reason = "No extraction data — inconclusive (see details)"
         return CheckResult(
             name="extraction",
             passed=False,
             metrics={},
-            details=(
-                "No facts appeared for any control conversation despite a configured "
-                "provider and completed jobs. Most likely the sensitivity gate blocked "
-                "them (it blocks unclassified content by default and its decision is "
-                "not observable via API — F15/F22 in docs/recommendations.md). "
-                "Check server logs for 'Sensitivity gate: ... blocked=True'."
-            ),
+            details=detail,
             skipped=True,
-            skip_reason="No facts extracted for any conversation — likely gate-blocked (see details)",
+            skip_reason=skip_reason,
         )
 
     settings["extraction_worked"] = bool(extracted_facts_by_conv)

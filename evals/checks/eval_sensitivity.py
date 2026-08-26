@@ -7,6 +7,7 @@ from typing import Dict, Any
 import httpx
 
 from evals.checks import CheckResult
+from evals.harness_diagnostics import count_facts_for_archives
 
 
 async def run_check(client: httpx.AsyncClient, golden: Dict[str, Any], settings: Dict[str, Any]) -> CheckResult:
@@ -178,12 +179,32 @@ async def run_check(client: httpx.AsyncClient, golden: Dict[str, Any], settings:
         for ids in settings.get("ingested_archive_ids", {}).values()
         for aid in ids
     }
+    control_fact_count = await count_facts_for_archives(client, base_url, list(control_ids))
     sensitive_gate = [gate_events[a] for a in sensitive_archive_ids if a in gate_events]
     control_gate = [gate_events[a] for a in control_ids if a in gate_events]
 
     audit_observable = bool(sensitive_gate)
     sensitive_all_blocked = audit_observable and all(m.get("blocked") is True for m in sensitive_gate)
     control_some_allowed = any(m.get("blocked") is False for m in control_gate)
+
+    if audit_observable and control_fact_count == 0:
+        return CheckResult(
+            name="sensitivity",
+            passed=False,
+            metrics={
+                "block_verified": 0.0,
+                "control_allowed": 1.0 if control_some_allowed else 0.0,
+                "leaked_fact_count": float(len(leaked_facts)),
+                "control_fact_count": 0.0,
+                "sensitive_conversations_tested": float(ingest_ok),
+            },
+            details=(
+                "Inconclusive: zero facts exist for control conversations — cannot verify "
+                "differential gate behavior (vacuous pass prevented). Fix extraction pipeline first."
+            ),
+            skipped=True,
+            skip_reason="Zero facts in corpus — sensitivity check inconclusive",
+        )
 
     if audit_observable:
         # Primary: exact audit-based verification; leaked facts double-checked

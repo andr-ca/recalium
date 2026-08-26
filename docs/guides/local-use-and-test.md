@@ -30,6 +30,16 @@ This guide explains how to start Recalium locally, verify the app, use the UI, e
 
 Required local defaults are documented in [.env.sample](../../.env.sample).
 
+### Ollama for local extraction (no cloud keys)
+
+When using `OLLAMA_BASE_URL` without OpenAI/Anthropic keys:
+
+1. Install Ollama and pull the model named in `OLLAMA_MODEL` (default `llama3.2` in `.env.sample`).
+2. Verify with `ollama list` — the model name must match **exactly** (e.g. `qwen3.8:27b`, not `qwen3.5:4b` unless pulled).
+3. If extraction jobs fail with HTTP 404 on `/api/chat`, the configured model is missing — pull it or update `OLLAMA_MODEL`.
+
+The eval suite preflight (`evals/runner.py`) checks that the configured model exists before running checks.
+
 ## Start the backend and database
 
 From the repository root:
@@ -395,6 +405,12 @@ Failure conditions:
 - Use `/mcp/sse`, not only `/mcp`.
 - Confirm the app is bound to localhost.
 - In exposed mode, include the configured bearer token.
+
+### Extraction produces zero facts / strict eval fails
+
+- Confirm `OLLAMA_MODEL` matches an installed model (`ollama list`).
+- Check Archive for `Failed` items and `job_error` mentioning HTTP 404 on Ollama `/api/chat`.
+- Run `python3 evals/runner.py --strict` — preflight fails fast if the model is missing.
 
 ### Search returns no semantic results
 
