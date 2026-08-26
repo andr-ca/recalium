@@ -42,11 +42,7 @@ async def preflight_extraction_provider(
 
     ollama = providers.get("ollama", {})
     if ollama.get("configured"):
-        base = (ollama.get("base_url") or "").rstrip("/")
-        if not base:
-            return False, "Ollama is configured but base_url is empty in server settings."
-
-        probe_url = _ollama_probe_url(base)
+        base = (ollama.get("base_url") or "http://localhost:11434").rstrip("/")
         model = _expected_ollama_model()
         try:
             tags_resp = await client.get(f"{probe_url}/api/tags", timeout=10.0)
