@@ -1,0 +1,42 @@
+---
+description: Delegate product decisions to the product-owner subagent (Fable model) before committing to scope or priority.
+alwaysApply: true
+---
+
+# Product Owner Delegation
+
+Recalium has a persistent product owner subagent: **`product-owner`** (`.cursor/agents/product-owner.md`, model: Claude Fable 5).
+
+## When to spawn
+
+Before making or acting on a decision that affects **scope, priority, user value, release timing, or v1 constraints**, delegate to **`product-owner`**:
+
+- **Preferred:** spawn the `product-owner` subagent (`.cursor/agents/product-owner.md`) — Cursor uses its Fable model and readonly mode automatically.
+- **Explicit:** `/product-owner <decision question>` or "use the product-owner subagent to decide …"
+- Include in the prompt: the question, options considered, and paths to docs already read.
+
+Follow the PO's output format; do not substitute your own product guess.
+
+**Spawn product-owner for:**
+- in-scope vs defer / which milestone
+- priority when multiple valid work items compete
+- UX defaults, workflow shape, error-handling product behavior
+- release-readiness vs more polish
+- conflicts between requirements, roadmap, and gap register
+- whether to fix, defer, or document a quality gap
+
+**Do not spawn for:**
+- routine implementation matching existing architecture
+- linter/test fixes with obvious correct behavior
+- user gave an explicit, unambiguous product decision in the same thread
+
+## After the PO returns
+
+1. Present the **Decision** and **Rationale** to the user when the choice is material or irreversible.
+2. Execute per **Instructions for implementing agent**.
+3. If **Escalate to human: Yes**, stop and ask the user before implementing.
+4. Log durable product decisions via Recalium `ingest_memory` when they affect future sessions.
+
+## Do not substitute
+
+Do not guess product intent or expand scope silently. If unsure, spawn product-owner first.
