@@ -78,12 +78,17 @@ def _ollama_probe_url(base_url: str) -> str:
 
 
 def _expected_ollama_model() -> str:
-    """Read OLLAMA_MODEL from repo .env files (local eval) or process env."""
+    """Read OLLAMA_MODEL from env / repo .env files (local eval).
+
+    Order: process env → repo root .env (docker compose) → backend/.env (native dev).
+    """
+    if os.getenv("OLLAMA_MODEL"):
+        return os.getenv("OLLAMA_MODEL", "")
     repo_root = Path(__file__).resolve().parents[1]
-    for env_path in (repo_root / "backend" / ".env", repo_root / ".env"):
+    for env_path in (repo_root / ".env", repo_root / "backend" / ".env"):
         if env_path.is_file():
             for line in env_path.read_text().splitlines():
                 stripped = line.strip()
                 if stripped.startswith("OLLAMA_MODEL=") and not stripped.startswith("#"):
                     return stripped.split("=", 1)[1].strip().strip('"').strip("'")
-    return os.getenv("OLLAMA_MODEL") or "llama3.2"
+    return "llama3.2"

@@ -411,6 +411,8 @@ Failure conditions:
 - Confirm `OLLAMA_MODEL` matches an installed model (`ollama list`).
 - Check Archive for `Failed` items and `job_error` mentioning HTTP 404 on Ollama `/api/chat`.
 - Run `python3 evals/runner.py --strict` — preflight fails fast if the model is missing.
+- **INCOMPLETE COVERAGE** on extraction: the pipeline did not finish for all control conversations before the drain timeout. Local Ollama uses a 600s default drain when only Ollama is configured; override with `EVAL_PIPELINE_TIMEOUT_S` in the shell environment when running evals.
+- BYOK keys for Docker must live in the **repository root** `.env` (used by `docker compose`), not only `backend/.env`.
 
 ### Search returns no semantic results
 
