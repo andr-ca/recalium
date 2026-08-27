@@ -413,6 +413,7 @@ Failure conditions:
 - Run `python3 evals/runner.py --strict` — preflight fails fast if the model is missing.
 - **INCOMPLETE COVERAGE** on extraction: the pipeline did not finish for all control conversations before the drain timeout. Local Ollama uses a 600s default drain when only Ollama is configured; override with `EVAL_PIPELINE_TIMEOUT_S` in the shell environment when running evals.
 - BYOK keys for Docker must live in the **repository root** `.env` (used by `docker compose`), not only `backend/.env`.
+- **Closed-model control experiment (M2):** requires `OPENAI_API_KEY` in root `.env` plus `EXTRACT_PROVIDER=openai`; restart compose after editing. Procedure: [M2 closed-model runbook](../operational/validations/2026-08-27-m2-closed-model-control-runbook.md).
 
 ### Search returns no semantic results
 
