@@ -144,18 +144,26 @@ async def fetch_archive_rows_for_ids(
         return []
     wanted = set(archive_ids)
     rows: List[Dict[str, Any]] = []
-    try:
-        resp = await client.get(
-            f"{base_url}/api/archive",
-            params={"limit": 500},
-            timeout=10.0,
-        )
-        if resp.status_code == 200:
-            for item in resp.json().get("items", []):
-                if item.get("id") in wanted:
-                    rows.append(item)
-    except Exception:
-        pass
+
+    async def _collect_from_list(params: Dict[str, Any]) -> None:
+        try:
+            resp = await client.get(
+                f"{base_url}/api/archive",
+                params=params,
+                timeout=10.0,
+            )
+            if resp.status_code == 200:
+                for item in resp.json().get("items", []):
+                    item_id = item.get("id")
+                    if item_id in wanted and item_id not in {r.get("id") for r in rows}:
+                        rows.append(item)
+        except Exception:
+            pass
+
+    # Eval archives are tagged eval-*; scoped query avoids missing IDs in a long archive list.
+    await _collect_from_list({"q": "eval-", "limit": 200})
+    if not wanted.issubset({row.get("id") for row in rows}):
+        await _collect_from_list({"limit": 500})
     return rows
 
 
