@@ -34,7 +34,11 @@
 | Drain timeout | 600s (Ollama-only profile) |
 | Precision (subset) | 62.5% on 8 facts |
 
-**Interpretation:** Harness correctly reported `INCOMPLETE COVERAGE` (no silent subset pass). conv-002/004 still `Processing` after 600s — likely archive list pagination missed eval IDs during drain (fix in follow-up PR: scoped `eval-` query). Throughput limit on `qwen3.8:27b` may also require higher `EVAL_PIPELINE_TIMEOUT_S` once drain lookup is fixed.
+**Interpretation:** Harness correctly reported `INCOMPLETE COVERAGE` (no silent subset pass). conv-002/004 still `Processing` after 600s — archive list pagination missed eval IDs during drain (fixed in PR #53).
+
+## Archive-fix re-baseline (2026-08-27)
+
+After PR #53 + `EVAL_PIPELINE_TIMEOUT_S=900`: runs 2–3 achieved **3/3 coverage**; extraction still failed on **precision ~64%** (honest local-Ollama measurement). See [archive-fix evidence](./2026-08-27-m2-archive-fix-baseline-evidence.md).
 
 Closed-model control remains blocked until `OPENAI_API_KEY` is set in repo root `.env`.
 
