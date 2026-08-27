@@ -45,13 +45,13 @@ These are commitments, not preferences. Changing any of them requires explicit a
 
 The v1 feature build-out (planning phases 1–5) remains complete: ingest, async pipeline, hybrid retrieval, canonical memory, review queue, deletion cascade, backup/restore, wizard, audit, bundle v2, MCP tools.
 
-Current quality snapshot (2026-08-26 strict run, Ollama `qwen3.8:27b`):
+Current quality snapshot (2026-08-27 M2 cold-start baseline, Ollama `qwen3.8:27b`):
 
-- **Eval suite:** 5/5 strict — extraction recall 0.69 / precision 0.71; retrieval hybrid passes; sensitivity and MCP pass.
-- **Performance:** ingest P95 ~42 ms, retrieval P95 within SLA (see strict eval artifact).
+- **Eval suite:** `--strict --n-runs 3` — extraction recall ~0.70 / precision **0.6417** (stdev 0.0); **3/3** conversation coverage on all runs; retrieval/MCP/sensitivity pass. Evidence: [2026-08-27-m2-cold-start-baseline-evidence.md](operational/validations/2026-08-27-m2-cold-start-baseline-evidence.md).
+- **M1 GA snapshot (historical):** 2026-08-26 single-run strict 5/5 at recall 0.69 / precision 0.71 — measured before harness hardening; superseded for M2 quality claims.
 - **Accessibility:** 9 routes axe-clean after destructive-token fix (PR #48).
 
-**Next milestone:** M2 — extraction quality & eval trustworthiness (999.x unlock bar: recall ≥0.75, precision ≥0.80). Harness trustworthiness closed 2026-08-27 (PRs #50–54); **next:** closed-model control experiment (blocked: `OPENAI_API_KEY` in repo root `.env`).
+**Next milestone:** M2 — extraction quality & eval trustworthiness (999.x unlock bar: recall ≥0.75, precision ≥0.80). Harness trustworthiness closed 2026-08-27 (PRs #50–57); **sole remaining M2 step:** closed-model control experiment (blocked: `OPENAI_API_KEY` in repo root `.env`).
 
 ---
 
