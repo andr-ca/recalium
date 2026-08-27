@@ -21,19 +21,22 @@
 - Extraction check waits for **all** control archives once, then scores facts (replaces per-conversation sequential poll)
 - `resolve_pipeline_timeout_s()` — honors `EVAL_PIPELINE_TIMEOUT_S` when set; otherwise 300s default, **600s when only Ollama is configured**
 
-## Post-fix baseline
+## Post-fix baseline (completed 2026-08-27)
 
-After merge, run and record:
+**Artifact:** [report](../tests/artifacts/eval-m2-post-drain-baseline-2026-08-26/2026-08-27T00-24-36.812702/report.md)
 
-```bash
-python3 evals/runner.py --strict --n-runs 3 \
-  --base-url http://localhost:8000 \
-  --output-dir docs/operational/tests/artifacts/eval-m2-post-drain-baseline-2026-08-26
-```
+**Result:** FAILED — extraction and retrieval failed all 3 runs.
 
-Success criterion: **3/3 control conversations** on every run (`count_conversations` = `count_conversations_expected` = 3).
+| Metric | Value |
+|--------|-------|
+| `count_conversations` | 1/3 every run (conv-001 only) |
+| Missing | conv-002, conv-004 |
+| Drain timeout | 600s (Ollama-only profile) |
+| Precision (subset) | 62.5% on 8 facts |
 
-Artifact path will be linked here when the run completes.
+**Interpretation:** Harness correctly reported `INCOMPLETE COVERAGE` (no silent subset pass). conv-002/004 still `Processing` after 600s — likely archive list pagination missed eval IDs during drain (fix in follow-up PR: scoped `eval-` query). Throughput limit on `qwen3.8:27b` may also require higher `EVAL_PIPELINE_TIMEOUT_S` once drain lookup is fixed.
+
+Closed-model control remains blocked until `OPENAI_API_KEY` is set in repo root `.env`.
 
 ## Anthropic determinism A/B
 
