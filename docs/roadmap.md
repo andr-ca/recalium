@@ -51,7 +51,7 @@ Current quality snapshot (2026-08-26 strict run, Ollama `qwen3.8:27b`):
 - **Performance:** ingest P95 ~42 ms, retrieval P95 within SLA (see strict eval artifact).
 - **Accessibility:** 9 routes axe-clean after destructive-token fix (PR #48).
 
-**Next milestone:** M2 — extraction quality & eval trustworthiness (999.x unlock bar: recall ≥0.75, precision ≥0.80). First M2 item per PO: closed-model control experiment; eval skip-reason / vacuous-sensitivity fixes logged from M1 strict run.
+**Next milestone:** M2 — extraction quality & eval trustworthiness (999.x unlock bar: recall ≥0.75, precision ≥0.80). Harness trustworthiness closed 2026-08-27 (PRs #50–54); **next:** closed-model control experiment (blocked: `OPENAI_API_KEY` in repo root `.env`).
 
 ---
 
@@ -73,14 +73,16 @@ Current quality snapshot (2026-08-26 strict run, Ollama `qwen3.8:27b`):
 | Extraction gate (#13) | ✅ Root cause found and fixed 2026-07-21: the commit that claimed "77.38% recall achieved" (785d40d) never actually shipped that prompt — it shipped a stricter-scope variant the same analysis had already measured as a regression. Restoring the minimal, scan-all-text prompt (dropping the `SCOPE:`/`STRATEGY:` guardrail block) re-measured at recall 0.6706 (gate ≥0.60, **passing**), precision 0.75 (gate ≥0.70, **passing**), no cross-conversation contamination observed. Gate is green |
 | Strict eval gate | ✅ Closed 2026-08-26 — `evals/runner.py --strict` 5/5; evidence in `docs/operational/validations/2026-08-26-m1-strict-eval-evidence.md` |
 
-### M2 — v1.1: extraction quality & eval trustworthiness *(Next)*
+### M2 — v1.1: extraction quality & eval trustworthiness *(In progress)*
 
 **Goal:** make the extraction number one we believe, then reach the **backlog-unlock bar: recall ≥0.75 and precision ≥0.80** (a deliberately higher bar than the ≥0.60/≥0.70 release gates — it gates the 999.x synthesis features, which compound extraction errors if built on a weak base).
 
-- **Eval-trustworthiness (from M1 strict run):** fix extraction skip-reason misattribution when provider fails; harden sensitivity check against vacuous pass on empty corpus.
+**Current quality snapshot (honest measurement, 2026-08-27):** local Ollama `qwen3.8:27b`, 3/3 control-conversation coverage on runs 2–3 of `--strict --n-runs 3` — extraction precision **~64%** (fails 70% release gate); recall ~70%; retrieval/MCP/sensitivity pass. Evidence: `docs/operational/validations/2026-08-27-m2-archive-fix-baseline-evidence.md`. M1 strict snapshot (0.71 precision) was measured before harness hardening exposed subset-scoring bias.
+
+- **Eval-trustworthiness (from M1 strict run):** ✅ Closed 2026-08-27 — skip-reason classification, sensitivity vacuous-pass guard, Ollama preflight, incomplete-coverage failure, pipeline drain, scoped archive fetch (PRs #50–54). Baselines recorded as measured; no reruns to chase green.
 - **Golden-set completeness:** ✅ Resolved 2026-07-23: re-enumerated all 4 conversations against their raw text — conv-001 ~100%, conv-002 ~92–100%, conv-004 ~100%, all comfortably above the ≥85% target. conv-003 sits at ~80%; **policy decision:** don't pad it further, since it carries personal/relationship-tagged facts and is entirely excluded from extraction scoring (`evals/checks/eval_extraction.py` skips any conversation with a personal/relationship golden fact) — its coverage percentage has zero effect on gate reliability, so chasing 85% there would just mean cataloging more synthetic personal-health detail for no measurable benefit. Golden facts are authored by exhaustive manual enumeration of the source, never from model output.
 - **Eval methodology hardening:** ✅ N-run averaged mode with variance reporting landed 2026-07-23 (`evals/runner.py --n-runs N`, mean + stdev per metric, "passed" requires every run to sustain the gate). Smoke-tested with `--n-runs 2` against the post-fix extraction prompt: stdev 0.0 across every metric, reconfirming Ollama determinism through the tool itself. Determinism is confirmed for the OpenAI/Ollama paths (bit-for-bit identical A/B runs, 2026-07-17); Anthropic's `temperature=0` pin landed 2026-07-20 (all 3 call sites) — still needs its own A/B determinism confirmation run (blocked: no `ANTHROPIC_API_KEY` configured locally).
-- **Closed-model control experiment:** one measured run with a GPT-4-class `EXTRACT_PROVIDER` to locate the quality ceiling — answers whether the gap is the local model or the method.
+- **Closed-model control experiment:** **Next, blocked on key** — one measured run with a GPT-4-class `EXTRACT_PROVIDER` to locate the quality ceiling (model vs method). Runbook: `docs/operational/validations/2026-08-27-m2-closed-model-control-runbook.md`. Requires `OPENAI_API_KEY` in **repo root** `.env` + compose restart.
 - **Chunk-metadata spike** (conversation title/sequence/speaker headers on chunks): design-first, and only if the gates are still unmet after the above — measurement before architecture.
 - **Deduplication stays exact-match** unless a change is proven on the eval. (A fuzzy-paraphrase dedup was tried and rejected 2026-07-17: zero measured improvement, and ≥60% content-word overlap falsely merged genuinely distinct facts.)
 

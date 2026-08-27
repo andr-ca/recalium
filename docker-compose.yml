@@ -58,6 +58,11 @@ services:
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-}
       OLLAMA_API_KEY: ${OLLAMA_API_KEY:-}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2}
+      SUMMARIZE_MODEL: ${SUMMARIZE_MODEL:-auto}
+      EXTRACT_MODEL: ${EXTRACT_MODEL:-auto}
+      SUMMARIZE_PROVIDER: ${SUMMARIZE_PROVIDER:-auto}
+      EXTRACT_PROVIDER: ${EXTRACT_PROVIDER:-auto}
+      EMBED_PROVIDER: ${EMBED_PROVIDER:-sentence-transformers}
     ports:
       # Bind to localhost only — prevents accidental LAN exposure
       - "127.0.0.1:${APP_PORT:-8000}:8000"
