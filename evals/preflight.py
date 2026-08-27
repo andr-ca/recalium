@@ -70,6 +70,57 @@ async def preflight_extraction_provider(
     return True, "Provider preflight OK"
 
 
+async def warmup_ollama_for_eval(
+    client: httpx.AsyncClient,
+    base_url: str,
+) -> Tuple[bool, str]:
+    """
+    Load the configured Ollama model into memory before eval runs.
+
+    Cold-start model load can consume most of the pipeline drain window on run 1,
+    leaving later conversations incomplete. A tiny /api/chat warms the model so
+    extraction jobs start against a loaded instance.
+    """
+    try:
+        keys_resp = await client.get(f"{base_url}/api/settings/keys", timeout=5.0)
+        if keys_resp.status_code != 200:
+            return True, "Warmup skipped (keys unavailable)"
+        payload = keys_resp.json()
+        providers = payload if isinstance(payload, dict) else {}
+    except Exception as exc:
+        return True, f"Warmup skipped: {exc}"
+
+    ollama = providers.get("ollama", {})
+    openai = providers.get("openai", {}).get("configured")
+    anthropic = providers.get("anthropic", {}).get("configured")
+    if not ollama.get("configured") or openai or anthropic:
+        return True, "Warmup skipped (not Ollama-only)"
+
+    probe_url = _ollama_probe_url((ollama.get("base_url") or "http://localhost:11434").rstrip("/"))
+    model = _expected_ollama_model()
+    try:
+        chat_resp = await client.post(
+            f"{probe_url}/api/chat",
+            json={
+                "model": model,
+                "messages": [{"role": "user", "content": "Reply with the single word: ok"}],
+                "stream": False,
+                "keep_alive": "30m",
+            },
+            timeout=300.0,
+        )
+        if chat_resp.status_code != 200:
+            return (
+                False,
+                f"Ollama warmup failed for model '{model}' "
+                f"(HTTP {chat_resp.status_code} at {probe_url})",
+            )
+    except httpx.RequestError as exc:
+        return False, f"Ollama warmup failed at {probe_url}: {exc}"
+
+    return True, f"Ollama model '{model}' warm"
+
+
 def _ollama_probe_url(base_url: str) -> str:
     """Map container-internal Ollama URLs to localhost when probing from the host."""
     if base_url.startswith("http://172.") or base_url.startswith("http://192.168."):

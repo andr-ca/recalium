@@ -1,12 +1,15 @@
 """Ingest latency and success rate evaluation."""
 
-import asyncio
 import time
 from typing import Dict, Any
 import httpx
 
 from evals.checks import CheckResult
 from evals.metrics import latency_percentiles
+from evals.harness_diagnostics import (
+    resolve_pipeline_timeout_s,
+    wait_for_eval_archives_drain,
+)
 
 
 async def run_check(client: httpx.AsyncClient, golden: Dict[str, Any], settings: Dict[str, Any]) -> CheckResult:
@@ -31,6 +34,13 @@ async def run_check(client: httpx.AsyncClient, golden: Dict[str, Any], settings:
     failures = 0
 
     base_url = settings.get("base_url", "http://localhost:8000")
+
+    # Drain leftover eval pipeline work before soft-delete/re-ingest so a new
+    # run does not compete with prior-run jobs (run-1 cold-start coverage gap).
+    drain_timeout = await resolve_pipeline_timeout_s(client, base_url)
+    await wait_for_eval_archives_drain(
+        client, base_url, timeout_s=min(drain_timeout, 120.0),
+    )
 
     # Idempotency: soft-delete leftovers from previous eval runs first, so
     # relevance labels (this run's archive IDs) aren't shadowed by identical
