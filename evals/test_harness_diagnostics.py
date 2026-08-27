@@ -250,7 +250,7 @@ async def test_wait_for_archive_pipeline_drain_completes_when_not_processing():
 
 
 @pytest.mark.asyncio
-async def test_resolve_pipeline_timeout_ollama_only_default_600(monkeypatch):
+async def test_resolve_pipeline_timeout_ollama_only_default_900(monkeypatch):
     from evals.harness_diagnostics import resolve_pipeline_timeout_s
 
     monkeypatch.delenv("EVAL_PIPELINE_TIMEOUT_S", raising=False)
@@ -269,4 +269,60 @@ async def test_resolve_pipeline_timeout_ollama_only_default_600(monkeypatch):
 
     client.get = mock_get
     timeout = await resolve_pipeline_timeout_s(client, "http://localhost:8000")
-    assert timeout == 600.0
+    assert timeout == 900.0
+
+
+@pytest.mark.asyncio
+async def test_warmup_ollama_posts_chat_when_configured(monkeypatch):
+    from evals.preflight import warmup_ollama_for_eval
+
+    monkeypatch.setattr("evals.preflight._expected_ollama_model", lambda: "qwen3.8:27b")
+
+    client = AsyncMock()
+    keys_resp = MagicMock()
+    keys_resp.status_code = 200
+    keys_resp.json.return_value = {
+        "ollama": {"configured": True, "base_url": "http://172.23.0.1:11434"},
+        "openai": {"configured": False},
+        "anthropic": {"configured": False},
+    }
+    chat_resp = MagicMock()
+    chat_resp.status_code = 200
+
+    async def mock_get(url, *args, **kwargs):
+        return keys_resp
+
+    async def mock_post(url, *args, **kwargs):
+        assert "/api/chat" in url
+        assert kwargs["json"]["model"] == "qwen3.8:27b"
+        return chat_resp
+
+    client.get = mock_get
+    client.post = mock_post
+
+    ok, msg = await warmup_ollama_for_eval(client, "http://localhost:8000")
+    assert ok
+    assert "warm" in msg.lower() or "ok" in msg.lower()
+
+
+@pytest.mark.asyncio
+async def test_wait_for_eval_archives_drain_skips_when_none_processing():
+    from evals.harness_diagnostics import wait_for_eval_archives_drain
+
+    client = AsyncMock()
+
+    async def mock_get(url, *args, **kwargs):
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.json.return_value = {
+            "items": [
+                {"id": "a1", "source_name": "eval-conv-001", "status_badge": "Done"},
+            ],
+        }
+        return resp
+
+    client.get = mock_get
+    drained = await wait_for_eval_archives_drain(
+        client, "http://localhost:8000", timeout_s=5.0,
+    )
+    assert drained is True

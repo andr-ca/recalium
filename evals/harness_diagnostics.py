@@ -201,6 +201,41 @@ async def wait_for_archive_pipeline_drain(
     return False, rows
 
 
+async def wait_for_eval_archives_drain(
+    client: Any,
+    base_url: str,
+    *,
+    timeout_s: float,
+    poll_interval_s: float = 2.0,
+) -> bool:
+    """
+    Wait until no eval-* archive items are still Processing.
+
+    Used before soft-deleting eval leftovers so a new run does not compete with
+    leftover pipeline jobs from a prior run (cold-start coverage failure mode).
+    """
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        try:
+            resp = await client.get(
+                f"{base_url}/api/archive",
+                params={"q": "eval-", "limit": 200},
+                timeout=10.0,
+            )
+            if resp.status_code == 200:
+                items = [
+                    it
+                    for it in resp.json().get("items", [])
+                    if (it.get("source_name") or "").startswith("eval-")
+                ]
+                if not items or all(it.get("status_badge") != "Processing" for it in items):
+                    return True
+        except Exception:
+            pass
+        await asyncio.sleep(poll_interval_s)
+    return False
+
+
 async def resolve_pipeline_timeout_s(
     client: Any,
     base_url: str,
@@ -223,7 +258,7 @@ async def resolve_pipeline_timeout_s(
             openai = providers.get("openai", {}).get("configured")
             anthropic = providers.get("anthropic", {}).get("configured")
             if ollama and not openai and not anthropic:
-                return max(default_s, 600.0)
+                return max(default_s, 900.0)
     except Exception:
         pass
     return default_s

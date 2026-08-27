@@ -32,7 +32,7 @@ from evals.checks.eval_mcp import run_check as run_mcp_check
 from evals.checks.eval_scale import run_check as run_scale_check
 from evals.aggregate import aggregate_check_results
 from evals.report import ReportWriter
-from evals.preflight import preflight_extraction_provider
+from evals.preflight import preflight_extraction_provider, warmup_ollama_for_eval
 
 
 async def load_golden_dataset(golden_path: str = "evals/datasets/golden.json") -> Dict[str, Any]:
@@ -249,6 +249,13 @@ Examples:
             print("\nFix the extraction provider configuration before running evals.")
             sys.exit(1)
         print(f"Preflight: {preflight_msg}\n")
+
+        warm_ok, warm_msg = await warmup_ollama_for_eval(client, args.base_url)
+        if not warm_ok:
+            print(f"Warmup FAILED: {warm_msg}")
+            print("\nFix Ollama / model load before running evals.")
+            sys.exit(1)
+        print(f"Warmup: {warm_msg}\n")
 
         # Run all checks, once or N times for averaging.
         # Fresh settings per run so ingested_archive_ids / extraction_worked do not
